@@ -1,20 +1,11 @@
 /**
  * Lectures de la fiche d'équipe Paris sportifs (phase 23) : catégories, paris du jour avec leur capture, bilan
- * (`betSummary` du moteur), bookmakers et leurs identifiants (résumés seulement, jamais la valeur), adresse de
- * secours des captures, appels de cotes du mois. Aucune écriture, aucune file.
+ * (`betSummary` du moteur), appels de cotes du mois. Aucune écriture, aucune file.
  */
-import { betSummary, secretSummary, type BetSummaryRow, type SecretSummary } from "@linkaffipro/agents";
+import { betSummary, type BetSummaryRow } from "@linkaffipro/agents";
 import { prisma, type PrismaClient } from "@linkaffipro/db";
 import { currentMonth } from "./missions";
-import {
-  SCREENSHOT_PROXY_KEY,
-  bookmakerSecretKeys,
-  bookmakersToShow,
-  parseSportsSettings,
-  stringList,
-  type SportsSettings,
-  type SummaryBy,
-} from "./sports";
+import { parseSportsSettings, stringList, type SportsSettings, type SummaryBy } from "./sports";
 
 const db = () => prisma as unknown as PrismaClient;
 
@@ -147,56 +138,6 @@ export async function loadBetSummary(q: { from: Date; to: Date; by: SummaryBy })
   }
 }
 
-async function summaryOf(key: string): Promise<SecretSummary | null> {
-  return secretSummary(db(), key).catch(() => null);
-}
-
-export type BookmakerView = {
-  key: string;
-  login: SecretSummary | null;
-  password: SecretSummary | null;
-  lastTest: { at: Date; ok: boolean; message: string; assetId: string | null } | null;
-};
-
-/** Bookmakers connus et cités par les catégories, avec l'état de leurs identifiants et leur dernier test. */
-export async function loadBookmakers(categories: readonly BetCategoryView[]): Promise<BookmakerView[]> {
-  const keys = bookmakersToShow(categories.map((c) => c.bookmakers));
-  return Promise.all(
-    keys.map(async (key) => {
-      const k = bookmakerSecretKeys(key);
-      const [login, password, last] = await Promise.all([
-        summaryOf(k.login),
-        summaryOf(k.password),
-        prisma.auditLog
-          .findFirst({
-            where: { action: "agents.bookmaker_tested", entityType: "Bookmaker", entityId: key },
-            orderBy: { createdAt: "desc" },
-            select: { createdAt: true, metadata: true },
-          })
-          .catch(() => null),
-      ]);
-      const meta = (last?.metadata ?? {}) as Record<string, unknown>;
-      return {
-        key,
-        login,
-        password,
-        lastTest: last
-          ? {
-              at: last.createdAt,
-              ok: meta.ok === true,
-              message: typeof meta.message === "string" ? meta.message : "",
-              assetId: typeof meta.assetId === "string" ? meta.assetId : null,
-            }
-          : null,
-      };
-    }),
-  );
-}
-
-export async function loadProxySummary(): Promise<SecretSummary | null> {
-  return summaryOf(SCREENSHOT_PROXY_KEY);
-}
-
 /** Appels au fournisseur de cotes ce mois-ci (`AgentUsage` de l'équipe, poste `odds`). */
 export async function loadOddsCallsThisMonth(now: Date): Promise<number> {
   const row = await prisma.agentUsage.findUnique({
@@ -204,11 +145,4 @@ export async function loadOddsCallsThisMonth(now: Date): Promise<number> {
     select: { calls: true },
   });
   return row?.calls ?? 0;
-}
-
-/** Médias montrables d'une capture de test (aperçu après « Tester la connexion »). */
-export async function loadAssetMime(id: string): Promise<string | null> {
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return null;
-  const a = await prisma.mediaAsset.findUnique({ where: { id }, select: { mimeType: true, kind: true } });
-  return a?.kind ? a.mimeType : null;
 }

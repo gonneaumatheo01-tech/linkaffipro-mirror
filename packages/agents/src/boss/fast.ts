@@ -58,7 +58,6 @@ import { clarifyIsFor, clearClarify, readClarify } from "./resolve";
 import { explainAgainText, isBareNumber, isWhyFollowUp, pickOption, readKevinList } from "./choices";
 import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
-import { inspirationFastPath } from "./catalog-inspiration";
 import { montageFastPath } from "./catalog-montage";
 import { videoIaFastPath } from "./catalog-video-ia";
 import { analystsFastPath } from "./catalog-analysts";
@@ -348,8 +347,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     }
   }
 
-  // Phase 27 : numéros en réponse au choix d'inspiration (plus récent que toute autre question, jamais en « Répondre »
-  // à un autre message) ; « annule » juste après une application. Sans IA, admin seulement.
+  // Réponses rapides sans IA, admin seulement : « annule » d'un ordre, numéros de l'analyse du marché, montage.
   {
     const clarifyNow = await readClarify(deps);
     const listNow = await readKevinList(deps, { speaker: input.speaker ?? null, chatId: input.chat?.chatId ?? null });
@@ -365,19 +363,18 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
       const { status: _s, ...reply } = await runBossAction(deps, action, params, { actor, inputText: text, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
       return reply;
     };
-    const insp =
+    const quick =
       (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt })) ??
-      // Phase 29 : numéros en réponse au dernier choix de l'analyse du marché (plus récent que celui de l'inspiration).
+      // Phase 29 : numéros en réponse au dernier choix de l'analyse du marché.
       (word === null ? await analystsFastPath(deps, input, { otherQuestionAt, run }) : null) ??
-      (await inspirationFastPath(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt, run })) ??
       // Personne remplacée par une persona dans la vidéo reçue (« mets Léa à la place de la personne ») : avant le
       // montage, dont les consignes (« 15 secondes ») prendraient la phrase.
       (word === null ? await videoIaFastPath(deps, input, { run }) : null) ??
       // Phase 28 : réponses au montage vidéo (plan, aperçus, modifications, destination) et demandes claires, sans IA.
       (word !== "cancel" ? await montageFastPath(deps, input, { otherQuestionAt, run }) : null);
-    if (insp) {
-      await remember(deps, input, insp.reply, { actionKey: insp.actionKey, status: "done" });
-      return { handled: true, ...insp.reply };
+    if (quick) {
+      await remember(deps, input, quick.reply, { actionKey: quick.actionKey, status: "done" });
+      return { handled: true, ...quick.reply };
     }
   }
 
@@ -483,19 +480,6 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     if (howTo) {
       const r: BossReply = { reply: howTo };
       await remember(deps, input, r, { actionKey: "aide", status: "answered" });
-      return { handled: true, ...r };
-    }
-  }
-  // Identifiants des bookmakers proposés (« je peux te donner les identifiants de Sportaza », « bookmaker ») : la demande
-  // privée part tout de suite, sans IA (essai réel du 25 octobre : ces phrases tombaient dans « pas encore possible »).
-  const creds = credentialsOffer(text);
-  if (creds) {
-    const action = bossAction("identifiants_bookmakers");
-    if (action) {
-      if (!bossActionAllowed(action, input.speaker)) return { handled: true, reply: await notYoursReply(deps) };
-      const actor = await bossActorOf(deps, input.speaker);
-      const r = await action.execute(deps, { change: creds === "change" }, actor);
-      await remember(deps, input, r, { actionKey: action.key, status: "done" });
       return { handled: true, ...r };
     }
   }
@@ -613,23 +597,6 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   }
 
   return { handled: false, needsAi: true };
-}
-
-const BOOKMAKER_WORD = /\b(bookmakers?|bookmaker|sportaza|celsius|bet ?portal|bookies?)\b/;
-const CREDENTIAL_WORD = /\b(identifiants?|logins?|mots? de passe|mdp|acces|codes? d acces)\b/;
-
-/**
- * Offre d'identifiants des bookmakers (pur) : « bookmaker » ou « identifiants » seuls, ou une phrase courte qui parle à
- * la fois d'identifiants et d'un bookmaker. « nouveaux identifiants … » → `change`. Sinon null (une question sur les
- * matchs ou les cotes n'est jamais prise ici).
- */
-export function credentialsOffer(text: string): "give" | "change" | null {
-  const n = normalizeText(text).replace(/['’]/g, " ").replace(/[!.,?…:]+/g, " ").replace(/\s+/g, " ").trim();
-  if (!n || n.split(" ").length > 14) return null;
-  if (/^(bookmakers?|identifiants?|identifiants? bookmakers?)$/.test(n)) return "give";
-  if (!BOOKMAKER_WORD.test(n) || !CREDENTIAL_WORD.test(n)) return null;
-  if (/\b(cote|cotes|match|matchs|pari|paris|ce soir|demain|teste|tester|test|essaie|essayer|connecte|connecter)\b/.test(n)) return null;
-  return /\b(nouveaux?|nouvelles?|change|changer|chang[ée]s?|modifi)/.test(n) ? "change" : "give";
 }
 
 const GREETINGS = new Set(["salut", "bonjour", "bonsoir", "coucou", "hello", "hey", "yo", "slt", "cc", "wesh"]);

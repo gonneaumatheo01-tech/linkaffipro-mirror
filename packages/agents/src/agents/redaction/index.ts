@@ -11,7 +11,6 @@ import { missionExperimentOf } from "../experimentation/variants";
 import { loadCasinoOffer } from "../../casino/offer";
 import { casinoTemplateTexts, inspirationsFor } from "../../casino/templates";
 import { sportsRedaction } from "../../sports/steps";
-import { styleContextForChannel } from "../../inspiration/style";
 
 export const agent: AgentDefinition = {
   key: "redaction",
@@ -23,11 +22,9 @@ export const agent: AgentDefinition = {
     const channel = await loadChannel(ctx.prisma, mission.channelId);
     if (!channel) return { ok: false, error: "Canal de la mission introuvable.", retryable: false };
     const plan = await loadPlan(ctx.prisma, mission);
-    const [persona, recentPosts, styleProfile] = await Promise.all([
+    const [persona, recentPosts] = await Promise.all([
       loadPersona(ctx.prisma, personaIdOf(mission, plan)),
       recentChannelTexts(ctx.prisma, mission.channelId, mission.id),
-      // Phase 27 : profil de style du canal d'inspiration lié au canal visé (consignes seulement).
-      styleContextForChannel(ctx, mission.channelId),
     ]);
     const theme = (typeof mission.payload.theme === "string" ? mission.payload.theme : null) ?? (await nextTheme(ctx, mission.channelId, mission.id, plan.themes));
     const format = mission.payload.format ?? "text";
@@ -53,7 +50,6 @@ export const agent: AgentDefinition = {
         recentPosts,
         redoReason,
         channelStyleNotes: plan.styleNotes ?? null,
-        styleProfile,
         testStyle: testStyleOf(mission.payload),
         offer: offer ? { name: offer.name, facts: offer.facts } : null,
         inspirations,

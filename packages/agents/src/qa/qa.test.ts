@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { encrypt } from "@linkaffipro/core";
 import { createFakePrisma, type FakePrisma } from "../testing/fake-prisma";
-import { shingleHashes } from "../inspiration/copy-check";
+import { shingleHashes } from "../rules/copy-check";
 import { voiceCheck } from "../boss/voice";
 import { QA_MODEL, QA_REASON_CODES, type QaContentType, type QaDeps, type QaLlm } from "./contract";
 import { checkQaAlerts, QA_ALERT_TEXTS, QA_ALERTS_VARIANTS } from "./alerts";

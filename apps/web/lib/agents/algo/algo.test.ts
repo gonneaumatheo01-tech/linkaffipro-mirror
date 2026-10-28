@@ -224,7 +224,7 @@ describe("rapports et conversations", () => {
 });
 
 describe("phase 27 : propositions d'inspiration hors de la voie générique", () => {
-  it("une proposition `source = inspiration` est refusée par la voie générique (renvoi vers la page Inspiration)", async () => {
+  it("une proposition `source = inspiration` (fonction retirée) est refusée par la voie générique", async () => {
     const { genericRecommendationRefusal, INSPIRATION_ONLY_MESSAGE } = await import("./recommendations");
     expect(genericRecommendationRefusal({ source: "inspiration" })).toBe(INSPIRATION_ONLY_MESSAGE);
     expect(genericRecommendationRefusal({ source: "algo" })).toBeNull();

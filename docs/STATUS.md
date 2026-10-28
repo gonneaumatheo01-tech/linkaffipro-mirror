@@ -1,3 +1,26 @@
+# Statut — 28 octobre 2026 (nuit) : retrait des parties « Bookmakers » et « Inspiration » des agents
+
+## Fait
+- ✅ Agents → **Bookmakers** retiré : plus aucune lecture des sites (Celsius, Sportaza, Bet Portal), plus de captures automatiques, de navigateur, de proxy, d'identifiants bookmaker ni de programme du Mac. Les paris passent par « capture et cote envoyées par l'équipe » (ou cotes SportsGameOdds + image de repli validée).
+- ✅ Agents → **Inspiration** retiré : plus de lecture de canaux exemples, de profils de style ni de commandes de Kevin. Le lecteur des canaux publics reste pour la Prospection et les Analystes.
+- ✅ Données gardées en base (rien n'est effacé) ; anciennes adresses redirigées ; le worker efface au démarrage les tâches planifiées retirées et clôt les alertes bookmakers ouvertes.
+- ✅ Corrigé au passage : la recherche de prospects par compte réel n'utilise plus un compte avec persona ; le contrôle de code `aggregate-players.test.ts` passe.
+- ✅ Vérifié : typage et lint verts partout ; tests unitaires verts (agents 1 792, site 3 602, Telegram 605, worker 503, cœur 420, files 42, userbot 27) ; parité de Kevin : 0 manquante.
+
+## Reste
+- ⏳ Mise en ligne après accord du client : site, worker, puis userbot ; retrait du service du Mac `com.linkaffipro.bookmaker-runner`.
+- ⏳ Tests d'intégration (base réelle) : lancés par la CI de la demande de fusion.
+
+## Test de 5 minutes (après la mise en ligne)
+1. Ouvrir Agents : les onglets « Inspiration » et « Bookmakers » ont disparu.
+2. Ouvrir Agents → Paris sportifs → « Produire un pari de test » : le pari apparaît dans « Paris du jour » puis sur le canal Test.
+3. Écrire à Kevin « aide » : plus aucune commande de bookmaker ni d'inspiration.
+
+## Problèmes et actions humaines
+- Aucune.
+
+---
+
 # Statut — 28 octobre 2026 (soir) : Kevin met une persona à la place de la personne d'une vidéo
 
 ## Fait

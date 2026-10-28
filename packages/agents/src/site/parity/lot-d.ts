@@ -27,11 +27,6 @@ export const LOT_D_PARITY: Record<string, SiteParityEntry> = {
   // Paris sportifs
   [A("agents/[equipe]/sports-actions.ts", "saveBetCategoryAction")]: { op: "univers.categorie_paris_regler" },
   [A("agents/[equipe]/sports-actions.ts", "createTestBetAction")]: { op: "agents.pari_test" },
-  [A("agents/[equipe]/sports-actions.ts", "saveBookmakerCredentialsAction")]: { op: "univers.bookmaker_identifiants" },
-  [A("agents/[equipe]/sports-actions.ts", "deleteBookmakerCredentialsAction")]: { op: "univers.bookmaker_identifiants_retirer" },
-  [A("agents/[equipe]/sports-actions.ts", "testBookmakerConnectionAction")]: { op: "univers.bookmaker_tester_connexion" },
-  [A("agents/[equipe]/sports-actions.ts", "saveScreenshotProxyAction")]: { op: "univers.proxy_capture" },
-  [A("agents/[equipe]/sports-actions.ts", "deleteScreenshotProxyAction")]: { op: "univers.proxy_capture_retirer" },
   // Casino
   [A("agents/[equipe]/casino-actions.ts", "classifyCasinoMediaAction")]: { op: "univers.media_casino_classer" },
   [A("agents/[equipe]/casino-actions.ts", "createCasinoTestPostAction")]: { op: "agents.post_test_casino" },
@@ -54,22 +49,13 @@ export const LOT_D_PARITY: Record<string, SiteParityEntry> = {
   [A("agents/validations/actions.ts", "answerHumanRequestAction")]: { op: "agents.demande_repondre" },
   [A("agents/validations/actions.ts", "skipHumanRequestAction")]: { op: "agents.demande_passer" },
   [A("agents/validations/actions.ts", "relaunchHumanRequestAction")]: { op: "agents.demande_relancer" },
-  // Bookmakers
-  [A("agents/bookmakers/actions.ts", "testSiteAction")]: { op: "agents.bookmaker_tester" },
-  [A("agents/bookmakers/actions.ts", "relearnSiteAction")]: { op: "agents.bookmaker_reapprendre" },
-  [A("agents/bookmakers/actions.ts", "openBrowserAction")]: { op: "agents.bookmaker_navigateur" },
-  [A("agents/bookmakers/actions.ts", "setSiteUrlAction")]: { op: "agents.bookmaker_adresse" },
-  [A("agents/bookmakers/actions.ts", "setSiteTargetAction")]: { op: "agents.bookmaker_cible" },
-  [A("agents/bookmakers/actions.ts", "toggleSiteActiveAction")]: { op: "agents.bookmaker_activer" },
   // Agent Ads
   [A("agents/ads/actions.ts", "markAdsRecommendationAction")]: { op: "agents.ads_recommandation" },
   [A("agents/ads/actions.ts", "saveAdsThresholdsAction")]: { op: "agents.ads_seuils" },
   [A("agents/ads/actions.ts", "saveAdsAlertSettingsAction")]: { op: "agents.ads_alertes" },
-  // Ordres, inspiration, Kevin
+  // Ordres, Kevin
   [A("agents/orders/actions.ts", "stopOrderAction")]: { op: "agents.ordre_arreter" },
   [A("agents/orders/actions.ts", "extendOrderAction")]: { op: "agents.ordre_prolonger" },
-  [A("agents/inspiration/actions.ts", "undoInspirationAction")]: { op: "agents.inspiration_annuler" },
-  [A("agents/inspiration/actions.ts", "removeReferenceAction")]: { op: "agents.inspiration_retirer" },
   [A("agents/boss/actions.ts", "saveBossBudgetAction")]: { op: "agents.kevin_plafond" },
   [A("agents/boss/actions.ts", "saveBossNameAction")]: { op: "agents.kevin_prenom" },
   // Réglages → IA d'écriture et IA de conversation

@@ -1,7 +1,9 @@
 import { Queue, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { JOB_RETRY_OPTIONS, QUEUE_NAMES, QUEUE_PREFIX, recordJobFailure, type QueueName } from "@linkaffipro/queue";
+import { prisma } from "@linkaffipro/db";
 import { logger } from "./logger";
+import { cleanupRetired } from "./maintenance/retired";
 import { PROCESSORS } from "./processors/index";
 
 export { QUEUE_NAMES };
@@ -62,6 +64,14 @@ export function startQueues(): Runtime {
     }
   }
   logger.info({ queues: QUEUE_NAMES }, "files démarrées");
+  // Restes des fonctions retirées le 28 octobre 2026 (planifications, file, alertes ouvertes) : effacés une fois.
+  void cleanupRetired({
+    queueFor: (name) => {
+      const own = queues.get(name as QueueName);
+      return own ? { queue: own, owned: false } : { queue: new Queue(name, { connection, prefix: QUEUE_PREFIX }), owned: true };
+    },
+    db: prisma,
+  });
   return { connection, queues, workers };
 }
 

@@ -222,7 +222,7 @@ export function normalizePlannerOutput(raw: unknown, defaults: { startDay: strin
   }
   const questions = Array.isArray(raw.questions) ? raw.questions.map((q) => s(q, 240)).filter((q): q is string => !!q).slice(0, 1) : [];
   const asIf = s(raw.asIfTeamKey, 20);
-  const known = (TEAM_KEYS as readonly string[]).concat(["ads", "inspiration", "transverse"]);
+  const known = (TEAM_KEYS as readonly string[]).concat(["ads", "transverse"]);
   return {
     teamKey: teamRaw as OrderTeamKey,
     requestedTeam: known.includes(teamRaw) ? null : teamRaw,

@@ -272,25 +272,6 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
               </div>
             </div>
             <div className="space-y-3 border-t border-border pt-5 md:col-span-3">
-              <p className="text-body font-medium text-foreground">Bookmakers</p>
-              <p className="text-note text-muted-foreground">
-                Contrôle toutes les 30 minutes (jamais la nuit) ; Kevin dit en même temps quoi faire. Détail dans Agents → Bookmakers.
-              </p>
-              <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
-                {(
-                  [
-                    ["bookmaker_blocked", "Bookmaker qui ne se lit plus : contrôle anti-robot, code, mot de passe refusé ou 3 échecs de suite"],
-                    ["bookmaker_degraded", "Bookmaker qui se lit mal : moins de 90 % de lectures réussies sur 24 h"],
-                  ] as const
-                ).map(([kind, label]) => (
-                  <div key={kind} className="space-y-1">
-                    <p className="text-body text-foreground">{label}</p>
-                    <AlertSwitch kind={kind} checked={switches[kind]} />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-3 border-t border-border pt-5 md:col-span-3">
               <p className="text-body font-medium text-foreground">Analyse du marché</p>
               <p className="text-note text-muted-foreground">
                 Veille des forums, réseaux et actualités par l&apos;équipe Analystes. Détail dans Agents → Analyses.

@@ -2,7 +2,7 @@
  * Dépendances des agents dans le worker (phase 19) : base partagée, mise en file BullMQ (`createAgentsEnqueue`),
  * messager du dialogue admin (`createAdminMessenger`, seul identifiant admin), journal pino. Créées une fois.
  */
-import { bookmakerKevinHook, bookmakerTransportHooks, type AgentsDeps, type BookmakerReadDeps, type EngineDeps } from "@linkaffipro/agents";
+import type { AgentsDeps, EngineDeps } from "@linkaffipro/agents";
 import { prisma } from "@linkaffipro/db";
 import { createAgentsEnqueue, createAnalystsEnqueue, createMontageEnqueue, createProspectionEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger, createBossMediaIngest } from "@linkaffipro/telegram";
@@ -35,9 +35,6 @@ export function workerAgentsDeps(): EngineDeps {
   // Phase 34 : médias d'un message transféré à Kevin rangés dans la médiathèque avant l'essai à blanc.
   const ingest = createBossMediaIngest();
   deps.ingestForwardedMedia = (content) => ingest(deps, content);
-  // Bookmakers lus directement (phase 35) : transport choisi par site, verrou, rythme et messages de Kevin, pour
-  // l'équipe Paris (double lecture au Contrôle) comme pour Kevin (« la cote de … chez Sportaza ? »).
-  (deps as BookmakerReadDeps).bookmakers = { ...bookmakerTransportHooks(deps), onBookmakerEvent: bookmakerKevinHook(deps) };
   // Phase 28 : Kevin lance un montage, valide un plan ou fait refaire un short depuis le worker (vocal, interprète,
   // ordres) : la chaîne met ses tâches dans la file `agents-montage`.
   (deps as EngineDeps & { montage?: { enqueue: ReturnType<typeof createMontageEnqueue> } }).montage = { enqueue: createMontageEnqueue() };

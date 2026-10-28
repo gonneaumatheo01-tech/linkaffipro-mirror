@@ -32,7 +32,7 @@ export const ORDER_EXAMPLE =
 
 // ── Équipes et statuts ─────────────────────────────────────────────────────────────────────────────────────────────
 
-export const ORDER_TEAMS = ["dating", "casino", "sports", "algo", "ads", "inspiration", "transverse"] as const satisfies readonly OrderTeamKey[];
+export const ORDER_TEAMS = ["dating", "casino", "sports", "algo", "ads", "transverse"] as const satisfies readonly OrderTeamKey[];
 export type OrderTeam = (typeof ORDER_TEAMS)[number];
 
 export const ORDER_STATUSES = ["DRAFT", "WAITING_CONFIRM", "RUNNING", "DONE", "CANCELLED", "BLOCKED", "FAILED"] as const;
@@ -40,7 +40,6 @@ export type OrderStatusValue = (typeof ORDER_STATUSES)[number];
 
 const EXTRA_TEAM_NAMES: Record<string, string> = {
   ads: "Agent Ads",
-  inspiration: "Inspiration",
   transverse: "Toutes les équipes",
   // Équipes des phases 28 à 32 (affichées dès qu'un ordre ou une demande les vise).
   montage: "Montage",
@@ -373,7 +372,6 @@ const PARAM_LABELS: Record<string, string> = {
   durationDays: "Durée (jours)",
   setting: "Réglage",
   value: "Valeur",
-  referenceId: "Canal d'inspiration",
 };
 
 export function paramLabel(key: string): string {

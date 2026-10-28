@@ -322,23 +322,6 @@ export const PAGE_HELP: readonly PageHelp[] = [
     label: "Fiche d'un ordre",
     sections: ["Donner un ordre à une équipe", "Simulation, niveaux et pause"],
   },
-  // Phase 27 : canaux d'inspiration lus par Kevin (liste et fiche d'une référence).
-  {
-    path: "/agents/inspiration",
-    label: "Inspiration",
-    sections: ["S'inspirer d'un canal", "Ce qui marche (équipe Algorithme)"],
-  },
-  {
-    path: "/agents/inspiration/:id",
-    label: "Canal d'inspiration",
-    sections: ["S'inspirer d'un canal", "Annuler un réglage de l'équipe Algorithme"],
-  },
-  // Phase 35 : sites des bookmakers lus directement (état, lectures, gestes).
-  {
-    path: "/agents/bookmakers",
-    label: "Bookmakers",
-    sections: ["Bookmakers", "Équipe Paris sportifs : catégories, bookmaker et bilan"],
-  },
   // Phase 28 : équipe Montage (travaux, fiche d'un travail, médiathèque des shorts).
   {
     path: "/agents/montage",

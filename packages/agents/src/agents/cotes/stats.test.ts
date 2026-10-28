@@ -16,9 +16,8 @@ const replayFetch = (async (url: string | URL) => {
   return new Response(JSON.stringify(recorded.responses[`${u.pathname}${u.search}`] ?? { errors: [], response: [] }), { status: 200 });
 }) as typeof fetch;
 
-async function setup(site: { readTarget: string; status: string } | null) {
+async function setup() {
   const kit = createTestKit(new Date("2026-10-28T09:00:00Z"));
-  if (site) await kit.prisma.bookmakerSite.create({ data: { key: "celsius", label: "Celsius", isActive: true, ...site } as never });
   const category = await kit.prisma.betCategory.create({
     data: {
       key: "tirs-cadres",
@@ -40,9 +39,9 @@ async function setup(site: { readTarget: string; status: string } | null) {
   return { kit, mission, ctx };
 }
 
-describe("agent Cotes : site illisible → pari choisi sur statistiques, capture et cote demandées à l'équipe", () => {
-  it("bookmaker réglé « l'équipe envoie la capture » : pari sur statistiques, cote estimée, en attente de la capture", async () => {
-    const { kit, mission, ctx } = await setup({ readTarget: "human", status: "BLOCKED" });
+describe("agent Cotes : pari choisi sur statistiques, capture et cote demandées à l'équipe (sites jamais lus)", () => {
+  it("pari sur statistiques, cote estimée, en attente de la capture", async () => {
+    const { kit, mission, ctx } = await setup();
     const r = await agent.run(mission, ctx);
     expect(r.ok).toBe(true);
     expect(r.summary).toContain("capture et cote demandées à l'équipe (Celsius)");
@@ -56,12 +55,9 @@ describe("agent Cotes : site illisible → pari choisi sur statistiques, capture
     expect(r.output).toMatchObject({ pickId: pick.id, statsSource: true });
   });
 
-  it("cible : site lisible → lecture habituelle ; site absent ou bloqué → l'équipe envoie la capture", async () => {
-    const ready = await setup({ readTarget: "auto", status: "READY" });
-    expect(await humanOddsTarget(ready.kit.deps, { bookmakers: ["celsius"] })).toBeNull();
-    const blocked = await setup({ readTarget: "auto", status: "BLOCKED" });
-    expect(await humanOddsTarget(blocked.kit.deps, { bookmakers: ["celsius"] })).toEqual({ key: "celsius", label: "Celsius" });
-    const none = await setup(null);
-    expect(await humanOddsTarget(none.kit.deps, { bookmakers: ["sportaza"] })).toEqual({ key: "sportaza", label: "Sportaza" });
+  it("cible : le premier bookmaker de la catégorie ; catégorie sans bookmaker → aucune", () => {
+    expect(humanOddsTarget({ bookmakers: ["Celsius", "sportaza"] })).toEqual({ key: "celsius", label: "Celsius" });
+    expect(humanOddsTarget({ bookmakers: ["Bet Portal"] })).toEqual({ key: "betportal", label: "Bet Portal" });
+    expect(humanOddsTarget({ bookmakers: [] })).toBeNull();
   });
 });

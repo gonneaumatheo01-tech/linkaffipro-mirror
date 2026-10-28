@@ -3,7 +3,7 @@
  * doit passer `voiceCheck`.
  * 1. Les règles du contrôle (chaque règle repère son cas).
  * 2. Les couples avant / après de la charte : chaque « après » passe.
- * 3. Toutes les tables `*_VARIANTS` exportées par les modules de Kevin (boss/**, inspiration/kevin*) : chaque
+ * 3. Toutes les tables `*_VARIANTS` exportées par les modules de Kevin (boss/**) : chaque
  *    variante, rendue avec ses valeurs d'exemple, passe. Zéro échec.
  * 4. Parcours des littéraux des modules de Kevin : aucun texte de 4 mots ou plus avec une formule interdite, du
  *    vouvoiement ou du jargon interne (hors consignes envoyées à l'IA et blocs `voix-hors-charte`).
@@ -205,7 +205,7 @@ const KEVIN_ORDER_FILES = ["recap.ts", "request.ts", "reports.ts", "agent-order.
   join(SRC_DIR, "orders", f),
 );
 
-/** Autres textes envoyés par Kevin : commande « agents », rapport, questions au client, propositions d'inspiration. */
+/** Autres textes envoyés par Kevin : commande « agents », rapport, questions au client. */
 const KEVIN_SHARED_FILES = [
   "orchestrator/overview.ts",
   "orchestrator/overview-contract.ts",
@@ -213,8 +213,6 @@ const KEVIN_SHARED_FILES = [
   "orchestrator/overview-results.ts",
   "admin/report-command.ts",
   "human/requests.ts",
-  "inspiration/proposals.ts",
-  "inspiration/apply.ts",
   // Phase 28 : Kevin et le montage vidéo (réception, plan, aperçus, retours, crochets, vues).
   "montage/reception.ts",
   "montage/plan-message.ts",
@@ -224,10 +222,9 @@ const KEVIN_SHARED_FILES = [
   "montage/kevin-view.ts",
 ].map((f) => join(SRC_DIR, f));
 
-/** Modules de Kevin : tout `boss/`, les textes de Kevin de l'inspiration, ses ordres et ses textes partagés. */
+/** Modules de Kevin : tout `boss/`, ses ordres et ses textes partagés. */
 const KEVIN_FILES = [
   ...tsFiles(BOSS_DIR),
-  ...tsFiles(join(SRC_DIR, "inspiration"), (f) => /\/kevin[^/]*\.ts$/.test(f)),
   // Phase 29 : textes de Kevin pour l'équipe Analystes (réponses, alertes, sources, rapport, fiches des agents).
   ...tsFiles(join(SRC_DIR, "analysts"), (f) => /\/kevin[^/]*\.ts$/.test(f)),
   join(SRC_DIR, "orders", "capabilities", "analystes.ts"),

@@ -58,8 +58,6 @@ export async function runAlgoNightly(deps: AgentsDeps, opts: { full?: boolean } 
   // Agent Conversations (chantier B) : « à écrire » tant qu'il n'est pas livré, l'erreur est gardée dans le résultat.
   const conversations = (await part(deps, "conversations", out, () => computeConversationProfiles(deps, { days: 30 }))) ?? [];
   await part(deps, "experiments", out, () => experimentsState(deps));
-  // Phase 27 : bilan des inspirations appliquées (« avant / après » à 14 jours clos, tests clos → Kevin demande s'il garde).
-  await part(deps, "inspiration", out, async () => (await import("../inspiration/apply")).inspirationReviews(deps));
   await writeSetting(deps, ALGO_NIGHTLY_KEY, parisDay(nowOf(deps)));
   // Résumé léger dans le résultat de la tâche (les classements complets restent en mémoire pour la synthèse).
   out.posts = posts ? { computed: posts.computed, considered: posts.considered, channels: posts.channels.length } : out.posts;

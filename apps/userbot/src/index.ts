@@ -2,12 +2,12 @@ import { prisma } from "@linkaffipro/db";
 import { logger } from "./logger";
 import { startAccount, type LiveAccount } from "./client";
 import { startWelcomeDmLoop } from "./welcome-dm";
-import { startReferenceHistoryLoop, type MailboxDb } from "./reference-history";
+import { startMailboxLoop, type MailboxDb } from "./mailbox";
 
 const live: LiveAccount[] = [];
 let stopping = false;
 let stopWelcomeDm: (() => void) | null = null;
-let stopReferenceHistory: (() => void) | null = null;
+let stopMailbox: (() => void) | null = null;
 
 async function main() {
   logger.info("programme userbot demarre");
@@ -45,8 +45,8 @@ async function main() {
   // DM de bienvenue depuis les comptes reels (file remplie par le worker a l'acceptation).
   stopWelcomeDm = startWelcomeDmLoop(() => new Map(live.map((a) => [a.id, a])));
 
-  // Phase 27 : lecture des canaux de reference demandee par le worker, sur les sessions tenues ici (boucle a part).
-  stopReferenceHistory = startReferenceHistoryLoop({
+  // Demandes du worker (recherche de la prospection), sur les sessions tenues ici (boucle a part).
+  stopMailbox = startMailboxLoop({
     db: prisma as unknown as MailboxDb,
     accounts: () => new Map(live.map((a) => [a.id, a])),
   });
@@ -57,7 +57,7 @@ async function shutdown(signal: string) {
   stopping = true;
   logger.info({ signal }, "arret en cours");
   stopWelcomeDm?.();
-  stopReferenceHistory?.();
+  stopMailbox?.();
   const timer = setTimeout(() => process.exit(1), 15_000);
   try {
     await Promise.all(live.map((a) => a.stop()));

@@ -38,9 +38,6 @@ export type AlertKind =
   | "ads_cost_over_threshold"
   | "ads_budget_exhausted"
   | "webhook_repaired"
-  // Phase 35 : bookmakers lus directement (créées et résolues site par site par la santé des bookmakers).
-  | "bookmaker_blocked"
-  | "bookmaker_degraded"
   // Phase 29 : veille du marché (file `agents-analystes`) qui échoue en boucle.
   | "analysts_failing";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
@@ -837,9 +834,6 @@ export const PER_CHANNEL_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>([
   "ads_conversion_drop",
   "ads_cost_over_threshold",
   "ads_budget_exhausted",
-  // Phase 35 : santé des bookmakers, une alerte par site (`packages/agents/src/bookmakers/health.ts`).
-  "bookmaker_blocked",
-  "bookmaker_degraded",
 ]);
 
 /** Faut-il créer une nouvelle alerte ? Non si une alerte du même type est ouverte et récente. */

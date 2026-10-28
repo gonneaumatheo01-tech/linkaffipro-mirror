@@ -20,7 +20,6 @@ import {
   type TeamStatSample,
 } from "../../rules/bets";
 import { parseMarketId } from "../../sports/labels";
-import { BOOKMAKER_LIMITS } from "../../bookmakers/contract";
 
 export type PickReasoning = {
   source: "fake" | "live";
@@ -70,7 +69,7 @@ export type RankInput = {
 };
 
 /** Écart (%) entre la cote du site et le consensus au-delà duquel la cote est signalée. */
-export const UNUSUAL_ODDS_GAP_PCT = BOOKMAKER_LIMITS.unusualOddsGapPct;
+export const UNUSUAL_ODDS_GAP_PCT = 15;
 
 /** Pur : cote du site trop loin du consensus ? */
 export function unusualOddsOf(odds: number, consensusOdds: number | null): PickReasoning["unusualOdds"] {

@@ -1,7 +1,6 @@
 /**
  * Réglages de l'équipe Paris sportifs (phase 23), rangés dans `AgentTeamConfig(teamKey = "sports").settings.sports`
- * (sans migration). Lecture tolérante : une valeur absente ou abîmée prend le défaut. Les réglages de capture
- * (`captureMode`, `bookmakerSites`, `captureWaitMinutes`) vivent au même endroit mais sont lus par la capture.
+ * (sans migration). Lecture tolérante : une valeur absente ou abîmée prend le défaut.
  */
 import type { Db as PrismaClient } from "@linkaffipro/db";
 

@@ -1,30 +1,10 @@
 # Actions humaines requises
 
-## 🚀 Déployer sur Railway (URGENT)
+## Retrait des parties « Bookmakers » et « Inspiration » des agents (28 octobre 2026)
 
-Le code est poussé sur GitHub. Il faut déployer pour que la lecture des bookmakers passe sur le serveur avec le proxy norvégien.
+Rien à faire de votre côté. Au moment de la mise en ligne, Claude :
 
-Ouvre un Terminal sur le Mac et lance :
+- met en ligne le site puis le worker, puis le service des comptes réels (userbot) ;
+- retire le programme qui lisait les bookmakers depuis le Mac (service `com.linkaffipro.bookmaker-runner`) : le Mac n'a plus besoin de rester allumé pour les paris.
 
-```bash
-cd ~/linkaffipro-platform
-railway up --service web --detach
-railway up --service worker --detach
-```
-
-La migration va automatiquement :
-- Passer **Celsius** en lecture serveur (plus besoin du Mac allumé)
-- Réactiver **Sportaza** (était en pause après un captcha)
-- Réactiver **Bet Portal** (était en pause)
-
-Après le déploiement, les 3 bookmakers liront 24h/24 depuis Railway avec le proxy IPRoyal norvégien.
-
-## Vérifier après le déploiement
-
-1. Ouvre https://app.linkaffipro.com/agents/bookmakers
-2. Vérifie que les 3 sites sont actifs et que la prochaine lecture se lance
-3. Après 5 minutes, vérifie qu'au moins une lecture a réussi (pastille verte)
-
-## Proxy
-
-L'adresse du proxy IPRoyal a déjà été enregistrée dans la base (fait via Réglages → Bookmakers). Rien d'autre à faire.
+Ensuite, pour chaque pari, Kevin vous demande la capture et la cote sur Telegram (voir le guide, « Paris par capture »). Si ce n'est pas déjà fait, il vous demandera une fois la clé gratuite API-Football.

@@ -8,12 +8,10 @@ import {
   isSecretAdminText,
   rememberEditPrompt,
   BOSS_DEFAULT_NAME,
-  kevinForwardedPost,
   pick,
   type BossTeamInput,
   type VoiceTable,
   type VoiceTemplate,
-  type ForwardedMessage,
   hasLibraryKeyword,
   isBossInputCallbackData,
   refersToReceivedInput,
@@ -461,45 +459,27 @@ async function sendReplyFallback(ctx: Context, chatId: number, html: string | un
  * canal, emojis animés). Toute autre personne : traitement habituel (`next()`) ; sur le Boss, rien ne suit (silence).
  */
 export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, deps: TelegramDeps): void {
-  // Phase 27 : sur le Boss, un post transféré d'un canal tiers par l'admin est rangé comme post de référence (canal
-  // d'inspiration) : une DONNÉE, jamais envoyée à l'interprète ; une seule réponse par lot, une minute après. Un post à
-  // emojis animés continue aussi vers la bibliothèque d'emojis (phase 12).
+  // Phase 34 : sur le Boss, un message transféré par l'admin est gardé 30 min comme contenu possible d'un post ou d'un
+  // envoi (une DONNÉE, jamais exécutée ni envoyée à l'interprète). Un fichier CSV / TXT transféré suit le chemin des
+  // fichiers ; un post à emojis animés continue vers la bibliothèque d'emojis (phase 12).
   bot.on("message", async (ctx, next) => {
     const msg = ctx.message;
     if (!msg.forward_origin || ctx.from.is_bot || !isBossBot(identity) || !deps.agentsDeps) return next();
     const route = await adminRouteFor(identity, deps, ctx.from.id, ctx.chat.type);
     if (route.kind !== "dialog") return next();
-    // Les secrets d'abord : un post transféré qui contient une clé n'est jamais rangé ; le chemin habituel l'efface
+    // Les secrets d'abord : un post transféré qui contient une clé n'est jamais gardé ; le chemin habituel l'efface
     // sans le journaliser.
     if (await forwardedLooksSecret(deps, ctx.from.id, msg.text ?? msg.caption ?? "")) return next();
-    const agents = deps.agentsDeps();
-    // Phase 34 : le message est gardé 30 min comme contenu possible d'un post ou d'un envoi (une donnée, jamais
-    // exécutée). Un fichier CSV / TXT transféré suit le chemin des fichiers.
     const plainDoc = isPlainDocument(msg);
     const kept = plainDoc ? null : await keepForwarded(identity, deps, msg);
-    let out: Awaited<ReturnType<typeof kevinForwardedPost>>;
-    try {
-      out = await kevinForwardedPost(agents, {
-        message: msg as unknown as ForwardedMessage,
-        chat: { type: "private", chatId: BigInt(ctx.chat.id) },
-        speaker: { kind: "admin", telegramUserId: BigInt(ctx.from.id), firstName: ctx.from.first_name ?? null },
-      });
-    } catch (err) {
-      console.error("[boss] post transféré non rangé", identity.username, (err as Error).message);
-      return next();
-    }
-    if (!out.handled) {
-      if (plainDoc || !kept || messageHasCustomEmoji(msg as Message & { text: string })) return next();
-      // Média de l'admin avec mots-clés de la médiathèque (transféré d'une personne) : rangé comme avant.
-      if (msg.forward_origin.type !== "channel" && hasLibraryKeyword(msg.caption ?? "")) return next();
-      // Suite d'un album ou d'une rafale, ou commentaire écrit juste avant : un seul contenu, pas d'accusé de plus.
-      if (!kept.ack) return bumpAlbumAck(deps, msg);
-      // Transfert sans texte (photo, vidéo, album) : accusé ici (le chemin du texte n'en verrait rien).
-      if (msg.text === undefined) return ackForwarded(ctx, deps, msg, kept);
-      return next();
-    }
-    if (out.reply?.reply) await replyHtml(ctx, out.reply.reply).catch(() => undefined);
-    if (messageHasCustomEmoji(msg as Message & { text: string })) return next();
+    if (plainDoc || !kept || messageHasCustomEmoji(msg as Message & { text: string })) return next();
+    // Média de l'admin avec mots-clés de la médiathèque (transféré d'une personne) : rangé comme avant.
+    if (msg.forward_origin.type !== "channel" && hasLibraryKeyword(msg.caption ?? "")) return next();
+    // Suite d'un album ou d'une rafale, ou commentaire écrit juste avant : un seul contenu, pas d'accusé de plus.
+    if (!kept.ack) return bumpAlbumAck(deps, msg);
+    // Transfert sans texte (photo, vidéo, album) : accusé ici (le chemin du texte n'en verrait rien).
+    if (msg.text === undefined) return ackForwarded(ctx, deps, msg, kept);
+    return next();
   });
 
   // Phase 34 : fichier (CSV, TXT…) envoyé ou transféré par l'admin à Kevin : lu et gardé 30 min ; sa légende est la

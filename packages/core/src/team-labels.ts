@@ -86,7 +86,6 @@ export const QUEUE_LABELS: Record<string, string> = {
   "agents-sports": "Équipe Paris sportifs",
   "agents-algo": "Équipe Algorithme",
   "agents-ads": "Agent Ads",
-  "agents-bookmakers": "Lecture des bookmakers",
   "agents-montage": "Montage vidéo",
   "agents-analystes": "Analyse du marché",
   "agents-prospection": "Prospection d'affiliés",

@@ -77,8 +77,8 @@ export function canActOnRecommendation(
   return role === "ADMIN" || !isBigRecommendation(r);
 }
 
-/** Proposition venue d'un canal d'inspiration (phase 27) : jamais par la voie générique (réservée à l'admin, sur la page Inspiration). */
-export const INSPIRATION_ONLY_MESSAGE = "Cette proposition vient d'un canal d'inspiration : elle se gère dans Agents → Inspiration (administrateurs).";
+/** Proposition venue d'un ancien canal d'inspiration (phase 27, fonction retirée le 28 octobre 2026) : jamais appliquée. */
+export const INSPIRATION_ONLY_MESSAGE = "Cette proposition venait d'un canal d'inspiration, une fonction retirée : elle ne peut plus être appliquée.";
 
 /** Proposition de l'analyse du marché (phase 29) : notée « acceptée » ou « refusée » dans Agents → Analyses, jamais appliquée. */
 export const MARKET_ONLY_MESSAGE = "Cette proposition vient de l'analyse du marché : elle se décide dans Agents → Analyses (rien n'est changé automatiquement).";

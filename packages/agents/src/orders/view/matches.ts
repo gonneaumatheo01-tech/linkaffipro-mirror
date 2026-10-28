@@ -3,37 +3,24 @@
  * - un fournisseur de cotes du registre qui COUVRE ce bookmaker (couverture lue par `listBookmakers()` du fournisseur,
  *   une fois par processus et par jour) → matchs de la date, groupés par ligue, avec le nombre de marchés chez ce
  *   bookmaker ;
- * - sinon, un bookmaker avec un adaptateur de site (phase 23, lecture seule) dont la lecture des matchs est validée
- *   (`settings.sports.bookmakers.<clé>.selectorsValidated` et un lecteur enregistré par `registerBookmakerMatchLister`)
- *   → la liste lue sur le site ; pas validée → Kevin le dit et propose de tester la connexion ;
- * - ni couvert ni adapté → Kevin le dit, sans deviner de cotes.
- * Un fournisseur n'est jamais interrogé pour un bookmaker qu'il ne couvre pas. La phase 35 ajoute des fournisseurs
- * (`deps.oddsProviders`, ou le registre) et des lecteurs de sites sans toucher à ce fichier.
+ * - sinon → Kevin le dit, sans deviner de cotes (les sites des bookmakers ne sont jamais lus, 28 octobre 2026).
+ * Un fournisseur n'est jamais interrogé pour un bookmaker qu'il ne couvre pas (`deps.oddsProviders`, ou le registre).
  */
 import { nowOf } from "../../admin/journal";
 import { marketsForEvents } from "../../providers/odds-batch";
 import type { OddsEvent, OddsProvider } from "../../providers/odds";
 import { OddsQuotaError, oddsCallsThisMonth } from "../../providers/odds-quota";
 import { hasOddsKey, resolveOddsProvider, type OddsResolveDeps } from "../../providers/odds-registry";
-import { supportedBookmakers } from "../../providers/screenshot/adapters";
 import { parisDay } from "../../rules/time";
 import { bookmakerLabel, leagueLabel } from "../../sports/labels";
 import { parseSportsSettings } from "../../sports/settings";
 import type { AgentsDeps } from "../../types";
 import { dayLabel, hourLabel, readTeamState, slotRange, type DaySlot, type ViewResult } from "./common";
 
-/** Fournisseurs supplémentaires (phase 35 : lecteurs de cotes par bookmaker), en plus de celui du registre. */
+/** Fournisseurs supplémentaires, en plus de celui du registre. */
 export type MatchesDeps = OddsResolveDeps & { oddsProviders?: OddsProvider[] | null };
 
 export type BookmakerMatch = { eventId: string; leagueId: string; homeTeam: string; awayTeam: string; startsAt: Date; markets: number };
-
-/** Lecture des matchs sur le site d'un bookmaker (adaptateur validé), enregistrée par la phase qui l'écrit. */
-export type BookmakerMatchLister = (deps: AgentsDeps, q: { bookmaker: string; sport: string; from: Date; to: Date }) => Promise<BookmakerMatch[]>;
-const listers = new Map<string, BookmakerMatchLister>();
-export function registerBookmakerMatchLister(bookmaker: string, fn: BookmakerMatchLister | null): void {
-  if (fn) listers.set(bookKey(bookmaker), fn);
-  else listers.delete(bookKey(bookmaker));
-}
 
 /** Clé de comparaison d'un bookmaker (« 5Gringos » → « 5gringos », « William Hill » → « williamhill »). */
 export function bookKey(name: string): string {
@@ -159,23 +146,6 @@ export async function viewMatches(deps: MatchesDeps, input: ViewMatchesInput): P
     return { via: "provider", matches, facts: { ...base, couvert: true, appels: calls, matchs: matches.map(matchFact) }, lines: matchLines(matches, label, when, calls) };
   }
 
-  if (supportedBookmakers().includes(key)) {
-    const team = await readTeamState(deps, "sports");
-    const sports = (team.settings.settings as { sports?: { bookmakers?: Record<string, { selectorsValidated?: unknown }> } }).sports;
-    const validated = sports?.bookmakers?.[key]?.selectorsValidated === true;
-    const lister = listers.get(key);
-    if (validated && lister) {
-      const matches = (await lister(deps, { bookmaker: key, sport, from, to })).filter((m) => m.startsAt >= from && m.startsAt < to);
-      return { via: "site", matches, facts: { ...base, couvert: false, site: true, matchs: matches.map(matchFact) }, lines: matchLines(matches, label, when, 0, true) };
-    }
-    return {
-      via: "site_not_validated",
-      matches: [],
-      facts: { ...base, couvert: false, site: true, valide: false },
-      lines: [`${label} n'est pas chez mon fournisseur de cotes. Je peux lire son site, mais cette lecture n'est pas encore validée.`, `Je teste la connexion à ${label} ?`],
-    };
-  }
-
   if (!sources.length)
     return { via: "no_provider", matches: [], facts: { ...base, couvert: false, fournisseur: false }, lines: ["Je n'ai pas encore de fournisseur de cotes branché, donc pas de liste de matchs.", "Envoie-moi la clé des cotes quand tu l'as ?"] };
   const alternatives = [...known].filter((b) => b !== key).slice(0, 40);
@@ -196,11 +166,11 @@ function matchFact(m: BookmakerMatch) {
 }
 
 /** Lignes (pures) : une par ligue, trois matchs au plus par ligne. */
-export function matchLines(matches: readonly BookmakerMatch[], label: string, when: string, calls: number, fromSite = false): string[] {
+export function matchLines(matches: readonly BookmakerMatch[], label: string, when: string, calls: number): string[] {
   if (!matches.length) return [`Aucun match chez ${label} ${when} pour le moment.`];
   const byLeague = new Map<string, BookmakerMatch[]>();
   for (const m of matches) byLeague.set(m.leagueId, [...(byLeague.get(m.leagueId) ?? []), m]);
-  const lines = [`${matches.length} ${matches.length > 1 ? "matchs" : "match"} chez ${label} ${when}${fromSite ? " (lus sur son site)" : ""} :`];
+  const lines = [`${matches.length} ${matches.length > 1 ? "matchs" : "match"} chez ${label} ${when} :`];
   for (const [league, list] of byLeague) {
     const shown = list.slice(0, 3).map((m) => `${m.homeTeam} - ${m.awayTeam} (${hourLabel(m.startsAt)}, ${m.markets} ${m.markets > 1 ? "marchés" : "marché"})`);
     lines.push(`${leagueLabel(league)} : ${shown.join(", ")}${list.length > 3 ? ` et ${list.length - 3} autres` : ""}`);

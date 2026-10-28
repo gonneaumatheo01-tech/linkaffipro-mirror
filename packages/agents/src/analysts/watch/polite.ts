@@ -11,7 +11,7 @@
  * - Délai 20 s, corps lu en flux et coupé à 2 Mo.
  * - 403 / 429 / page anti-robot → repli par l'outil `web_fetch` de l'API (Sonnet), qui lit la page de son côté.
  */
-import { readBodyCapped } from "../../inspiration/sources/web-preview";
+import { readBodyCapped } from "../../channel-reader/web-preview";
 import { ANALYSTS_LIMITS, type AnalystsWeb } from "../contract";
 import { nowOf, type WatchDeps } from "./ai";
 import { serverWebFetch, serverWebSearch } from "./server-tools";

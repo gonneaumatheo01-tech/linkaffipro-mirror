@@ -6,7 +6,7 @@ import { answerQuestion, checkedAnswer } from "./answer";
 import { bossBudgetState, bossLlmFromClient, loadBossLlm, recordBossUsage } from "./llm";
 import { bossAiTurn, nearestActions, NO_AI_REPLIES } from "./execute";
 import { ORDER_INTERNAL_KEYS } from "./catalog-orders";
-import { editDistance, matchNames, resolveBookmaker, teamOf, checkQuota, checkCap, checkLevel } from "./resolve";
+import { editDistance, matchNames, teamOf, checkQuota, checkCap, checkLevel } from "./resolve";
 import type { AiClient } from "@linkaffipro/ai";
 
 vi.mock("../missions/lifecycle", async (orig) => ({
@@ -31,7 +31,7 @@ describe("catalogue fermé", () => {
       expect(typeof a.execute, a.key).toBe("function");
       if (a.cls === "confirm") expect(typeof a.summarize, a.key).toBe("function");
     }
-    for (const k of ["etat_general", "etat_equipe", "etat_canal", "rapport_du_jour", "depenses_du_mois", "resultats", "demandes_ouvertes", "repondre_demande", "plus_tard", "valider_post", "refuser_post", "corriger_post", "pause", "reprise", "niveau", "simulation", "plafond", "quota_posts", "plan_canal", "persona_canal", "personas", "stock_medias", "banc_essai", "themes_casino", "offre_canal", "categories_paris", "categorie_paris", "test_bookmaker", "connexion_bookmaker", "mode_capture", "paris_du_jour", "bilan_paris", "reglages_semaine", "appliquer_reglage", "annuler_reglage", "tests_en_cours", "recommandations_ads", "ads_fait", "ads_refuser", "seuils_ads", "post_test", "pari_test", "aide", "commencer", "annule"])
+    for (const k of ["etat_general", "etat_equipe", "etat_canal", "rapport_du_jour", "depenses_du_mois", "resultats", "demandes_ouvertes", "repondre_demande", "plus_tard", "valider_post", "refuser_post", "corriger_post", "pause", "reprise", "niveau", "simulation", "plafond", "quota_posts", "plan_canal", "persona_canal", "personas", "stock_medias", "banc_essai", "themes_casino", "offre_canal", "categories_paris", "categorie_paris", "paris_du_jour", "bilan_paris", "reglages_semaine", "appliquer_reglage", "annuler_reglage", "tests_en_cours", "recommandations_ads", "ads_fait", "ads_refuser", "seuils_ads", "post_test", "pari_test", "aide", "commencer", "annule"])
       expect(keys.has(k), k).toBe(true);
   });
 
@@ -89,8 +89,6 @@ describe("résolution des noms", () => {
     const { resolveChannel } = await import("./resolve");
     const r = await resolveChannel(kit.deps, { actionKey: "etat_canal", params: {}, field: "canal" }, "Léa");
     expect(r.ok && r.value.id).toBe(kit.ids.chLea);
-    expect(resolveBookmaker("sportasa")).toEqual({ ok: true, value: "sportaza" });
-    expect(resolveBookmaker("unibet").ok).toBe(false);
     expect(checkQuota(7, 6)).toContain("maximum");
     expect(checkQuota(3, 6)).toBeNull();
     expect(checkCap(-1)).toBeTruthy();

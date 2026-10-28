@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { TelegramClient } from "telegram";
 
 vi.mock("./logger", () => ({ logger: { info: () => undefined, warn: () => undefined, error: () => undefined } }));
-const { handleRequest } = await import("./reference-history");
+const { handleRequest } = await import("./mailbox");
 const {
   gramjsProspectSearchOps,
   handleProspectSearch,
@@ -64,14 +64,13 @@ function mailbox(account: Record<string, unknown> = {}) {
     setting: { findMany: async () => [], updateMany: async () => ({ count: 0 }), deleteMany: async () => ({ count: 0 }), upsert: async () => undefined },
     telegramUserAccount: { findUnique: async () => ({ personaId: null, botId: null, isActive: true, status: "ACTIVE", ...account }) },
   };
-  const readerOps = { isMember: vi.fn(), history: vi.fn(), joinInvite: vi.fn() };
   const searchOps = {
     search: vi.fn(async () => [{ id: "1", accessHash: "901", username: "canal_1", title: "Canal 1", subscribers: 1200 }]),
     profile: vi.fn(async () => ({ id: "1", username: "canal_1", title: "Canal 1", subscribers: 1200, about: null, linkedChat: null })),
   };
   const { client } = fakeClient();
-  const deps = { db: db as never, accounts: () => new Map([["acc1", { client }]]), ops: readerOps as never, searchOps, now: () => now };
-  return { deps, readerOps, searchOps, advance: (ms: number) => (now = new Date(now.getTime() + ms)) };
+  const deps = { db: db as never, accounts: () => new Map([["acc1", { client }]]), searchOps, now: () => now };
+  return { deps, searchOps, advance: (ms: number) => (now = new Date(now.getTime() + ms)) };
 }
 
 const search = (accountId = "acc1") => ({ kind: "prospect-search" as const, accountId, op: "search" as const, query: "pronos foot", limit: 20 });
@@ -80,23 +79,21 @@ describe("demande prospect-search", () => {
   it("compte qui converse (persona, bot fantôme), inactif ou non connecté : refusé, aucun appel Telegram", async () => {
     for (const acc of [{ personaId: "p1" }, { botId: "b1" }, { isActive: false }, { status: "ERROR" }]) {
       const k = mailbox(acc);
-      expect(await handleRequest(k.deps, search(), new Map())).toMatchObject({ ok: false });
+      expect(await handleRequest(k.deps, search())).toMatchObject({ ok: false });
       expect(k.searchOps.search).not.toHaveBeenCalled();
     }
     const k = mailbox();
-    expect(await handleRequest(k.deps, search("autre"), new Map())).toMatchObject({ ok: false, error: expect.stringMatching(/non connecté/) });
+    expect(await handleRequest(k.deps, search("autre"))).toMatchObject({ ok: false, error: expect.stringMatching(/non connecté/) });
   });
 
   it("recherche puis fiche : 5 s au moins entre deux demandes d'un même compte ; jamais d'adhésion", async () => {
     const k = mailbox();
     const state = newProspectSearchState();
-    expect(await handleRequest(k.deps, search(), new Map(), state)).toMatchObject({ ok: true, calls: 1, channels: [{ username: "canal_1" }] });
+    expect(await handleRequest(k.deps, search(), state)).toMatchObject({ ok: true, calls: 1, channels: [{ username: "canal_1" }] });
     const profile = { kind: "prospect-search" as const, accountId: "acc1", op: "profile" as const, channel: { id: "1", accessHash: "901", username: "canal_1" } };
-    expect(await handleRequest(k.deps, profile, new Map(), state)).toBe("later");
+    expect(await handleRequest(k.deps, profile, state)).toBe("later");
     k.advance(5_000);
-    expect(await handleRequest(k.deps, profile, new Map(), state)).toMatchObject({ ok: true, profile: { subscribers: 1200 } });
-    expect(k.readerOps.joinInvite).not.toHaveBeenCalled();
-    expect(k.readerOps.history).not.toHaveBeenCalled();
+    expect(await handleRequest(k.deps, profile, state)).toMatchObject({ ok: true, profile: { subscribers: 1200 } });
   });
 
   it("100 demandes par jour et par compte au plus", async () => {

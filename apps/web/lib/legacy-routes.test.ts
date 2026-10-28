@@ -68,6 +68,17 @@ describe("anciennes rubriques déplacées (préfixes)", () => {
   });
 });
 
+describe("rubriques retirées (28 octobre 2026)", () => {
+  it("inspiration → tableau de bord des agents ; bookmakers → équipe Paris sportifs ; paramètres abandonnés", () => {
+    expect(legacyRedirect("/agents/inspiration")).toBe("/agents");
+    expect(legacyRedirect("/agents/inspiration/ref1", "x=1")).toBe("/agents");
+    expect(legacyRedirect("/agents/bookmakers")).toBe("/agents/sports");
+    expect(legacyRedirect("/agents/bookmakers", "site=celsius")).toBe("/agents/sports");
+    expect(legacyRedirect("/agents/sports")).toBeNull();
+    expect(legacyRedirect("/agents/inspirations")).toBeNull();
+  });
+});
+
 describe("ancien tableau de bord (« / » avec ses paramètres) → Statistiques", () => {
   it("chaque onglet renvoie vers sa page des statistiques, en une seule redirection", () => {
     expect(legacyRedirect("/", "tab=ads")).toBe("/stats/ads");

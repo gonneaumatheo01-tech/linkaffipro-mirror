@@ -1,12 +1,10 @@
 /**
- * Contrats de l'équipe Paris sportifs (phase 23). Signatures FIGÉES : A (cotes, sélection, chaîne, résultats),
- * B (captures, bookmakers, parade anti-blocage), C (site).
+ * Contrats de l'équipe Paris sportifs (phase 23). Signatures FIGÉES : A (cotes, sélection, chaîne, résultats), C (site).
+ * Les captures automatiques des sites (chantier B) sont retirées depuis le 28 octobre 2026.
  */
 import type { PrismaClient } from "@linkaffipro/db";
 import type { AgentsDeps } from "../types";
 import type { CreateMissionResult } from "../missions/lifecycle";
-import type { CaptureResult } from "../providers/screenshot";
-import { testBookmakerConnection as testBookmakerConnectionImpl } from "./connection";
 import { computeBetSummary } from "./summary";
 import { createTestBet } from "./test-bet";
 
@@ -39,12 +37,4 @@ export async function betSummary(
   q: { from: Date; to: Date; by: "category" | "league" | "bookmaker" | "week" },
 ): Promise<BetSummaryRow[]> {
   return computeBetSummary(prisma as never, q);
-}
-
-/** « Tester la connexion » d'un bookmaker (identifiants du client, session chiffrée) ; résultat sans secret. Chantier B. */
-export async function testBookmakerConnection(
-  deps: AgentsDeps,
-  bookmaker: string,
-): Promise<{ result: CaptureResult; assetId: string | null; message: string }> {
-  return testBookmakerConnectionImpl(deps, bookmaker);
 }

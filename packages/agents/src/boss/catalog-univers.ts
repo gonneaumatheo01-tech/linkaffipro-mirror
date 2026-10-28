@@ -1,6 +1,6 @@
 /**
  * Entrées du catalogue du Boss par univers : Rencontres (personas, stock, banc d'essai), Casino (thèmes, stock, offre
- * d'un canal), Paris sportifs (catégories, test de connexion au bookmaker, mode de capture, paris du jour, bilan),
+ * d'un canal), Paris sportifs (catégories, paris du jour, bilan),
  * Algorithme (réglages de la semaine, appliquer, annuler, tests en cours), Ads (recommandations, fait, refuser,
  * seuils), posts et paris de test. Toujours par les fonctions existantes ; aucune nouvelle capacité de publication.
  */
@@ -16,14 +16,11 @@ import { createTestBetMission } from "../sports/contracts";
 import { createTestPostMission } from "../missions/test-post";
 import { setBetCategoryActive } from "../control/bet-category";
 import { currentChannelPlan } from "../control/channel-plan";
-import { createCaptureRequest, CAPTURE_REQUEST_PREFIX, type StoredCaptureRequest } from "../providers/screenshot/requests";
-import { loadCaptureSettings, setCaptureMode } from "../providers/screenshot/settings";
-import { CAPTURE_ERROR_LABELS } from "../providers/screenshot/errors";
 import { TEAM_LABELS, type TeamKey } from "../types";
 import type { BossAction, BossDeps, BossReply } from "./contract";
 import { actorRef, defineAction, escLines, lines, plural } from "./catalog-kit";
 import { int, oneOf, str } from "./params";
-import { resolveBetCategory, resolveBookmaker, resolveChannel, resolvePersona, resolveTeam, personaRefs } from "./resolve";
+import { resolveBetCategory, resolveChannel, resolvePersona, resolveTeam, personaRefs } from "./resolve";
 import { adsProposed, algoApplied, algoProposed, betSummaryFacts, betsTodayFacts, recommendationLabel, stockFacts, targetNames } from "./facts";
 
 import { pick, voiceTemplate, type VoiceTable } from "./voice";
@@ -69,46 +66,6 @@ export const CATALOG_UNIVERS_VARIANTS = {
     `J'active les paris « ${p.name} » ?\nL'équipe Paris sportifs en proposera dès son prochain passage, toujours en test si elle l'est.`,
     `On ajoute la catégorie « ${p.name} » ?\nLes paris arriveront au prochain passage de l'équipe, rien d'autre ne change.`,
   ]),
-  bookmakerTest: voiceTemplate(
-    [
-      { bookmaker: "sportaza", mac: false },
-      { bookmaker: "sportaza", mac: true },
-    ],
-    (p: { bookmaker: string; mac: boolean }) => {
-      const where = p.mac ? " depuis le Mac" : "";
-      return [
-        `C'est lancé : je teste la connexion à ${p.bookmaker}${where}. Résultat dans une minute.`,
-        `Je teste ${p.bookmaker}${where}, je te dis dans une minute si ça passe.`,
-      ];
-    },
-  ),
-  noTest: voiceTemplate([{ bookmaker: "sportaza" }], (p: { bookmaker: string }) => [
-    `Je n'ai encore jamais testé ${p.bookmaker}. Tu veux que je lance « teste la connexion à ${p.bookmaker} » ?`,
-    `Aucun test de connexion à ${p.bookmaker} pour l'instant. Je le lance ?`,
-  ]),
-  testPending: voiceTemplate([{ day: "2026-10-25 à 09:12" }], (p: { day: string }) => [
-    `Le dernier test (${p.day} UTC) n'a pas encore de résultat, il n'est pas encore passé.`,
-    `Pas encore de résultat pour le test du ${p.day} UTC, il attend son tour.`,
-  ]),
-  testOk: voiceTemplate([{ bookmaker: "sportaza", day: "2026-10-25 à 09:12" }], (p: { bookmaker: string; day: string }) => [
-    `Oui ✅ La connexion à ${p.bookmaker} a marché au dernier test (${p.day} UTC).`,
-    `Ça marche ✅ Dernier test réussi sur ${p.bookmaker} (${p.day} UTC).`,
-  ]),
-  testFailed: voiceTemplate(
-    [
-      { day: "2026-10-25 à 09:12", reason: "mot de passe refusé", detail: "" },
-      { day: "2026-10-25 à 09:12", reason: "page introuvable", detail: " (timeout)" },
-    ],
-    (p: { day: string; reason: string; detail: string }) => [
-      `Non ⚠️ Le dernier test (${p.day} UTC) a échoué : ${p.reason}${p.detail}.`,
-      `Ça n'a pas marché ⚠️ Test du ${p.day} UTC : ${p.reason}${p.detail}.`,
-    ],
-  ),
-  captureMac: [
-    "C'est fait ✅ Les captures se feront depuis le Mac (lance « pnpm agents:capture-runner » dessus).",
-    "Ok, captures depuis le Mac ✅ Pense à lancer « pnpm agents:capture-runner » dessus.",
-  ],
-  captureServer: ["C'est fait ✅ Les captures se font sur le serveur.", "Ok, captures sur le serveur ✅"],
   algoHead: voiceTemplate([{ n: 0 }, { n: 2 }], (p: { n: number }) => [
     `Cette semaine, l'équipe Algorithme a appliqué ${plural(p.n, "réglage")}.`,
     `Algorithme : ${plural(p.n, "réglage appliqué", "réglages appliqués")} cette semaine.`,
@@ -331,73 +288,6 @@ export const categorieParis = defineAction<CategoryP>({
     const c = await resolveBetCategory(deps, { actionKey: "categorie_paris", params: p, field: "categorie" }, p.categorie);
     if (!c.ok) return c.reply;
     return { reply: esc((await setBetCategoryActive(deps, c.value.id, p.active, actorRef(actor))).message) };
-  },
-});
-
-type BookmakerP = { bookmaker?: string };
-
-export const testBookmaker = defineAction<BookmakerP>({
-  key: "test_bookmaker",
-  description: "Lancer un test de connexion au compte bookmaker (Sportaza…) : résultat par message dans une minute",
-  theme: "paris",
-  cls: "immediate",
-  spec: { bookmaker: str("Nom du bookmaker (sportaza…)", { optional: true }) },
-  async execute(deps, p, actor) {
-    const b = resolveBookmaker(p.bookmaker);
-    if (!b.ok) return b.reply;
-    const settings = await loadCaptureSettings(deps.prisma);
-    await createCaptureRequest(deps.prisma, { kind: "test", target: settings.mode, bookmaker: b.value, notifyAdmin: true, now: nowOf(deps) });
-    await agentAudit(deps, { userId: actor.userId, action: "agents.bookmaker_tested", entityType: "Bookmaker", entityId: b.value, metadata: { via: "TELEGRAM", queued: true } });
-    return { reply: say(deps, V.bookmakerTest({ bookmaker: esc(b.value), mac: settings.mode === "mac" }), "bookmakerTest") };
-  },
-});
-
-/** Dernier test de connexion d'un bookmaker (demandes de capture en base). */
-async function lastConnectionTest(deps: BossDeps, bookmaker: string): Promise<StoredCaptureRequest | null> {
-  const rows = (await deps.prisma.setting.findMany({ where: { key: { startsWith: CAPTURE_REQUEST_PREFIX } }, take: 300 })) as { value: unknown }[];
-  const tests = rows
-    .map((r) => r.value as StoredCaptureRequest)
-    .filter((v) => v && typeof v === "object" && v.kind === "test" && v.bookmaker === bookmaker)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return tests[0] ?? null;
-}
-
-export const connexionBookmaker = defineAction<BookmakerP>({
-  key: "connexion_bookmaker",
-  description: "Dire si la connexion au compte bookmaker a marché (résultat du dernier test)",
-  theme: "paris",
-  cls: "immediate",
-  spec: { bookmaker: str("Nom du bookmaker (sportaza…)", { optional: true }) },
-  async execute(deps, p) {
-    const b = resolveBookmaker(p.bookmaker);
-    if (!b.ok) return b.reply;
-    const t = await lastConnectionTest(deps, b.value);
-    if (!t) return { reply: say(deps, V.noTest({ bookmaker: esc(b.value) }), "noTest") };
-    const day = t.createdAt.slice(0, 16).replace("T", " à ");
-    if (!t.result) return { reply: say(deps, V.testPending({ day }), "testPending") };
-    if (t.result.ok) return { reply: say(deps, V.testOk({ bookmaker: esc(b.value), day }), "testOk") };
-    const reason = esc(CAPTURE_ERROR_LABELS[t.result.kind] ?? "erreur inconnue");
-    const detail = t.result.message ? ` (${esc(t.result.message.slice(0, 120))})` : "";
-    return { reply: say(deps, V.testFailed({ day, reason, detail }), "testFailed") };
-  },
-});
-
-type ModeP = { mode: "serveur" | "mac" };
-
-export const modeCapture = defineAction<ModeP>({
-  key: "mode_capture",
-  description: "Choisir où se font les captures du bookmaker : sur le serveur ou depuis le Mac",
-  theme: "paris",
-  cls: "immediate",
-  spec: { mode: oneOf("serveur ou mac", ["serveur", "mac"]) },
-  async execute(deps, p, actor) {
-    const mode = p.mode === "mac" ? "mac" : "server";
-    const before = (await loadCaptureSettings(deps.prisma)).mode;
-    if (!(await deps.prisma.agentTeamConfig.findUnique({ where: { teamKey: "sports" } })))
-      await deps.prisma.agentTeamConfig.upsert({ where: { teamKey: "sports" }, create: { teamKey: "sports" }, update: {} });
-    await setCaptureMode(deps.prisma, mode);
-    await agentAudit(deps, { userId: actor.userId, action: "agents.capture_mode_set", entityType: "AgentTeamConfig", entityId: "sports", metadata: { from: before, to: mode, via: "TELEGRAM" } });
-    return { reply: mode === "mac" ? say(deps, V.captureMac, "captureMac") : say(deps, V.captureServer, "captureServer") };
   },
 });
 
@@ -635,9 +525,6 @@ export const UNIVERSE_ACTIONS: BossAction[] = [
   offreCanal,
   categoriesParis,
   categorieParis,
-  // Phase 35 : « test_bookmaker » est désormais l'ancien nom de `tester_site` (`catalog-bookmakers.ts`).
-  connexionBookmaker,
-  modeCapture,
   parisDuJour,
   bilanParis,
   reglagesSemaine,

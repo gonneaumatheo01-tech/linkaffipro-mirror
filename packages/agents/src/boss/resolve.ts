@@ -6,7 +6,6 @@
  */
 import { normalizeText } from "../human/answer";
 import { esc, nowOf, readSetting, writeSetting } from "../admin/journal";
-import { supportedBookmakers } from "../providers/screenshot/adapters";
 import { TEAM_KEYS, TEAM_LABELS, type AgentsDeps, type TeamKey } from "../types";
 import type { BossReply } from "./contract";
 
@@ -318,19 +317,6 @@ export async function resolveBetCategory(deps: AgentsDeps, ctx: Ctx, raw: string
     question: "Plusieurs catégories correspondent à « {x} » :",
     known: "Catégories",
   });
-}
-
-/** Bookmaker avec adaptateur de capture (« sportaza », fautes tolérées). */
-export function resolveBookmaker(raw: string | undefined): Resolved<string> {
-  const list = supportedBookmakers();
-  if (!raw) {
-    if (list.length === 1) return { ok: true, value: list[0]! };
-    return { ok: false, reply: { reply: `Quel bookmaker ? ${list.join(", ")}.` } };
-  }
-  const n = normName(raw).replace(/\s+/g, "");
-  const hit = list.filter((b) => b === n || closeEnough(b, n) || b.startsWith(n));
-  if (hit.length === 1) return { ok: true, value: hit[0]! };
-  return { ok: false, reply: { reply: `Je ne connais pas le bookmaker « ${esc(raw)} ». Bookmakers : ${list.join(", ") || "aucun"}.` } };
 }
 
 /** Bornes communes (pures) : niveau 0-2, plafond ≥ 0, quota entre 0 et le maximum réglé. */

@@ -48,7 +48,6 @@ export { DATING_DEFAULT_MIX } from "./chiefs/dating-format";
 export { DATING_DEFAULT_BUDGET_CENTS } from "./missions/settings";
 export { LOW_SOURCE_STOCK, unusedSourceCount } from "./agents/mediatheque/stock";
 export type * from "./providers/odds";
-export type * from "./providers/screenshot";
 export * from "./missions/settings";
 export * from "./missions/usage";
 export * from "./missions/mission";
@@ -131,12 +130,8 @@ export { casinoThemesOf, channelThemes } from "./casino/data";
 export { inventedFigures, offerFiguresIn } from "./rules/figures";
 export { runCasinoMediatheque, casinoFallbacksOf } from "./agents/mediatheque/casino";
 export * from "./sports/contracts";
-// Chantier B (phase 23) : captures chez les bookmakers, garde « jamais de mise », parade anti-blocage.
-export * from "./providers/screenshot/index";
-export { connectionMessage, registerBookmakerVerifiers, CONNECTION_TEST_WAIT_MS, type ConnectionTestOutcome } from "./sports/connection";
-export { agent as captureAgent, captureRequestOf, type CapturePayload } from "./agents/capture";
-import { registerBookmakerVerifiers } from "./sports/connection";
-registerBookmakerVerifiers();
+// Agent Capture (phase 23) : depuis le 28 octobre 2026, la capture et la cote viennent de l'équipe (aucun site lu).
+export { agent as captureAgent, type CapturePayload } from "./agents/capture";
 // Chantier A (phase 23) : cotes, sélection, chaîne du Chef Paris, résultats.
 export { createSportsGameOddsProvider, verifySportsGameOddsKey, SGO_BASE, type SportsGameOddsProvider } from "./providers/sportsgameodds";
 export { americanToDecimal, mapEvent, mapSelections, mapResult } from "./providers/sportsgameodds-map";
@@ -179,7 +174,7 @@ export { runSportsPassage, type SportsPassageResult } from "./sports/passage";
 export { duePassage, parsePassageState, SPORTS_PASSAGES_SETTING } from "./sports/passage-state";
 export { runSportsSettle, type SettleRunResult } from "./sports/settle";
 export { computeBetSummary, sportsReportNotes, weekStart } from "./sports/summary";
-export { ensureSportsSetupQuestions, askCaptureWorkaround, parseNumberList, SPORTS_SETUP_SETTING, WORKAROUND_OPTIONS } from "./sports/setup";
+export { ensureSportsSetupQuestions, parseNumberList, SPORTS_SETUP_SETTING } from "./sports/setup";
 export { rankCandidates, type Candidate, type PickReasoning } from "./agents/cotes/select";
 export { fallbackPng } from "./sports/pick-image";
 export * from "./ads/contracts";
@@ -255,100 +250,12 @@ export * from "./boss/team/incoming";
 export * from "./boss/team/morning";
 export * from "./boss/team/callbacks";
 export * from "./human/delivery";
-export * from "./inspiration/contract";
-export * from "./inspiration/copy-check";
-// Chantier B (phase 27) : analyse d'un canal d'inspiration, comparaison « eux / nous », profil de style.
-export { UNIVERSE_OF_VERTICAL as INSPIRATION_UNIVERSE_OF_VERTICAL, UNIVERSE_LABELS as INSPIRATION_UNIVERSE_LABELS, type AnalysisPost } from "./inspiration/analysis/types";
-export { textSignals, hasGainClaim, type TextSignals } from "./inspiration/analysis/patterns";
-export { fromReferencePost, fromClientPost, type ReferencePostRow } from "./inspiration/analysis/normalize";
-export { rhythmMeasures, peakSlotsOf, slotOf as inspirationSlotOf, PEAK_SLOT_COUNT, WEEKDAY_LABELS as INSPIRATION_WEEKDAY_LABELS } from "./inspiration/analysis/rhythm";
-export { formMeasures, MEDIA_LABELS as INSPIRATION_MEDIA_LABELS } from "./inspiration/analysis/form";
-export { contentMeasures, flaggedOf, betSeriesOf, BET_SERIES_MAX_HOURS, type BetSeries } from "./inspiration/analysis/content";
-export { resultsMeasures, describePost, MIN_CORRELATION_POSTS, MIN_GROUP_POSTS, DAY_PERIODS } from "./inspiration/analysis/results";
-export { analyzeReference, computeAnalysis, isInspirationUniverse, loadReference, loadReferencePosts, quotesOf, type ComputeOptions } from "./inspiration/analysis/analyze";
-export {
-  compareWithChannel,
-  compareAnalyses,
-  gapMatters,
-  parseGapThresholds,
-  loadGapThresholds,
-  loadClientPosts,
-  COMPARE_WINDOW_DAYS,
-  DEFAULT_GAP_THRESHOLDS,
-  INSPIRATION_THRESHOLDS_KEY,
-  type GapThresholds,
-} from "./inspiration/analysis/compare";
-export * from "./inspiration/style";
-// Chantier A (phase 27) : lecture d'un canal d'inspiration (aperçu web, compte réel membre, posts transférés).
-export * from "./inspiration/sources/web-preview";
-export * from "./inspiration/sources/account";
-export * from "./inspiration/sources/forwarded";
-export * from "./inspiration/features";
-export * from "./inspiration/store";
-export * from "./inspiration/read";
-// Chantier C (phase 27) : Kevin et le canal d'inspiration (résumé, propositions, application, posts transférés).
-export {
-  afterReferenceRead,
-  afterReferenceReread,
-  inspirationSummaryLines,
-  summaryFacts,
-  methodChanges,
-  snapshotOf,
-  askForForwards,
-  notifyReadPostponed,
-  notifyReadFailed,
-  shouldRebuildProfile,
-  REREAD_THRESHOLDS,
-  SUMMARY_MAX_LINES,
-  SUMMARY_QUESTION,
-} from "./inspiration/kevin";
-export {
-  inspirationProposals,
-  proposalsText,
-  mixSteps,
-  proposedWindow,
-  theirMixShares,
-  mergeTaggedLine,
-  INSPIRATION_SOURCE,
-  SPORTS_RESULT_POSTS_SUPPORTED,
-  type InspirationProposal,
-  type ProposalsResult,
-} from "./inspiration/proposals";
-export {
-  applyInspiration,
-  undoInspiration,
-  removeReference,
-  inspirationReviews,
-  enoughTrafficForAb,
-  changePct,
-  reviewSentence,
-  INSPIRATION_UNDO_DAYS,
-  INSPIRATION_TEST_DAYS,
-  INSPIRATION_REPORT_TEAM,
-  type ApplyInspirationResult,
-  type UndoInspirationResult,
-} from "./inspiration/apply";
-export {
-  kevinForwardedPost,
-  inspirationForwardAck,
-  isChannelForward,
-  forwardAckLine,
-  FORWARD_ACK_JOB,
-  FORWARD_BATCH_MS,
-  type ForwardInput,
-  type ForwardOutcome,
-} from "./inspiration/kevin-forward";
-export { referenceLabel, linkTarget, universeRefusal, type ReferenceRow } from "./inspiration/kevin-refs";
-export {
-  INSPIRATION_ACTIONS,
-  inspirationFastPath,
-  parseProposalNumbers,
-  choiceIsOpen,
-  choiceIsForAdmin,
-  INSPIRATION_CHOICE_SETTING,
-} from "./boss/catalog-inspiration";
-import "./inspiration/keep-action";
-export * from "./inspiration/sources/userbot-mailbox";
+// Lecteur des canaux publics (aperçu `t.me/s`) et boîte aux lettres du userbot, partagés par la Prospection et les
+// Analystes ; contrôle « jamais de copie » (empreintes des anciens posts de référence, Contrôle qualité).
+export * from "./channel-reader/types";
+export * from "./channel-reader/web-preview";
+export * from "./channel-reader/userbot-mailbox";
+export * from "./rules/copy-check";
 export * from "./orders/contract";
 export * from "./boss/voice";
 // Chantier C (phase 33) : annuaire des agents, vues en lecture seule de Kevin (plan, programmé, paris, matchs, fait, pourquoi).
@@ -356,7 +263,7 @@ export { AGENT_DIRECTORY, agentDirectory, agentEntry, findAgent, agentCard, agen
 export { viewPlan, planLines, mixLabel, nextPassageOf, type ViewPlanInput, type PlanEntry } from "./orders/view/plan";
 export { viewScheduled, scheduledLines, type ViewScheduledInput, type ScheduledItem } from "./orders/view/scheduled";
 export { viewSportsChannel, previewSportsPicks, categoriesForChannel, type PreviewCandidate } from "./orders/view/sports";
-export { viewMatches, matchLines, registerBookmakerMatchLister, sportIdOf, bookKey, type ViewMatchesInput, type MatchesResult, type BookmakerMatch, type BookmakerMatchLister, type MatchesDeps } from "./orders/view/matches";
+export { viewMatches, matchLines, sportIdOf, bookKey, type ViewMatchesInput, type MatchesResult, type BookmakerMatch, type MatchesDeps } from "./orders/view/matches";
 export { viewDone, pendingValidations, validationLines, failureText, type ViewDoneInput } from "./orders/view/done";
 export { whyNothing, WHY_CAUSES, type WhyCause, type WhyFinding } from "./orders/view/why";
 export { slotRange, resolveDay, fitLines, VIEW_MAX_LINES, DAY_SLOTS, type DaySlot, type ViewResult } from "./orders/view/common";
@@ -411,83 +318,6 @@ export { orderFacts } from "./orders/facts";
 export { parseOrderPlan, type OrderProgress } from "./orders/store";
 export { orderMissionFacts, resolvePeriod, frRange, type OrderMissionFacts } from "./orders/capabilities/kit";
 export { SPORTS_THEMES, resolveTheme, themeByKey, themeOfMarkets, marketsAvailable, themeOddsCounts, themesWithOdds, listBetThemes, DEFAULT_THEME_LEAGUES, type SportsTheme, type ThemeAvailability } from "./sports/themes";
-export * from "./bookmakers/contract";
-// Phase 35, chantier A : transport des bookmakers (serveur, Mac, choix de la cible, verrou par site, rythme, nuit),
-// file des travaux de lecture et garde « jamais de mise » étendue à la lecture.
-export * from "./bookmakers/jobs";
-export * from "./bookmakers/guard";
-export * from "./bookmakers/transport/index";
-// Phase 35, chantier D : sites, identifiants communs, santé, gestes (tester, apprendre, navigateur du Mac), vues de Kevin.
-export * from "./bookmakers/sites";
-export { readBookmakerCredentialsFor, hasDefaultCredentials, credentialsSummary, askBookmakerCredentials, combineDefaultCredentials, DEFAULT_LOGIN_REQUEST_KEY, DEFAULT_PASSWORD_REQUEST_KEY, TEST_ALL_REQUEST_KEY, CREDENTIALS_ASKED_SETTING, type SiteCredentials } from "./bookmakers/credentials";
-export * from "./bookmakers/health";
-export * from "./bookmakers/actions";
-export { siteMatchesView, bookmakersStatusView, oddsOfView, resolveSiteView, agoLabel, frOdds, pickSelection, type MatchesQuery, type OddsQuery } from "./bookmakers/views";
-export { BOOKMAKERS_VARIANTS } from "./boss/bookmakers-texts";
-// Phase 35, chantier B : apprendre un site (enregistrement guidé, masquage, analyse par Opus, validation, recette).
-export * from "./bookmakers/learn/index";
-// Phase 35, chantier C : lecteur à trois niveaux (cache, double lecture, diagnostic), fournisseur `bookmaker-direct`,
-// vérification des paris lus sur un site du client, capture par la recette apprise.
-export {
-  readEvents,
-  readEventsStored,
-  readMarkets,
-  readMarketsStored,
-  readOddsTwice,
-  storedEvent,
-  storedEvents,
-  allowedHostsOf,
-  diagnosePage,
-  diagnoseByRules,
-  parseAiDiagnosis,
-  maskForAi,
-  actionFor,
-  gestureOf,
-  PAGE_DIAGNOSES,
-  BookmakerReadError,
-  createMemoryPace,
-  memorySiteLock,
-  isNightInParis,
-  toDecimalOdds,
-  sameOddsExact,
-  expandMarketKeys,
-  translateRow,
-  loadActiveRecipe,
-  parseRecipeRow,
-  readOddsOnImage,
-  parseImageOdds,
-  type ReadEventsQuery,
-  type ReadMarketsOptions,
-  type OddsTwiceQuery,
-  type OddsTwiceResult,
-  type StoredEvent,
-  type StoredOdds,
-  type DiagnosedPage,
-  type DiagnosisAction,
-  type PageInput,
-  type BookmakerReadDeps,
-  type BookmakerHooks,
-  type BookmakerHookEvent,
-  type ReadSite,
-  type SiteLock,
-  type SitePace,
-  type ActiveRecipe,
-} from "./bookmakers/read/index";
-export { recipeCaptureConfig, stepSelector, marketBlockSelector } from "./bookmakers/read/capture-config";
-export {
-  createBookmakerDirectProvider,
-  cachedDirectEvents,
-  directEventId,
-  parseDirectEventId,
-  readySites,
-  matchOddsEvent,
-  leagueKeyOf,
-  BOOKMAKER_DIRECT,
-  DIRECT_EVENT_PREFIX,
-  type BookmakerDirectDeps,
-  type BookmakerDirectProvider,
-} from "./providers/bookmaker-direct";
-export { verifyDirectOdds, isDirectPick, MAX_RESELECTIONS, MAX_RECAPTURES, type DirectOddsOk } from "./sports/direct-odds";
 export { expandCategoryMarkets } from "./sports/data";
 export { unusualOddsOf, UNUSUAL_ODDS_GAP_PCT } from "./agents/cotes/select";
 export * from "./site/contract";

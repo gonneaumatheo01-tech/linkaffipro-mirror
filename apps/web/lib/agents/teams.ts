@@ -54,7 +54,7 @@ export const TEAM_CHAINS: Record<TeamKey, readonly AgentKey[]> = {
 export const TEAM_PROVIDERS: Record<TeamKey, readonly ProviderKey[]> = {
   dating: ["llm", "video", "image"],
   casino: ["llm"],
-  sports: ["llm", "odds", "screenshot"],
+  sports: ["llm", "odds"],
   algo: ["llm"],
 };
 
