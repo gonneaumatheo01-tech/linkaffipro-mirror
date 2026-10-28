@@ -5,7 +5,12 @@
  * (champs modifiés, nombre d'images, domaine du fichier : jamais l'adresse entière ni les consignes).
  */
 import { audit, prisma } from "@linkaffipro/db";
-import { changedMediaFields, parseReferenceIds, urlHost, type PersonaMediaInput } from "./media";
+import {
+  changedMediaFields,
+  parseReferenceIds,
+  urlHost,
+  type PersonaMediaInput,
+} from "./media";
 
 export type PersonaMediaView = PersonaMediaInput & {
   references: Array<{ id: string; filename: string; mimeType: string }>;
@@ -16,13 +21,7 @@ const IMAGE = /^image\/(jpeg|png|webp)$/;
 export async function loadPersonaMedia(personaId: string): Promise<PersonaMediaView | null> {
   const p = await prisma.persona.findUnique({
     where: { id: personaId },
-    select: {
-      referenceImageIds: true,
-      loraUrl: true,
-      loraTrigger: true,
-      loraScale: true,
-      mediaNotes: true,
-    },
+    select: { referenceImageIds: true, loraUrl: true, loraTrigger: true, loraScale: true, mediaNotes: true },
   });
   if (!p) return null;
   const ids = parseReferenceIds(p.referenceImageIds);
@@ -63,10 +62,7 @@ export async function savePersonaMedia(
     if (assets.length !== input.referenceImageIds.length)
       return { ok: false, error: "Une image de référence n'existe plus : rechargez la page." };
     if (assets.some((a) => !IMAGE.test(a.mimeType)))
-      return {
-        ok: false,
-        error: "Les images de référence doivent être des images JPEG, PNG ou WebP.",
-      };
+      return { ok: false, error: "Les images de référence doivent être des images JPEG, PNG ou WebP." };
     if (assets.some((a) => a.personaId && a.personaId !== personaId))
       return { ok: false, error: "Une de ces images est rangée pour une autre persona." };
   }

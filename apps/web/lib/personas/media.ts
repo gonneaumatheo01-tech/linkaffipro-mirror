@@ -25,7 +25,8 @@ export type PersonaMediaInput = {
 export type PersonaMediaErrors = Partial<Record<keyof PersonaMediaInput, string>>;
 
 export type PersonaMediaValidation =
-  { ok: true; data: PersonaMediaInput } | { ok: false; error: string; errors: PersonaMediaErrors };
+  | { ok: true; data: PersonaMediaInput }
+  | { ok: false; error: string; errors: PersonaMediaErrors };
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -66,8 +67,7 @@ export function validatePersonaMediaForm(fd: FormData): PersonaMediaValidation {
     errors.loraUrl = "Collez une adresse complète qui commence par https://";
 
   const loraTrigger = str(fd, "loraTrigger").replace(/\s+/g, " ").trim();
-  if (loraTrigger.length > L.loraTrigger)
-    errors.loraTrigger = `${L.loraTrigger} caractères au plus.`;
+  if (loraTrigger.length > L.loraTrigger) errors.loraTrigger = `${L.loraTrigger} caractères au plus.`;
 
   const scaleRaw = str(fd, "loraScale").trim().replace(",", ".");
   let loraScale: number = L.loraScale.def;
@@ -82,8 +82,7 @@ export function validatePersonaMediaForm(fd: FormData): PersonaMediaValidation {
   if (mediaNotes.length > L.mediaNotes) errors.mediaNotes = `${L.mediaNotes} caractères au plus.`;
 
   if (loraUrl && !loraTrigger && !errors.loraUrl)
-    errors.loraTrigger =
-      "Indiquez le mot déclencheur qui va avec ce fichier (donné avec le fichier).";
+    errors.loraTrigger = "Indiquez le mot déclencheur qui va avec ce fichier (donné avec le fichier).";
 
   const count = Object.keys(errors).length;
   if (count > 0)
@@ -110,8 +109,7 @@ export function changedMediaFields(
   after: PersonaMediaInput,
 ): Array<keyof PersonaMediaInput> {
   const out: Array<keyof PersonaMediaInput> = [];
-  if (before.referenceImageIds.join(",") !== after.referenceImageIds.join(","))
-    out.push("referenceImageIds");
+  if (before.referenceImageIds.join(",") !== after.referenceImageIds.join(",")) out.push("referenceImageIds");
   for (const k of ["loraUrl", "loraTrigger", "loraScale", "mediaNotes"] as const)
     if (before[k] !== after[k]) out.push(k);
   return out;
