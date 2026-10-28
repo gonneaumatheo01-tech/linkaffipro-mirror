@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
-        run: curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.sh | sh
+        run: npm install -g @railway/cli
 
       - name: Deploy web
         run: railway up --service web --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 -e production
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
-        run: curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.sh | sh
+        run: npm install -g @railway/cli
 
       - name: Deploy worker
         run: railway up --service worker --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 -e production
