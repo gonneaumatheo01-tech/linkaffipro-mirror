@@ -418,9 +418,11 @@ describe("équipe Prospection de bout en bout (base réelle, faux web, fausse IA
     expect(texts[0]).toMatch(/5 canaux — 1 A, 3 B, 1 C/);
     topCards = sent(n).filter((c) => buttonsOf(c).length);
     expect(topCards).toHaveLength(5);
-    // Ordre : niveau puis score ; le C sans pays (région inconnue), les écartés et le scam ne sont jamais présentés.
+    // Ordre (phase 32, `tier_then_value` par défaut) : niveau puis valeur estimée, le score ensuite (@slots_kaiser, casino
+    // allemand, n'a pas de valeur avec l'offre Winamax) ; le C sans pays (région inconnue), les écartés et le scam ne sont
+    // jamais présentés.
     const order = topCards.map((c) => /@(\w+)<\/a>/.exec(String(c.payload.text))?.[1]);
-    expect(order).toEqual(["pronos_maxime", "apostas_portugal", "slots_kaiser", "calcio_vip_club", "no_preview_bets"]);
+    expect(order).toEqual(["pronos_maxime", "apostas_portugal", "calcio_vip_club", "slots_kaiser", "no_preview_bets"]);
     const maxime = await prospectBy("pronos_maxime");
     expect(buttonsOf(topCards[0]!).map((b) => b.callback_data)).toEqual(["contacted", "signed", "dossier", "later", "no"].map((a) => `prospect:${maxime.id}:${a}`));
     expect(texts.join("\n")).toContain("Contact : contact@nopreview-bets.fr");
