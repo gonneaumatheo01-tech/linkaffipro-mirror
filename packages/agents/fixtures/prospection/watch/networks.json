@@ -1,0 +1,27 @@
+{
+  "_note": "Phase 32, réseaux : jeux de canaux (même contact, signature, groupe lié, transferts croisés, cas limite à 3 points).",
+  "sets": {
+    "same_contact_and_code": [
+      { "id": "a", "username": "pronos_a", "contacts": [{ "type": "TELEGRAM_USERNAME", "value": "@admin_pub", "confidence": "HIGH", "source": "description" }], "promoCodes": ["MAXPRONO"] },
+      { "id": "b", "username": "pronos_b", "contacts": [{ "type": "TELEGRAM_USERNAME", "value": "@admin_pub", "confidence": "HIGH", "source": "description" }], "promoCodes": ["MAXPRONO"] },
+      { "id": "c", "username": "pronos_c", "contacts": [{ "type": "TELEGRAM_USERNAME", "value": "@admin_pub", "confidence": "MEDIUM", "source": "description" }, { "type": "LINKED_GROUP", "value": "@pronos_chat", "confidence": "LOW", "source": "description" }], "promoCodes": [] },
+      { "id": "d", "username": "pronos_d", "contacts": [{ "type": "LINKED_GROUP", "value": "@pronos_chat", "confidence": "LOW", "source": "description" }], "promoCodes": [] }
+    ],
+    "signature_and_group": [
+      { "id": "s1", "username": "foot_un", "contacts": [{ "type": "OTHER", "value": "Maxime", "confidence": "MEDIUM", "source": "signature" }, { "type": "LINKED_GROUP", "value": "@foot_chat", "confidence": "LOW", "source": "description" }], "promoCodes": [] },
+      { "id": "s2", "username": "foot_deux", "contacts": [{ "type": "OTHER", "value": "Maxime", "confidence": "MEDIUM", "source": "signature" }, { "type": "LINKED_GROUP", "value": "@foot_chat", "confidence": "LOW", "source": "description" }], "promoCodes": [] }
+    ],
+    "cross_forwards_and_site": [
+      { "id": "f1", "username": "tips_nord", "contacts": [{ "type": "WEBSITE", "value": "https://pronos-maison.fr/contact", "confidence": "MEDIUM", "source": "description" }], "promoCodes": [], "forwardsFrom": { "tips_sud": 3 } },
+      { "id": "f2", "username": "tips_sud", "contacts": [{ "type": "WEBSITE", "value": "pronos-maison.fr", "confidence": "MEDIUM", "source": "description" }], "promoCodes": [], "forwardsFrom": { "tips_nord": 2 } }
+    ],
+    "limit_three_points": [
+      { "id": "l1", "username": "casino_x", "contacts": [{ "type": "WEBSITE", "value": "https://slots-maison.de", "confidence": "MEDIUM", "source": "description" }], "promoCodes": [], "description": "Les meilleurs bonus casino du moment chaque jour avec des tours gratuits et des codes exclusifs" },
+      { "id": "l2", "username": "casino_y", "contacts": [{ "type": "WEBSITE", "value": "https://slots-maison.de", "confidence": "MEDIUM", "source": "description" }], "promoCodes": [], "description": "Les meilleurs bonus casino du moment chaque jour avec des tours gratuits et des codes exclusifs" }
+    ],
+    "one_way_forwards": [
+      { "id": "o1", "username": "relais_un", "contacts": [], "promoCodes": [], "forwardsFrom": { "relais_deux": 5 } },
+      { "id": "o2", "username": "relais_deux", "contacts": [], "promoCodes": [], "forwardsFrom": {} }
+    ]
+  }
+}

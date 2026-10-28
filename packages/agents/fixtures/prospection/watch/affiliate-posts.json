@@ -1,0 +1,23 @@
+{
+  "_note": "Phase 32, suivi des affiliés signés : 4 jeux de posts (avec nos liens ; sans ; avec un concurrent ; avec « gains garantis »). Texte en mémoire des tests seulement.",
+  "now": "2026-10-26T09:00:00Z",
+  "sets": {
+    "with_our_links": [
+      { "text": "Pronos du soir : PSG gagne. Inscris-toi ici", "links": ["https://linkaffi.me/go/abc123?sub_id=X1"], "buttons": [] },
+      { "text": "Bonus de bienvenue Winamax avec notre lien", "links": [], "buttons": [{ "text": "Jouer", "url": "https://go.goolink.eu/r/Ab12" }] },
+      { "text": "Analyse du match de demain, rien à miser", "links": [], "buttons": [] }
+    ],
+    "without_links": [
+      { "text": "Analyse du match de demain, rien à miser", "links": [], "buttons": [] },
+      { "text": "Mon pronostic : over 2,5 buts", "links": [], "buttons": [] }
+    ],
+    "competitor": [
+      { "text": "Pronos du soir sur notre lien", "links": ["https://linkaffi.me/go/abc123"], "buttons": [] },
+      { "text": "Ce soir je joue chez Betano, inscris-toi vite", "links": ["https://www.betano.com/?btag=XYZ"], "buttons": [] }
+    ],
+    "guaranteed": [
+      { "text": "Pronos du soir sur notre lien", "links": ["https://linkaffi.me/go/abc123"], "buttons": [] },
+      { "text": "Ce soir c'est simple, gains garantis sur ce combiné, fonce les amis", "links": [], "buttons": [] }
+    ]
+  }
+}
