@@ -7,7 +7,7 @@ env:
   RAILWAY_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
 
 jobs:
-  deploy-web:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,29 +15,59 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Check Railway auth
+      - name: Deploy
+        id: deploy
         run: |
-          echo "Railway CLI version:"
-          railway version
-          echo "Checking whoami..."
-          railway whoami 2>&1 || true
+          set +e
+          echo "=== Railway version ===" > /tmp/deploy-log.txt
+          railway version >> /tmp/deploy-log.txt 2>&1
+          echo "" >> /tmp/deploy-log.txt
+          echo "=== Railway whoami ===" >> /tmp/deploy-log.txt
+          railway whoami >> /tmp/deploy-log.txt 2>&1
+          echo "" >> /tmp/deploy-log.txt
+          echo "=== Deploy web ===" >> /tmp/deploy-log.txt
+          railway up --service web --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 -e production >> /tmp/deploy-log.txt 2>&1
+          WEB_EXIT=$?
+          echo "Web exit code: $WEB_EXIT" >> /tmp/deploy-log.txt
+          if [ $WEB_EXIT -eq 0 ]; then
+            echo "" >> /tmp/deploy-log.txt
+            echo "=== Deploy worker ===" >> /tmp/deploy-log.txt
+            railway up --service worker --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 -e production >> /tmp/deploy-log.txt 2>&1
+            WORKER_EXIT=$?
+            echo "Worker exit code: $WORKER_EXIT" >> /tmp/deploy-log.txt
+          fi
+          cat /tmp/deploy-log.txt
+          echo "deploy_log<<LOGEOF" >> $GITHUB_OUTPUT
+          cat /tmp/deploy-log.txt >> $GITHUB_OUTPUT
+          echo "LOGEOF" >> $GITHUB_OUTPUT
+          echo "web_exit=$WEB_EXIT" >> $GITHUB_OUTPUT
+          exit 0
 
-      - name: Deploy web
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          railway up --service web --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 -e production 2>&1 || {
-            echo "Deploy failed with exit code $?"
-            echo "Trying with environment name..."
-            railway up --service web --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 --environment production 2>&1 || true
-          }
+          LOG="${{ steps.deploy.outputs.deploy_log }}"
+          WEB="${{ steps.deploy.outputs.web_exit }}"
+          if [ "$WEB" = "0" ]; then
+            TITLE="✅ Déploiement Railway réussi"
+          else
+            TITLE="❌ Déploiement Railway échoué (code $WEB)"
+          fi
+          gh issue create --title "$TITLE" --body "$(cat <<EOF
+          Résultat du déploiement automatique :
 
-  deploy-worker:
-    runs-on: ubuntu-latest
-    needs: deploy-web
-    steps:
-      - uses: actions/checkout@v4
+          \`\`\`
+          $LOG
+          \`\`\`
+          EOF
+          )" --label "deploy" 2>/dev/null || \
+          gh issue create --title "$TITLE" --body "$(cat <<EOF
+          Résultat du déploiement automatique :
 
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy worker
-        run: railway up --service worker --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 -e production
+          \`\`\`
+          $LOG
+          \`\`\`
+          EOF
+          )" 2>/dev/null || echo "Could not create issue"
