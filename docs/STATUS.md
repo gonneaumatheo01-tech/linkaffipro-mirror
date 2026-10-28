@@ -1,3 +1,44 @@
+# État du projet : phase 32 (Prospection avancée) terminée (28 octobre 2026)
+
+Phases 0 à 35 en ligne. Phase 32 (`docs/prompts/34-phase-32-prospection-avancee.md`) : l'équipe Prospection devient **intelligente dans le temps**. Elle relit les canaux régulièrement et vous prévient au bon moment, regroupe les canaux tenus par la même personne, estime ce que chaque canal peut rapporter (toujours en fourchette), puis compare ses estimations aux vrais résultats des affiliés signés dans Link Affi pour se corriger, avec votre accord. **Toujours sans contacter personne.** L'équipe compte maintenant 6 agents : Sourceur, Enrichisseur, Évaluateur, Pipeline, Veilleur, Valorisateur.
+
+## Fait
+- **Veille** : les canaux sont relus la nuit (les meilleurs chaque semaine, les signés tous les 3 jours, les écartés pour trop petite audience tous les 45 jours). Changements repérés : un canal qui lâche son bookmaker, un canal en forte hausse (une hausse d'abonnés sans les vues qui suivent est signalée comme suspecte, pas comme une bonne nouvelle), une baisse, un silence de 21 jours, une nouvelle marque, une vente de pub, un contact qui change, un niveau qui monte ou descend.
+- **Message du matin à 9 h 10** (après la liste de 9 h) : 8 alertes au plus, les plus utiles d'abord, chacune avec ✅ Vu, 📝 Note, 🔕 Plus pour ce canal. Une même alerte ne revient pas avant 14 jours ; si vous ignorez 5 fois un type d'alerte, Kevin propose de le couper.
+- **Suivi des affiliés signés** : postent-ils nos liens, poussent-ils un concurrent, écrivent-ils « gains garantis » ? Signalé avec la preuve (15 mots au plus). Information seulement : l'équipe ne leur écrit pas et ne coupe rien.
+- **Réseaux** : les canaux d'une même personne (même contact, même signature, même groupe lié, même site, transferts croisés, même code promo) forment un réseau, montré en une seule ligne dans la liste du matin, pour négocier un seul accord. Un statut donné à un canal du réseau vaut pour les autres. Vous pouvez dire « @a et @b c'est la même personne » ou « sépare @a ».
+- **Valeur estimée** : pour chaque canal, une fourchette basse / probable / haute par mois, avec ses hypothèses visibles. Jamais un chiffre seul ; « non calibrée » tant qu'il n'y a pas de vrais résultats.
+- **Vrais résultats Link Affi** (lecture seule) : à la signature, Kevin demande le numéro d'affilié Link Affi (« @x = affilié 1234 », ou un choix numéroté). Chaque mois : clics, inscriptions, premiers dépôts et revenus par affilié ; « actif » au premier dépôt ; un affilié sans clic depuis 60 jours est seulement signalé. Le 1er du mois, Kevin propose des réglages en choix numérotés (« applique 1 et 3 »), dans des limites strictes, annulables en un message (« annule le calibrage »).
+- **Recherche par compte réel** : prête mais **désactivée**. Elle ne s'active que si vous dites oui à Kevin. Lecture seule : aucun canal rejoint, aucun message.
+- **Site** : Agents → Prospection → Alertes, Réseaux, Valeur estimée, Affiliés signés, Sources ; la fiche d'un canal montre l'historique de ses chiffres en courbe, sa valeur et son réseau.
+- **Kevin comprend** : « qui a lâché son bookmaker ? », « canaux en hausse », « alertes du jour », « réseau de @x », « combien vaut @x ? », « valeur du pipeline », « mes affiliés », « performance de @x », « estimé vs réel », « calibrage », « l'ARPU est de 80 € ».
+
+## Test de 5 minutes
+1. Demain à 9 h 10, regardez le message d'alertes de Kevin (s'il y a des changements) et appuyez sur ✅ Vu sous l'un d'eux.
+2. Écrivez à Kevin : « valeur du pipeline ».
+3. Ouvrez Agents → Prospection → Valeur estimée sur le site.
+
+## Vérifications faites
+- Tests unitaires : agents 2 189, site 3 696, Telegram 604, worker 503, cœur 420, userbot 33 ; tests d'intégration sur base réelle : 430 site, 288 worker ; lint, typage et build verts ; `pnpm kevin:parity` : 253 actions, 0 manquante.
+- Test de bout en bout sur base réelle (faux réseau, fausse IA, faux Link Affi, faux compte Telegram) : relecture de nuit → exactement 4 alertes justes (marque lâchée, étoile montante, niveau en hausse, contact changé) → message de 9 h 10 avec boutons → réseau de 3 canaux → liste du matin avec le réseau en une ligne → signature + CPA 100 → rattachement Link Affi → résultats de 2 mois → 3 choix de réglage → « applique 1 » → « annule » ; affilié qui pousse un concurrent ; recherche par compte refusée sans votre oui, puis arrêt propre au premier ralentissement imposé par Telegram ; contrôle qualité en panne = rien n'est envoyé.
+- Défauts trouvés et corrigés par ce test : un canal abandonné revenait « à contacter » ; les relectures glissaient d'un jour par semaine ; le montant du deal n'allait pas aux autres canaux du réseau ; l'en-tête de la liste comptait mal les canaux d'un réseau ; un pluriel. Et côté Kevin : une demande sans thème (« trouve-moi de nouveaux affiliés ») était notée comme impossible au lieu d'une simple question.
+- Relecture adverse : aucun fichier de l'équipe ne peut écrire à un tiers ni rejoindre un canal (tests automatiques, côté équipe et côté compte réel) ; le lecteur Link Affi ne fait que des lectures ; aucune donnée personnelle d'affilié gardée au-delà du numéro, du nom et des chiffres.
+- Contrôle sur les vraies données après la mise en ligne : 3 défauts trouvés et corrigés. (1) 42 des 65 canaux retenus cette nuit étaient hors thème (humour, cuisine, technologie) : un canal ni casino ni paris sportifs n'est plus jamais à contacter, ils ont été renotés. Il reste 23 canaux retenus (1 A, 7 B, 15 C). (2) Un lien vers une fiche de place de marché (telega.io) comptait comme « même site » pour former un réseau. (3) Un réseau de canaux devenus inutiles n'était jamais défait. Les 5 réseaux formés à tort ont disparu ; aucun vrai réseau n'est encore repéré.
+- Sauvegarde de la production avant déploiement ; migration appliquée ; site, service d'arrière-plan et service des comptes réels déployés ; santé OK ; `pnpm tg:diag` vert.
+
+## Reste / limites
+- **Pas encore de valeur en euros** : vos 4 offres (Sportaza, 5gringos, Celsius, betportal) n'ont pas de montant. Tant qu'il manque le CPA et le % de revshare, l'équipe ne calcule aucune valeur (elle n'invente jamais un montant).
+- Le calibrage ne démarre qu'avec au moins 3 affiliés signés rattachés à Link Affi et 30 jours de résultats.
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+- Donner les montants de vos offres (CPA en euros, % de revshare) : Agents → Prospection → Offres.
+- Pour le revshare : dire à Kevin combien rapporte en moyenne un joueur déposant par mois (« l'ARPU est de 80 € »).
+- À chaque signature : donner à Kevin le numéro Link Affi de l'affilié (« @x = affilié 1234 »).
+- Facultatif : activer la recherche par compte réel (Kevin vous la proposera une fois).
+
+---
+
 # État du projet : phase 31 (Prospection d'affiliés, cœur) terminée (27 octobre 2026)
 
 Phases 0 à 31, 33, 34 et 35 en ligne. Phase 31 (`docs/prompts/33-phase-31-prospection-affilies.md`) : une équipe de 4 agents (Sourceur, Enrichisseur, Évaluateur, Pipeline) trouve toute seule des canaux Telegram **casino et paris sportifs** en Europe, les lit, mesure leur vraie audience, écarte les faux et les hors-Europe, note chaque canal de 0 à 100 avec l'explication, et Kevin vous livre chaque matin les meilleurs à contacter. **L'équipe ne contacte jamais personne : c'est vous qui faites le commercial.**
