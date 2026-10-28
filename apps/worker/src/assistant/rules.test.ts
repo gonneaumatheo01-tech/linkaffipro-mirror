@@ -309,6 +309,28 @@ describe("enregistrement du résultat d'un tour", () => {
     expect(plan.events.map((e) => e.type)).toEqual(["stage_changed"]);
   });
 
+  it("lien du canal VIP parti (Paris sportifs) : CONVERTED et `vip_link_sent` avec le bookmaker", () => {
+    const vip = { url: "https://t.me/+vipCelsius", bookmakerKey: "celsius" };
+    const plan = planTurnPersistence({
+      kind: "reply",
+      before: { stage: "LINK_SENT", followUpCount: 0 },
+      result: result({ newStage: "LINK_SENT", stageChanges: [], events: [], vipLinkSent: vip }),
+      now,
+    });
+    expect(plan.patch.stage).toBe("CONVERTED");
+    expect(plan.events).toEqual([
+      { type: "stage_changed", fromStage: "LINK_SENT", toStage: "CONVERTED", payload: {} },
+      { type: "vip_link_sent", payload: vip },
+    ]);
+    const already = planTurnPersistence({
+      kind: "reply",
+      before: { stage: "CONVERTED", followUpCount: 0 },
+      result: result({ newStage: "CONVERTED", stageChanges: [], events: [], vipLinkSent: vip }),
+      now,
+    });
+    expect(already.events.some((e) => e.type === "vip_link_sent")).toBe(false);
+  });
+
   it("panne avec nouvel essai : messages du tour et messages tardifs rendus, heure du nouvel essai gardée", () => {
     const retryAt = new Date("2026-10-18T10:05:00Z");
     const plan = planTurnPersistence({
@@ -692,6 +714,53 @@ describe("persona et lien d'offre", () => {
         { offerUsable: true, channelTitle: null, botName: null },
       ).hasOffer,
     ).toBe(false);
+  });
+
+  it("bookmakers (Paris sportifs) : offres actives seulement, triés par priorité, lien VIP repéré", () => {
+    const extras = { offerUsable: true, channelTitle: null, botName: null };
+    const live = { isActive: true, trackingUrlTemplate: "https://linkaffi.me/go/x?sub_id={subid}" };
+    const book = (bookmakerKey: string, priority: number, over: object = {}) => ({
+      bookmakerKey,
+      label: bookmakerKey,
+      priority,
+      affiliateCampaignId: `c-${bookmakerKey}`,
+      affiliateCampaign: live,
+      inviteLinkId: null,
+      inviteLink: null,
+      ...over,
+    });
+    // Mehdi : aucune offre « simple », seulement des offres par bookmaker.
+    const p = toPersonaInput(
+      {
+        ...persona,
+        affiliateCampaignId: null,
+        universe: "sports",
+        bookmakers: [
+          book("sportaza", 3, { affiliateCampaign: { ...live, isActive: false } }),
+          book("betportal", 2),
+          book("celsius", 1, {
+            inviteLinkId: "l1",
+            inviteLink: { telegramInviteLink: "https://t.me/+vip" },
+          }),
+        ],
+      },
+      extras,
+    );
+    expect(p.hasOffer).toBe(true);
+    expect(p.bookmakers).toEqual([
+      { bookmakerKey: "celsius", label: "celsius", priority: 1, hasInviteLink: true },
+      { bookmakerKey: "betportal", label: "betportal", priority: 2, hasInviteLink: false },
+    ]);
+    const none = toPersonaInput(
+      {
+        ...persona,
+        affiliateCampaignId: null,
+        bookmakers: [book("celsius", 1, { affiliateCampaign: null })],
+      },
+      extras,
+    );
+    expect(none).toMatchObject({ hasOffer: false, bookmakers: undefined });
+    expect(toPersonaInput(persona, extras).bookmakers).toBeUndefined();
   });
 
   it("identité : GIRL et âge repris, ASSISTANT par défaut", () => {

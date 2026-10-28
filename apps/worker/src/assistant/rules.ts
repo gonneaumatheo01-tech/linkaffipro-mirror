@@ -98,7 +98,31 @@ export type PersonaRow = {
   universe?: string | null;
   /** `Persona.faq` (phase 25) : JSON `{ q, a }[]`. */
   faq?: unknown;
+  /** `PersonaBookmaker[]` (phase 25 bis) : bookmakers liés à la persona (paris sportifs). */
+  bookmakers?: readonly {
+    bookmakerKey: string;
+    label: string;
+    priority: number;
+    affiliateCampaignId: string | null;
+    affiliateCampaign?: { isActive: boolean; trackingUrlTemplate: string } | null;
+    inviteLinkId: string | null;
+    inviteLink?: { telegramInviteLink: string | null } | null;
+  }[];
 };
+
+/**
+ * Bookmakers d'une persona VIP dont le lien d'inscription peut partir (offre Link Affi active, avec adresse de suivi),
+ * triés par priorité : seuls ceux-là sont proposés au modèle.
+ */
+export function usableBookmakers<B extends NonNullable<PersonaRow["bookmakers"]>[number]>(
+  rows: readonly B[] | null | undefined,
+): B[] {
+  return (rows ?? [])
+    .filter(
+      (pb) => pb.affiliateCampaign?.isActive && pb.affiliateCampaign.trackingUrlTemplate.trim(),
+    )
+    .sort((a, b) => a.priority - b.priority);
+}
 
 /**
  * Persona du moteur. `offerUsable` : offre Link Affi liée, active et avec son adresse de suivi ; sinon le moteur ne parle
@@ -108,6 +132,7 @@ export function toPersonaInput(
   p: PersonaRow,
   extras: { offerUsable: boolean; channelTitle: string | null; botName: string | null },
 ): PersonaInput {
+  const books = usableBookmakers(p.bookmakers);
   return {
     name: p.name,
     // Casino / Paris sportifs : assistante imposée, quelle que soit la valeur enregistrée.
@@ -131,12 +156,20 @@ export function toPersonaInput(
     suggestedFollowUpHours: parseSuggestedFollowUpHours(p.suggestedFollowUpHours),
     offerPitch: p.offerPitch,
     offerButtonText: p.offerButtonText,
-    hasOffer: Boolean(p.affiliateCampaignId) && extras.offerUsable,
+    hasOffer: (Boolean(p.affiliateCampaignId) || books.length > 0) && extras.offerUsable,
     offerMediaAssetId: extras.offerUsable ? p.offerMediaAssetId : null,
     channelTitle: extras.channelTitle,
     botName: extras.botName,
     universe: parsePersonaUniverse(p.universe),
     faq: parsePersonaFaq(p.faq),
+    bookmakers: books.length
+      ? books.map((pb) => ({
+          bookmakerKey: pb.bookmakerKey,
+          label: pb.label,
+          priority: pb.priority,
+          hasInviteLink: Boolean(pb.inviteLinkId && pb.inviteLink?.telegramInviteLink),
+        }))
+      : undefined,
   };
 }
 
@@ -479,6 +512,8 @@ export function planTurnPersistence(input: {
   const events: PlannedEvent[] = [];
   for (const e of r.events) {
     if (e.type === "offer_sent") continue;
+    // Lien VIP envoyé : géré plus bas à partir de r.vipLinkSent (avec le passage à CONVERTED).
+    if (e.type === "vip_link_sent") continue;
     // Passage d'étape déjà journalisé à l'envoi du lien.
     if (e.type === "stage_changed" && live?.stage) continue;
     if (e.type === "stage_changed") {
@@ -517,6 +552,17 @@ export function planTurnPersistence(input: {
     patch.followUpCount = before.followUpCount;
     const retryAllowed = Boolean(r.retryAt) && (r.retryCount ?? 0) < MAX_TURN_ATTEMPTS;
     patch.nextFollowUpAt = retryAllowed && r.retryAt ? shiftOutOfQuietHours(r.retryAt) : null;
+  }
+
+  // Lien VIP envoyé (phase 25 bis, sports) : la personne a déposé, on l'a admise → CONVERTED.
+  if (r.vipLinkSent && stage !== "CONVERTED" && stage !== "CLOSED") {
+    events.push({ type: "stage_changed", fromStage: stage, toStage: "CONVERTED", payload: {} });
+    events.push({
+      type: "vip_link_sent",
+      payload: { url: r.vipLinkSent.url, bookmakerKey: r.vipLinkSent.bookmakerKey },
+    });
+    stage = "CONVERTED";
+    patch.stage = "CONVERTED";
   }
 
   if (r.needsHuman) {
@@ -685,8 +731,10 @@ export function assistantOfferSlug(personaId: string, affiliateCampaignId: strin
 }
 
 /** Nom du lien dans Campagnes → Liens. */
-export function assistantOfferLabel(personaName: string): string {
-  return `Assistant « ${personaName} »`;
+export function assistantOfferLabel(personaName: string, bookmakerLabel?: string): string {
+  return bookmakerLabel
+    ? `Assistant « ${personaName} » — ${bookmakerLabel}`
+    : `Assistant « ${personaName} »`;
 }
 
 /** Adresse des liens suivis : TRACKING_BASE_URL, sinon https://<TRACKING_HOST>, sinon https://go.goolink.eu. */
