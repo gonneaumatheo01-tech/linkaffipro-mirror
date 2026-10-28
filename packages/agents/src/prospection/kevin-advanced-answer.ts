@@ -67,7 +67,7 @@ export async function advancedFacts(deps: ProspectionAdvancedKevinDeps): Promise
       .sort((a, b) => b.v.base - a.v.base)
       .slice(0, 5)
       .map(({ p, v }) => ({ canal: handle({ username: p.username, title: p.title ?? "" }), statut: PROSPECT_STATUS_WORDS[p.status] ?? p.status, basse: r0(v.low), probable: r0(v.base), haute: r0(v.high) })),
-    affilies: evr.slice(0, 10).map((e) => {
+    affilies: evr.rows.slice(0, 10).map((e) => {
       const reel = e.realCents === null ? null : r0(e.realCents / 100);
       return { canal: e.name, mois: e.month, reelEuros: reel, basse: e.low === null ? null : r0(e.low), probable: e.base === null ? null : r0(e.base), haute: e.high === null ? null : r0(e.high), sousPerforme: reel === null || e.low === null ? null : reel < e.low };
     }),
@@ -79,7 +79,7 @@ export function advancedLines(f: AdvancedFacts, chatId: string | null): string[]
   const out: string[] = [];
   if (f.total.canaux) out.push(`Pipeline : ${f.total.basse} – ${f.total.haute} € par mois estimés (probable ${f.total.probable} €) sur ${f.total.canaux} canaux.`);
   const top = f.pipeline.slice().sort((a, b) => b.probable - a.probable)[0];
-  if (top) out.push(`La plus grosse part est « ${top.statut} » : ${top.basse} – ${top.haute} € (${top.canaux} canaux).`);
+  if (top) out.push(`La plus grosse part est «\u00a0${top.statut}\u00a0» : ${top.basse} – ${top.haute} € (${top.canaux} canaux).`);
   if (f.plusGros[0]) out.push(`Plus grosses fourchettes : ${f.plusGros.slice(0, 3).map((g) => `${g.canal} ${g.basse} – ${g.haute} €`).join(", ")}.`);
   const under = f.affilies.filter((a) => a.sousPerforme);
   if (under.length) out.push(`Sous la fourchette basse : ${under.map((a) => `${a.canal} (réel ${a.reelEuros} €, estimé ${a.basse} – ${a.haute} €)`).join(", ")}.`);

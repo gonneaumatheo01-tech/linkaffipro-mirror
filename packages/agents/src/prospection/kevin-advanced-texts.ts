@@ -27,18 +27,18 @@ export const PROSPECTION_ADVANCED_KEVIN_VARIANTS = {
   ),
   alertsMore: voiceTemplate([{ more: 4, url: "https://app.linkaffipro.com/agents/prospection/alertes" }], (p) => [`Et ${p.more} autres sur la page des alertes : ${p.url}`, `${p.more} de plus sur le site : ${p.url}`]),
   muteNeedKind: [
-    "Quel type d'alerte tu veux couper ? Par exemple « plus d'alertes de hausse ».",
-    "Il me manque le type d'alerte. Dis-moi par exemple « plus d'alertes de silence ».",
+    "Quel type d'alerte tu veux couper ? Par exemple «\u00a0plus d'alertes de hausse\u00a0».",
+    "Il me manque le type d'alerte. Dis-moi par exemple «\u00a0plus d'alertes de silence\u00a0».",
   ],
   muted: voiceTemplate([{ what: "canal en forte hausse" }], (p) => [
-    `C'est coupé : plus d'alertes « ${p.what} ». Écris « remets les alertes ${p.what} » pour les retrouver.`,
-    `Ok, je ne t'envoie plus d'alertes « ${p.what} ». Tu les remets quand tu veux.`,
+    `C'est coupé : plus d'alertes «\u00a0${p.what}\u00a0». Écris «\u00a0remets les alertes ${p.what}\u00a0» pour les retrouver.`,
+    `Ok, je ne t'envoie plus d'alertes «\u00a0${p.what}\u00a0». Tu les remets quand tu veux.`,
   ]),
-  unmuted: voiceTemplate([{ what: "canal en forte hausse" }], (p) => [`Les alertes « ${p.what} » reviennent dès demain matin.`, `C'est remis, tu retrouves les alertes « ${p.what} ».`]),
+  unmuted: voiceTemplate([{ what: "canal en forte hausse" }], (p) => [`Les alertes «\u00a0${p.what}\u00a0» reviennent dès demain matin.`, `C'est remis, tu retrouves les alertes «\u00a0${p.what}\u00a0».`]),
   noteAsk: voiceTemplate([N1], (p) => [`Écris ta note sur ${p.name}, je l'ajoute à sa fiche.`, `Je t'écoute : ta note pour ${p.name} ?`]),
   // ------------------------------------------------------------------------------------------ réseaux
   networkNone: voiceTemplate([N1], (p) => [`${p.name} n'est dans aucun réseau pour l'instant : je ne lui trouve pas de canal jumeau.`, `Pas de réseau autour de ${p.name}, il a l'air seul.`]),
-  mergeNeedTwo: ["Donne-moi au moins deux canaux, par exemple « @a et @b c'est la même personne ».", "Il me faut deux canaux, comme « @a et @b c'est la même personne »."],
+  mergeNeedTwo: ["Donne-moi au moins deux canaux, par exemple «\u00a0@a et @b c'est la même personne\u00a0».", "Il me faut deux canaux, comme «\u00a0@a et @b c'est la même personne\u00a0»."],
   mergeDone: voiceTemplate([{ names: "@pronos_fr et @slots_it" }], (p) => [`C'est noté, ${p.names} sont dans le même réseau. Un seul deal pour tous.`, `Fait, je traite ${p.names} comme une seule personne.`]),
   splitDone: voiceTemplate([N1], (p) => [`C'est fait, ${p.name} sort de son réseau. Je ne le regroupe plus avec les autres.`, `Ok, ${p.name} est de nouveau seul, je ne le remets plus dans ce réseau.`]),
   // ------------------------------------------------------------------------------------------ valeur
@@ -50,21 +50,21 @@ export const PROSPECTION_ADVANCED_KEVIN_VARIANTS = {
   pipelineNone: ["Je n'ai encore aucune valeur estimée dans ton pipeline.", "Aucun canal de ton pipeline n'a encore d'estimation."],
   // ------------------------------------------------------------------------------------------ affiliés
   affiliatesNone: [
-    "Tu n'as pas encore d'affilié signé. Dès que tu me dis « @x a signé », je le suis ici.",
-    "Aucun affilié signé pour l'instant. Écris « @x a signé » quand ça arrive.",
+    "Tu n'as pas encore d'affilié signé. Dès que tu me dis «\u00a0@x a signé\u00a0», je le suis ici.",
+    "Aucun affilié signé pour l'instant. Écris «\u00a0@x a signé\u00a0» quand ça arrive.",
   ],
   affiliatesHead: voiceTemplate([{ count: 3 }, { count: 1 }], (p) => [`${plural(p.count, "affilié signé", "affiliés signés")} :`, `Tes affiliés, ${p.count} :`]),
   notLinked: voiceTemplate([N1], (p) => [
-    `${p.name} n'est pas encore rattaché à Link Affi. Écris « ${p.name} = affilié 1234 » avec son numéro.`,
-    `Il me manque le numéro Link Affi de ${p.name}. Tu me l'écris comme « ${p.name} = affilié 1234 » ?`,
+    `${p.name} n'est pas encore rattaché à Link Affi. Écris «\u00a0${p.name} = affilié 1234\u00a0» avec son numéro.`,
+    `Il me manque le numéro Link Affi de ${p.name}. Tu me l'écris comme «\u00a0${p.name} = affilié 1234\u00a0» ?`,
   ]),
   perfNone: voiceTemplate([N1], (p) => [`Pas encore de résultat Link Affi pour ${p.name}. Je relis ses chiffres le 1er du mois.`, `Je n'ai encore aucun chiffre Link Affi pour ${p.name}, la relecture passe le 1er du mois.`]),
-  linkNeedId: ["Il me manque le numéro d'affilié. Écris par exemple « @x = affilié 1234 ».", "Donne-moi son numéro Link Affi, comme « @x = affilié 1234 »."],
+  linkNeedId: ["Il me manque le numéro d'affilié. Écris par exemple «\u00a0@x = affilié 1234\u00a0».", "Donne-moi son numéro Link Affi, comme «\u00a0@x = affilié 1234\u00a0»."],
   linkDone: voiceTemplate([{ name: "@pronos_fr", id: "1234" }], (p) => [
     `C'est rattaché : ${p.name} est l'affilié ${p.id}. Je lis ses vrais résultats chaque mois.`,
     `Fait, ${p.name} = affilié ${p.id}. Ses chiffres Link Affi arrivent avec la prochaine relecture.`,
   ]),
-  linkNotSigned: voiceTemplate([N1], (p) => [`${p.name} n'est pas signé. Dis-moi d'abord « ${p.name} a signé ».`, `Je ne rattache que les signés, et ${p.name} ne l'est pas encore.`]),
+  linkNotSigned: voiceTemplate([N1], (p) => [`${p.name} n'est pas signé. Dis-moi d'abord «\u00a0${p.name} a signé\u00a0».`, `Je ne rattache que les signés, et ${p.name} ne l'est pas encore.`]),
   evrNone: [
     "Pas encore de comparaison : il me faut des affiliés rattachés avec au moins un mois de résultats.",
     "Je ne peux pas encore comparer, aucun affilié rattaché n'a un mois complet de chiffres.",
@@ -74,11 +74,11 @@ export const PROSPECTION_ADVANCED_KEVIN_VARIANTS = {
     "Aucun réglage proposé en ce moment. J'en propose quand j'ai au moins 3 affiliés sur 30 jours dans un même groupe.",
     "Rien à ajuster pour l'instant : il me faut 3 affiliés et 30 jours de résultats dans un même groupe.",
   ],
-  calibrationHead: voiceTemplate([{ count: 3 }], (p) => [`${plural(p.count, "réglage proposé", "réglages proposés")}, réponds par exemple « applique 1 » :`, `J'ai ${p.count} ${p.count > 1 ? "propositions" : "proposition"}. Dis « applique 1 et 3 » pour celles que tu veux :`]),
-  calibrationNeedChoice: ["Lesquelles tu veux appliquer ? Réponds par exemple « applique 1 et 3 ».", "Donne-moi les numéros, comme « applique 1 »."],
+  calibrationHead: voiceTemplate([{ count: 3 }], (p) => [`${plural(p.count, "réglage proposé", "réglages proposés")}, réponds par exemple «\u00a0applique 1\u00a0» :`, `J'ai ${p.count} ${p.count > 1 ? "propositions" : "proposition"}. Dis «\u00a0applique 1 et 3\u00a0» pour celles que tu veux :`]),
+  calibrationNeedChoice: ["Lesquelles tu veux appliquer ? Réponds par exemple «\u00a0applique 1 et 3\u00a0».", "Donne-moi les numéros, comme «\u00a0applique 1\u00a0»."],
   calibrationApplied: voiceTemplate([{ choices: "1 et 3" }], (p) => [
-    `C'est appliqué (${p.choices}). Je compare avant et après pendant 30 jours. Écris « annule le calibrage » pour revenir en arrière.`,
-    `Fait pour ${p.choices}. Je suis l'effet pendant 30 jours, et « annule le calibrage » remet tout comme avant.`,
+    `C'est appliqué (${p.choices}). Je compare avant et après pendant 30 jours. Écris «\u00a0annule le calibrage\u00a0» pour revenir en arrière.`,
+    `Fait pour ${p.choices}. Je suis l'effet pendant 30 jours, et «\u00a0annule le calibrage\u00a0» remet tout comme avant.`,
   ]),
   calibrationUndone: ["C'est annulé, les réglages sont revenus comme avant.", "Retour en arrière fait, tout est comme avant le calibrage."],
   // ------------------------------------------------------------------------------------------ compte réel
@@ -86,7 +86,7 @@ export const PROSPECTION_ADVANCED_KEVIN_VARIANTS = {
     "Je peux chercher des canaux directement dans Telegram avec un compte réel, en lecture seule, sans rien rejoindre ni écrire. Ça trouve des canaux absents des annuaires. Tu confirmes ?",
   ],
   accountOfferLater: [
-    "Si tu veux, je peux aussi chercher des canaux dans Telegram avec un compte réel, en lecture seule. Écris « active la recherche par compte » et je te demande confirmation.",
+    "Si tu veux, je peux aussi chercher des canaux dans Telegram avec un compte réel, en lecture seule. Écris «\u00a0active la recherche par compte\u00a0» et je te demande confirmation.",
   ],
   accountConfirm: [
     "J'active la recherche par compte réel : lecture seule, rien rejoint ni écrit, 100 recherches par jour et par compte au plus.",
@@ -107,11 +107,11 @@ export const PROSPECTION_ADVANCED_KEVIN_VARIANTS = {
     (p) =>
       p.on
         ? [`La recherche par compte réel est active : ${p.today} recherches aujourd'hui, ${p.cap} par compte au plus.`, `Active, avec ${p.today} recherches faites aujourd'hui sur ${p.cap} permises par compte.`]
-        : ["La recherche par compte réel est coupée. Écris « active la recherche par compte » pour la lancer.", "Elle est coupée pour l'instant. Tu la lances avec « active la recherche par compte »."],
+        : ["La recherche par compte réel est coupée. Écris «\u00a0active la recherche par compte\u00a0» pour la lancer.", "Elle est coupée pour l'instant. Tu la lances avec «\u00a0active la recherche par compte\u00a0»."],
   ),
   accountFloodStopped: voiceTemplate([{ seconds: 120 }], (p) => [
-    `Telegram a demandé de ralentir la recherche par compte réel (attente de ${p.seconds} s). Je l'ai coupée par sécurité, rien d'autre n'est touché. Écris « active la recherche par compte » pour la relancer plus tard.`,
-    `Telegram m'a freiné pendant la recherche par compte réel (${p.seconds} s d'attente). Je l'ai coupée tout de suite. Tu la relances avec « active la recherche par compte » quand tu veux.`,
+    `Telegram a demandé de ralentir la recherche par compte réel (attente de ${p.seconds} s). Je l'ai coupée par sécurité, rien d'autre n'est touché. Écris «\u00a0active la recherche par compte\u00a0» pour la relancer plus tard.`,
+    `Telegram m'a freiné pendant la recherche par compte réel (${p.seconds} s d'attente). Je l'ai coupée tout de suite. Tu la relances avec «\u00a0active la recherche par compte\u00a0» quand tu veux.`,
   ]),
   accountWarningStopped: [
     "Telegram a envoyé un avertissement au compte réel pendant la recherche. Je l'ai coupée tout de suite, le compte n'a rien rejoint ni écrit. Regarde le compte avant de la relancer.",

@@ -25,7 +25,7 @@ import { accountSearchEnabled, readAccountSearchCounters, requestsToday, setAcco
 import { mayChangePipeline } from "./kevin-buttons";
 import { prospectionAdvancedKevinPort, estimateOf, type AlertRow, type ProspectionAdvancedKevinDeps } from "./kevin-advanced-port";
 import { PROSPECTION_ADVANCED_KEVIN_VARIANTS as A } from "./kevin-advanced-texts";
-import { prospectionPort, type ProspectCallbackOutcome, type ProspectionKevinDeps } from "./kevin-port";
+import type { ProspectCallbackOutcome, ProspectionKevinDeps } from "./kevin-port";
 import { findProspect, handle, type ProspectRow } from "./kevin-read";
 import { compactNumber, PROSPECT_STATUS_WORDS, PROSPECTION_KEVIN_VARIANTS as V, plural, usernameOf } from "./kevin-texts";
 
@@ -97,7 +97,7 @@ export function alertLine(a: AlertRow, name: string): string {
   if (brand) parts.push(brand);
   if (days !== null) parts.push(`depuis ${plural(days, "jour")}`);
   if (before !== null && after !== null) parts.push(`${compactNumber(before)} → ${compactNumber(after)}`);
-  const evidence = a.evidence ? ` « ${a.evidence.split(/\s+/).slice(0, 15).join(" ")} »` : "";
+  const evidence = a.evidence ? ` «\u00a0${a.evidence.split(/\s+/).slice(0, 15).join(" ")}\u00a0»` : "";
   return esc(`• ${name} : ${parts.join(", ")}${evidence}`);
 }
 

@@ -336,7 +336,7 @@ export async function runAccountSearch(deps0: ProspectionKevinDeps, lot: Lot): P
         candidates.push({
           url: `https://t.me/${c.username}`,
           sourceType: "ACCOUNT_SEARCH",
-          sourceDetail: `compte réel « ${q.query} » (${q.language})${linked}`.slice(0, 300),
+          sourceDetail: `compte réel «\u00a0${q.query}\u00a0» (${q.language})${linked}`.slice(0, 300),
           title: profile?.title ?? c.title,
           announcedSubscribers: profile?.subscribers ?? c.subscribers,
           kind: "CHANNEL",
