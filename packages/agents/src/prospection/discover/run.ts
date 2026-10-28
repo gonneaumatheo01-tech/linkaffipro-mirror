@@ -99,12 +99,42 @@ export async function planDiscoveryLots(deps: ProspectionDeps, now: Date): Promi
   const start = rot.lastRunDay === day && typeof rot.lastStart === "number" ? rot.lastStart : (((Number(rot.index) || 0) % n) + n) % n;
   if (rot.lastRunDay !== day) await writeSetting(deps, PROSPECTION_SETTINGS.rotation.key, { index: (start + LANGUAGES_PER_NIGHT) % n, lastRunDay: day, lastStart: start });
   const languages = nightLanguages(start);
+  // Phase 32 : répartition de la recherche acceptée par le client (calibrage) → nombre de lots par source.
+  const counts = lotsPerSource(await readSetting(deps, DISCOVERY_SHARES_SETTING));
   const lots: DiscoveryLot[] = [];
   for (const vertical of await verticals(deps)) {
-    for (const source of ["directories", "web_search", "social"] as const) lots.push({ source, languages, vertical });
-    lots.push({ source: "analysts", languages: [], vertical });
+    for (const source of ["directories", "web_search", "social"] as const)
+      for (let i = 0; i < counts[source]; i++) lots.push({ source, languages: i === 0 ? languages : nightLanguages(start + LANGUAGES_PER_NIGHT * i), vertical });
+    for (let i = 0; i < counts.analysts; i++) lots.push({ source: "analysts", languages: [], vertical });
   }
   return lots;
+}
+
+/** Réglage écrit par le calibrage de la phase 32 (`learn/calibrate.ts`, `DISCOVERY_SHARES_KEY`), parts par source. */
+export const DISCOVERY_SHARES_SETTING = "prospection.discovery_shares";
+type LotSource = "directories" | "web_search" | "social" | "analysts";
+const LOT_SOURCES: readonly LotSource[] = ["directories", "web_search", "social", "analysts"];
+const SHARE_SOURCES = ["directories", "web_search", "social", "graph", "analysts"] as const;
+
+/**
+ * Lots de nuit par source (pur) : sans réglage, 1 lot chacune (comme en phase 31). Avec une répartition acceptée par le
+ * client (parts normalisées sur les 5 sources, graphe compris), 0 lot sous 10 %, 2 lots à partir de 30 %, sinon 1.
+ * Au moins un lot reste toujours planifié.
+ */
+export function lotsPerSource(raw: unknown): Record<LotSource, number> {
+  const one: Record<LotSource, number> = { directories: 1, web_search: 1, social: 1, analysts: 1 };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return one;
+  const o = raw as Record<string, unknown>;
+  const vals = SHARE_SOURCES.map((k) => (typeof o[k] === "number" && Number.isFinite(o[k]) && (o[k] as number) >= 0 ? (o[k] as number) : 0.2));
+  const sum = vals.reduce((a, b) => a + b, 0);
+  if (sum <= 0) return one;
+  const out = { ...one };
+  for (const k of LOT_SOURCES) {
+    const share = vals[SHARE_SOURCES.indexOf(k)]! / sum;
+    out[k] = share < 0.1 ? 0 : share >= 0.3 ? 2 : 1;
+  }
+  if (LOT_SOURCES.every((k) => out[k] === 0)) out.web_search = 1;
+  return out;
 }
 
 export type DiscoveryRequest = { countries: string[]; vertical: "SPORTS" | "CASINO"; requestId: string };

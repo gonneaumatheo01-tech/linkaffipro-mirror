@@ -3,7 +3,7 @@ import { QUERY_LANGUAGES } from "../dict";
 import { PROSPECTION_SETTINGS } from "../contract";
 import { addManualProspect } from "./manual";
 import { pauseSource } from "./polite";
-import { planDiscoveryLots, requestDiscovery, runDiscovery } from "./run";
+import { DISCOVERY_SHARES_SETTING, lotsPerSource, planDiscoveryLots, requestDiscovery, runDiscovery } from "./run";
 import { DISCOVER_NOW, discoverKit, readProspectionFixture } from "./testing";
 
 const DAY = 86_400_000;
@@ -32,6 +32,21 @@ describe("planDiscoveryLots", () => {
     expect(await planDiscoveryLots(off.deps, DISCOVER_NOW)).toEqual([]);
     const casino = discoverKit({ seed: { setting: [{ key: PROSPECTION_SETTINGS.verticals.key, value: ["CASINO"] }] } });
     expect(new Set((await planDiscoveryLots(casino.deps, DISCOVER_NOW)).map((l) => l.vertical))).toEqual(new Set(["CASINO"]));
+  });
+});
+
+describe("répartition de la recherche (calibrage de la phase 32)", () => {
+  it("sans réglage : 1 lot par source ; sous 10 % : aucun ; 30 % et plus : 2 lots", () => {
+    expect(lotsPerSource(null)).toEqual({ directories: 1, web_search: 1, social: 1, analysts: 1 });
+    expect(lotsPerSource({ directories: 0.05, web_search: 0.35, social: 0.2, graph: 0.2, analysts: 0.2 })).toEqual({ directories: 0, web_search: 2, social: 1, analysts: 1 });
+    expect(lotsPerSource({ directories: 0, web_search: 0, social: 0, graph: 1, analysts: 0 })).toEqual({ directories: 0, web_search: 1, social: 0, analysts: 0 });
+  });
+
+  it("le plan de nuit suit la répartition acceptée ; le 2e lot lit d'autres langues", async () => {
+    const k = discoverKit({ seed: { setting: [{ key: DISCOVERY_SHARES_SETTING, value: { directories: 0.05, web_search: 0.35, social: 0.2, graph: 0.2, analysts: 0.2 } }] } });
+    const lots = (await planDiscoveryLots(k.deps, DISCOVER_NOW)).filter((l) => l.vertical === "SPORTS");
+    expect(lots.map((l) => l.source)).toEqual(["web_search", "web_search", "social", "analysts"]);
+    expect(lots[0]!.languages).not.toEqual(lots[1]!.languages);
   });
 });
 
