@@ -25,8 +25,6 @@ export const QUEUE_NAMES = [
   "agents-sports",
   "agents-algo",
   "agents-ads",
-  // Phase 35 : lectures des bookmakers faites par le serveur (un seul lecteur à la fois par site).
-  "agents-bookmakers",
   // Phase 28 : équipe Montage (ffmpeg, une tâche à la fois).
   "agents-montage",
   // Phase 29 : équipe Analystes (veille du marché, règles des plateformes pub, rapports ; lecture réseau, 2 à la fois).
@@ -150,8 +148,6 @@ export const JOB_RETRY_OPTIONS: Record<
   "agents-sports": { attempts: 1 },
   "agents-algo": { attempts: 1 },
   "agents-ads": { attempts: 1 },
-  // Phase 35 : la ligne `BookmakerReadJob` fait foi (reprise par le balayage de 15 s, abandon après deux prises).
-  "agents-bookmakers": { attempts: 1 },
   // Phase 28 : 3 essais (2 reprises : 1 min puis 2 min) ; l'étape repart de la base (un short rangé n'est jamais
   // refait) ; au 3e échec, la chaîne marque l'échec et Kevin prévient (la tâche se termine alors sans erreur).
   "agents-montage": { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
@@ -310,15 +306,6 @@ export type AgentsSportsJob = { type: "sports"; task: "settle" };
 export type AgentsAdsJob = { type: "tick" } | { type: "report-now"; kind?: "daily" | "weekly"; send?: boolean };
 
 /**
- * File `agents-bookmakers` (phase 35) : `tick` toutes les 15 s (travaux de lecture « serveur » en attente, ménage des
- * travaux abandonnés) ; `run` : un travail précis tout de suite (déposé par `enqueueReadJob`). La base fait foi.
- */
-export type AgentsBookmakersJob = { type: "tick" } | { type: "run"; jobId: string } | AgentsBookmakersHealthJob;
-
-/** Phase 35, chantier D : santé des bookmakers toutes les 30 min (`bookmakersHealth`) ; `force` : même la nuit. */
-export type AgentsBookmakersHealthJob = { type: "bookmakers-health"; force?: boolean };
-
-/**
  * File `agents-montage` (phase 28) : étapes de la chaîne (copie structurelle de `MontageQueueJob` de
  * `@linkaffipro/agents`, ce paquet ne dépend pas des agents), `sweep` toutes les 15 min (tâches perdues remises en
  * file), `cleanup` chaque jour (dossiers de travail orphelins de plus de 24 h).
@@ -409,9 +396,7 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                             ? AgentStepJob
                             : Q extends "agents-ads"
                               ? AgentsAdsJob
-                              : Q extends "agents-bookmakers"
-                                ? AgentsBookmakersJob
-                                : Q extends "agents-montage"
+                              : Q extends "agents-montage"
                                   ? AgentsMontageJob
                                   : Q extends "agents-analystes"
                                     ? AgentsAnalystesJob

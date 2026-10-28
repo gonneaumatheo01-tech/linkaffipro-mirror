@@ -51,13 +51,7 @@
     "kevin:parity": "node --env-file-if-exists=.env.local --import tsx packages/agents/scripts/kevin-parity.ts",
     "montage:diag": "node --env-file-if-exists=.env.local --import tsx packages/agents/scripts/montage-diag.ts",
     "qa:diag": "node --env-file-if-exists=.env.local --import tsx packages/agents/scripts/qa-diag.ts",
-    "agents:capture-runner": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-runner.ts",
-    "agents:capture-token": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-token.ts",
-    "agents:migrate-bet-categories": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/migrate-bet-categories.ts",
-    "agents:bookmaker-runner": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/bookmaker-runner.ts",
-    "agents:runner:install": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/runner-install.ts install",
-    "agents:runner:uninstall": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/runner-install.ts uninstall",
-    "agents:runner:status": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/runner-install.ts status"
+    "agents:migrate-bet-categories": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/migrate-bet-categories.ts"
   },
   "devDependencies": {
     "@linkaffipro/config": "workspace:*",

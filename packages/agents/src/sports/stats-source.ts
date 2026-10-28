@@ -1,10 +1,9 @@
 /**
  * Paris par capture (28 octobre 2026) : branchements de la source « statistiques » (API-Football) pour l'équipe Paris
  * sportifs.
- * - `humanOddsTarget` : le bookmaker de la catégorie dont l'équipe enverra la capture et la cote : un site réglé
- *   « L'équipe envoie la capture et la cote » (`BookmakerSite.readTarget = human`), sinon, quand aucun bookmaker de la
- *   catégorie ne se lit (aucun site du client prêt), le premier de la catégorie. Un site lisible → null (lecture
- *   habituelle, phases 23 et 35).
+ * - `humanOddsTarget` : le bookmaker de la catégorie dont l'équipe enverra la capture et la cote : le premier de la
+ *   catégorie (les sites des bookmakers ne sont plus jamais lus, décision du client du 28 octobre 2026). Catégorie
+ *   sans bookmaker → null.
  * - `apiFootballClientFor` : client avec la clé `providers.apifootball.apiKey` (null sans clé).
  * - `statsMatches` : matchs à venir des ligues de la catégorie avec les 5 derniers matchs de chaque équipe (tirs
  *   cadrés), 4 matchs au plus par passage pour tenir l'offre gratuite (100 demandes par jour).
@@ -48,23 +47,10 @@ export type HumanTarget = { key: string; label: string };
 
 export type ApiFootballDeps = Pick<AgentsDeps, "prisma"> & { fetch?: typeof fetch; now?: () => Date; providers?: unknown };
 
-/** Bookmaker de la catégorie dont l'équipe envoie la capture et la cote ; null si un site de la catégorie se lit. */
-export async function humanOddsTarget(deps: Pick<AgentsDeps, "prisma">, category: Pick<BetCategoryInfo, "bookmakers">): Promise<HumanTarget | null> {
-  const wanted = category.bookmakers.map((b) => b.toLowerCase().replace(/\s+/g, ""));
-  if (!wanted.length) return null;
-  const sites = (await deps.prisma.bookmakerSite.findMany({ where: { key: { in: wanted } } })) as Array<{
-    key: string;
-    label: string | null;
-    readTarget: string;
-    status: string;
-    isActive: boolean;
-  }>;
-  const human = wanted.map((k) => sites.find((s) => s.key === k && s.isActive && s.readTarget === "human")).find((s) => !!s);
-  if (human) return { key: human.key, label: siteLabelOf(human.key, human.label) };
-  if (sites.some((s) => s.isActive && s.status === "READY" && s.readTarget !== "human")) return null;
-  const first = wanted[0]!;
-  const row = sites.find((s) => s.key === first);
-  return { key: first, label: siteLabelOf(first, row?.label) };
+/** Bookmaker de la catégorie dont l'équipe envoie la capture et la cote (le premier) ; null sans bookmaker. Pur. */
+export function humanOddsTarget(category: Pick<BetCategoryInfo, "bookmakers">): HumanTarget | null {
+  const first = category.bookmakers.map((b) => b.toLowerCase().replace(/\s+/g, "")).find((b) => b !== "");
+  return first ? { key: first, label: siteLabelOf(first) } : null;
 }
 
 /** Client API-Football (clé enregistrée) ; null sans clé. Un client imposé (`providers.apifootball`) sert aux tests. */

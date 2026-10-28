@@ -17,8 +17,7 @@
   "dependencies": {
     "@linkaffipro/ai": "workspace:*",
     "@linkaffipro/core": "workspace:*",
-    "@linkaffipro/db": "workspace:*",
-    "playwright-core": "1.64.0"
+    "@linkaffipro/db": "workspace:*"
   },
   "devDependencies": {
     "@linkaffipro/config": "workspace:*",

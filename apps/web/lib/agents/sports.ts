@@ -1,15 +1,13 @@
 /**
  * Équipe Paris sportifs (phase 23) à l'écran : réglages de l'équipe (heures de passage, écart de cote toléré, délai
  * avant le coup d'envoi, plafond d'appels de cotes), formulaire d'une catégorie de paris, raisonnement d'un pari mis
- * en phrases, bilan, bookmakers et leurs identifiants. Fonctions pures (testées dans sports.test.ts).
+ * en phrases, bilan, noms des bookmakers. Fonctions pures (testées dans sports.test.ts).
  *
  * Données :
  * - `AgentTeamConfig.settings.sports` = `{ runHours: number[], maxOddsDriftPct, minMinutesBeforeKickoff,
  *   maxApiCallsPerMonth }` (les autres clés de `settings` sont gardées telles quelles) ;
  * - `BetCategory` (une ligne par catégorie : marchés, ligues, bookmakers, canaux en listes) ;
  * - `BettingPick.reasoning` : chiffres du moteur (noms de champs lus avec tolérance, voir `reasoningSentences`).
- * - identifiants d'un bookmaker : deux clés chiffrées `providers.bookmakers.<nom>.login` et `.password`, adresse de
- *   secours des captures : `providers.screenshotProxy` (jamais relues par le site, seulement résumées).
  */
 import { splitList } from "./forms";
 
@@ -176,65 +174,6 @@ export function bookmakerLabel(key: string): string {
   const known = KNOWN_BOOKMAKERS.find((b) => b.key === key);
   if (known) return known.label;
   return key ? key.charAt(0).toUpperCase() + key.slice(1) : key;
-}
-
-/** Clés chiffrées des identifiants d'un bookmaker (un seul endroit : à changer ici si le moteur les range autrement). */
-export function bookmakerSecretKeys(bookmaker: string): { login: string; password: string } {
-  return { login: `providers.bookmakers.${bookmaker}.login`, password: `providers.bookmakers.${bookmaker}.password` };
-}
-
-export const SCREENSHOT_PROXY_KEY = "providers.screenshotProxy";
-
-/** Bookmakers à montrer : les connus d'abord, puis ceux cités par les catégories, sans doublon. */
-export function bookmakersToShow(categoryBookmakers: ReadonlyArray<readonly string[]>): string[] {
-  const out: string[] = KNOWN_BOOKMAKERS.map((b) => b.key);
-  for (const list of categoryBookmakers) for (const b of list) if (isBookmakerKey(b) && !out.includes(b)) out.push(b);
-  return out;
-}
-
-export type CredentialState = "complete" | "partial" | "missing";
-
-export function credentialState(login: { set: boolean } | null, password: { set: boolean } | null): CredentialState {
-  const l = Boolean(login?.set);
-  const p = Boolean(password?.set);
-  return l && p ? "complete" : l || p ? "partial" : "missing";
-}
-
-export const CREDENTIAL_STATE: Record<CredentialState, { label: string; tone: "success" | "warning" | "muted" }> = {
-  complete: { label: "Identifiants enregistrés", tone: "success" },
-  partial: { label: "Identifiants incomplets", tone: "warning" },
-  missing: { label: "Aucun identifiant", tone: "muted" },
-};
-
-/** Identifiant et mot de passe saisis sur le site (secours du bot Telegram). */
-export function parseBookmakerCredentialsForm(
-  fd: FormData,
-): FormResult<{ bookmaker: string; login: string; password: string }> {
-  const bookmaker = str(fd, "bookmaker");
-  if (!isBookmakerKey(bookmaker)) return { ok: false, error: "Bookmaker inconnu : rechargez la page." };
-  const login = str(fd, "login");
-  const v = fd.get("password");
-  const password = typeof v === "string" ? v : "";
-  if (!login) return { ok: false, error: "Saisissez l'identifiant du compte." };
-  if (!password.trim()) return { ok: false, error: "Saisissez le mot de passe du compte." };
-  if (login.length > 200 || password.length > 200) return { ok: false, error: "Identifiant ou mot de passe trop long." };
-  return { ok: true, data: { bookmaker, login, password } };
-}
-
-/** Adresse de secours des captures : `http(s)://` ou `socks5://`, avec identifiants éventuels. */
-export function parseProxyValue(raw: string): FormResult<string> {
-  const t = raw.trim();
-  if (!t) return { ok: false, error: "Collez l'adresse internet de secours." };
-  if (t.length > 500) return { ok: false, error: "Adresse trop longue." };
-  let u: URL;
-  try {
-    u = new URL(t);
-  } catch {
-    return { ok: false, error: "Adresse illisible : elle commence par http://, https:// ou socks5://." };
-  }
-  if (!["http:", "https:", "socks5:", "socks5h:"].includes(u.protocol) || !u.hostname)
-    return { ok: false, error: "Adresse illisible : elle commence par http://, https:// ou socks5://." };
-  return { ok: true, data: t };
 }
 
 // ——— Catégories de paris ———

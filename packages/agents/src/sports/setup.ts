@@ -2,26 +2,19 @@
  * Questions de mise en route de l'équipe Paris sportifs (phase 23), posées une seule fois par le bot (`Setting`
  * `agents.sportsSetupAsked`, marqué avant), une à la fois (file `HumanRequest`) :
  * 1. SECRET clé SportsGameOdds (vérifiée aussitôt par `GET /account/usage`) ;
- * 2. SECRET identifiant du compte Sportaza, puis 3. SECRET mot de passe (le vérificateur du chantier B lance le test
- *    de connexion et répond par message) ;
- * 4. TEXTE catégories à activer, par numéros (plusieurs possibles) → `BetCategory.active`.
- * Si le test de connexion dit « bloqué » (`captureBlocked`), `askCaptureWorkaround` pose le CHOICE adresse IP
- * résidentielle / capture depuis le Mac (puis SECRET adresse du proxy).
+ * 2. TEXTE catégories à activer, par numéros (plusieurs possibles) → `BetCategory.active`.
+ * Les sites des bookmakers ne sont plus lus (28 octobre 2026) : aucun identifiant de compte bookmaker demandé.
  */
 import type { AgentsDeps } from "../types";
 import { agentAudit, agentEvent, nowOf, readSetting, writeSetting } from "../admin/journal";
 import { askHuman } from "../human/requests";
 import { registerAnswerAction } from "../human/respond";
-import { setCaptureMode } from "../providers/screenshot/settings";
 import { ODDS_SECRET_KEY } from "../providers/odds-registry";
 import { APIFOOTBALL_SECRET_KEY } from "../providers/apifootball";
 import { APIFOOTBALL_KEY_ASKED_SETTING } from "./stats-source";
 
 export const SPORTS_SETUP_SETTING = "agents.sportsSetupAsked";
 export const SPORTS_CATEGORIES_REQUEST_KEY = "sports.categories";
-export const SPORTS_WORKAROUND_REQUEST_KEY = "sports.captureWorkaround";
-export const PROXY_SECRET_KEY = "providers.screenshotProxy";
-export const WORKAROUND_OPTIONS = ["Adresse IP résidentielle (service à souscrire)", "Capture depuis mon Mac"] as const;
 
 /** Numéros d'une réponse (« 1, 3 », « 1 et 4 », « 2 ») dans 1..max (pur) ; vide si rien de lisible. */
 export function parseNumberList(text: string, max: number): number[] {
@@ -41,21 +34,7 @@ export async function ensureSportsSetupQuestions(deps: AgentsDeps): Promise<{ qu
       "Équipe Paris sportifs : il me faut la clé de l'API des cotes SportsGameOdds. Crée un compte gratuit sur https://sportsgameodds.com (offre gratuite), copie la clé API et colle-la ici. Je la vérifie tout de suite et j'efface ton message.",
     onAnswer: { resume: false },
   });
-  await askHuman(deps, {
-    teamKey: "sports",
-    kind: "SECRET",
-    key: "providers.bookmakers.sportaza.login",
-    question: "Pour les captures d'écran des paris : envoie l'identifiant (e-mail ou nom d'utilisateur) du compte Sportaza. J'efface ton message aussitôt.",
-    onAnswer: { resume: false },
-  });
-  await askHuman(deps, {
-    teamKey: "sports",
-    kind: "SECRET",
-    key: "providers.bookmakers.sportaza.password",
-    question: "Maintenant le mot de passe du compte Sportaza. J'efface ton message aussitôt et je teste la connexion (aucune mise, jamais).",
-    onAnswer: { resume: false },
-  });
-  let queued = 3;
+  let queued = 1;
   if (cats.length) {
     await askHuman(deps, {
       teamKey: "sports",
@@ -73,7 +52,7 @@ export async function ensureSportsSetupQuestions(deps: AgentsDeps): Promise<{ qu
 
 /**
  * 28 octobre 2026 : clé API-Football (statistiques des matchs, offre gratuite) demandée une seule fois, quand un pari doit
- * être choisi sans lire le site du bookmaker (`Setting` `agents.sports.apifootballKeyAsked`, marqué avant).
+ * être choisi (les sites des bookmakers ne sont jamais lus) (`Setting` `agents.sports.apifootballKeyAsked`, marqué avant).
  */
 export async function askApiFootballKeyOnce(deps: AgentsDeps): Promise<boolean> {
   if ((await readSetting(deps, APIFOOTBALL_KEY_ASKED_SETTING)) !== undefined) return false;
@@ -83,24 +62,11 @@ export async function askApiFootballKeyOnce(deps: AgentsDeps): Promise<boolean> 
     kind: "SECRET",
     key: APIFOOTBALL_SECRET_KEY,
     question:
-      "Paris sportifs : les sites des bookmakers bloquent le serveur, alors je choisis les paris sur les statistiques des matchs, puis je te demande la capture et la cote. Crée un compte gratuit sur https://dashboard.api-football.com, copie ta clé API et colle-la ici. Je la vérifie et j'efface ton message.",
+      "Paris sportifs : je choisis les paris sur les statistiques des matchs, puis je te demande la capture et la cote sur le site du bookmaker. Crée un compte gratuit sur https://dashboard.api-football.com, copie ta clé API et colle-la ici. Je la vérifie et j'efface ton message.",
     onAnswer: { resume: false },
   });
   await agentEvent(deps, "agents.sports.apifootball_key_asked", {});
   return true;
-}
-
-/** Le site du bookmaker bloque le serveur : choix de la parade (appelé par le test de connexion du chantier B). */
-export async function askCaptureWorkaround(deps: AgentsDeps): Promise<{ requestId: string }> {
-  const r = await askHuman(deps, {
-    teamKey: "sports",
-    kind: "CHOICE",
-    key: SPORTS_WORKAROUND_REQUEST_KEY,
-    question: "Le site du bookmaker bloque notre serveur pour les captures. Que préfères-tu ? Réponds 1 ou 2 (ou « plus tard »).",
-    options: [...WORKAROUND_OPTIONS],
-    onAnswer: { action: "sports-capture-workaround", resume: false },
-  });
-  return { requestId: r.requestId };
 }
 
 registerAnswerAction("sports-categories", async (deps, { value, actor, onAnswer }) => {
@@ -120,19 +86,5 @@ registerAnswerAction("sports-categories", async (deps, { value, actor, onAnswer 
   return `Catégories actives : ${names.join(", ")} ✅`;
 });
 
-registerAnswerAction("sports-capture-workaround", async (deps, { value, actor }) => {
-  if (value === WORKAROUND_OPTIONS[1]) {
-    await setCaptureMode(deps.prisma, "mac");
-    await agentAudit(deps, { userId: actor.userId ?? null, action: "agents.sports.capture_mode", entityType: "AgentTeamConfig", entityId: "sports", metadata: { after: "mac", via: actor.via } });
-    return "D'accord : les captures se feront depuis ton Mac. Les instructions (une commande à lancer) sont dans la liste « à faire ».";
-  }
-  await setCaptureMode(deps.prisma, "server");
-  await askHuman(deps, {
-    teamKey: "sports",
-    kind: "SECRET",
-    key: PROXY_SECRET_KEY,
-    question: "Envoie l'adresse du service d'IP résidentielle, sous la forme http://utilisateur:motdepasse@adresse:port. J'efface ton message aussitôt.",
-    onAnswer: { resume: false },
-  });
-  return "D'accord : envoie-moi l'adresse du service quand tu l'as.";
-});
+// Ancienne question « parade anti-blocage des captures » (retirée le 28 octobre 2026) : une réponse tardive ne change rien.
+registerAnswerAction("sports-capture-workaround", async () => "Les captures automatiques des sites sont retirées : c'est l'équipe qui m'envoie la capture et la cote. Rien à régler.");

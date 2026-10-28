@@ -1,17 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  bookmakerSecretKeys,
-  bookmakersToShow,
   categoryChanges,
   categoryKeyFromName,
-  credentialState,
   fmtOdds,
   fmtSignedPct,
   mergeSportsSettings,
   oddsDrift,
   parseBetCategoryForm,
-  parseBookmakerCredentialsForm,
-  parseProxyValue,
   parseRunHours,
   parseSportsSettings,
   parseSportsSettingsForm,
@@ -23,7 +18,6 @@ import {
   summaryTotal,
   uniqueKey,
 } from "./sports";
-import { isKnownSecretKey, secretInfo } from "./secrets";
 
 const fd = (o: Record<string, string | string[]>) => {
   const f = new FormData();
@@ -206,40 +200,3 @@ describe("bilan", () => {
   });
 });
 
-describe("bookmakers et clés", () => {
-  it("identifiants, état, liste", () => {
-    expect(bookmakerSecretKeys("sportaza")).toEqual({
-      login: "providers.bookmakers.sportaza.login",
-      password: "providers.bookmakers.sportaza.password",
-    });
-    expect(credentialState({ set: true }, { set: true })).toBe("complete");
-    expect(credentialState({ set: true }, { set: false })).toBe("partial");
-    expect(credentialState(null, null)).toBe("missing");
-    expect(bookmakersToShow([["sportaza", "betx"], ["BAD KEY"]])).toEqual(["sportaza", "5gringos", "betx"]);
-  });
-
-  it("formulaire des identifiants et adresse de secours", () => {
-    expect(parseBookmakerCredentialsForm(fd({ bookmaker: "sportaza", login: "moi", password: "a b" }))).toEqual({
-      ok: true,
-      data: { bookmaker: "sportaza", login: "moi", password: "a b" },
-    });
-    expect(parseBookmakerCredentialsForm(fd({ bookmaker: "sportaza", login: "", password: "x" })).ok).toBe(false);
-    expect(parseBookmakerCredentialsForm(fd({ bookmaker: "../x", login: "a", password: "x" })).ok).toBe(false);
-    expect(parseProxyValue("http://u:p@1.2.3.4:8080").ok).toBe(true);
-    expect(parseProxyValue("socks5://h:1080").ok).toBe(true);
-    expect(parseProxyValue("ftp://h").ok).toBe(false);
-    expect(parseProxyValue("n'importe quoi").ok).toBe(false);
-  });
-
-  it("clés connues de la page des réglages", () => {
-    expect(isKnownSecretKey("providers.bookmakers.sportaza.password")).toBe(true);
-    expect(isKnownSecretKey("providers.screenshotProxy")).toBe(true);
-    expect(secretInfo("providers.bookmakers.sportaza.login").label).toBe("Sportaza : identifiant");
-  });
-
-  it("pari de test : catégorie connue ou défaut", () => {
-    expect(parseTestBetForm(fd({ categoryId: "" }), ["c1"])).toEqual({ ok: true, data: { categoryId: null } });
-    expect(parseTestBetForm(fd({ categoryId: "c1" }), ["c1"])).toEqual({ ok: true, data: { categoryId: "c1" } });
-    expect(parseTestBetForm(fd({ categoryId: "zz" }), ["c1"]).ok).toBe(false);
-  });
-});

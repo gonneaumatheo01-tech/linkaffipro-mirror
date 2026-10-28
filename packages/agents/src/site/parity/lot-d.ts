@@ -27,11 +27,6 @@ export const LOT_D_PARITY: Record<string, SiteParityEntry> = {
   // Paris sportifs
   [A("agents/[equipe]/sports-actions.ts", "saveBetCategoryAction")]: { op: "univers.categorie_paris_regler" },
   [A("agents/[equipe]/sports-actions.ts", "createTestBetAction")]: { op: "agents.pari_test" },
-  [A("agents/[equipe]/sports-actions.ts", "saveBookmakerCredentialsAction")]: { op: "univers.bookmaker_identifiants" },
-  [A("agents/[equipe]/sports-actions.ts", "deleteBookmakerCredentialsAction")]: { op: "univers.bookmaker_identifiants_retirer" },
-  [A("agents/[equipe]/sports-actions.ts", "testBookmakerConnectionAction")]: { op: "univers.bookmaker_tester_connexion" },
-  [A("agents/[equipe]/sports-actions.ts", "saveScreenshotProxyAction")]: { op: "univers.proxy_capture" },
-  [A("agents/[equipe]/sports-actions.ts", "deleteScreenshotProxyAction")]: { op: "univers.proxy_capture_retirer" },
   // Casino
   [A("agents/[equipe]/casino-actions.ts", "classifyCasinoMediaAction")]: { op: "univers.media_casino_classer" },
   [A("agents/[equipe]/casino-actions.ts", "createCasinoTestPostAction")]: { op: "agents.post_test_casino" },
@@ -54,13 +49,6 @@ export const LOT_D_PARITY: Record<string, SiteParityEntry> = {
   [A("agents/validations/actions.ts", "answerHumanRequestAction")]: { op: "agents.demande_repondre" },
   [A("agents/validations/actions.ts", "skipHumanRequestAction")]: { op: "agents.demande_passer" },
   [A("agents/validations/actions.ts", "relaunchHumanRequestAction")]: { op: "agents.demande_relancer" },
-  // Bookmakers
-  [A("agents/bookmakers/actions.ts", "testSiteAction")]: { op: "agents.bookmaker_tester" },
-  [A("agents/bookmakers/actions.ts", "relearnSiteAction")]: { op: "agents.bookmaker_reapprendre" },
-  [A("agents/bookmakers/actions.ts", "openBrowserAction")]: { op: "agents.bookmaker_navigateur" },
-  [A("agents/bookmakers/actions.ts", "setSiteUrlAction")]: { op: "agents.bookmaker_adresse" },
-  [A("agents/bookmakers/actions.ts", "setSiteTargetAction")]: { op: "agents.bookmaker_cible" },
-  [A("agents/bookmakers/actions.ts", "toggleSiteActiveAction")]: { op: "agents.bookmaker_activer" },
   // Agent Ads
   [A("agents/ads/actions.ts", "markAdsRecommendationAction")]: { op: "agents.ads_recommandation" },
   [A("agents/ads/actions.ts", "saveAdsThresholdsAction")]: { op: "agents.ads_seuils" },

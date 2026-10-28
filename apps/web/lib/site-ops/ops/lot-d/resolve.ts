@@ -81,17 +81,6 @@ export async function resolveBetCategory(raw: unknown): Promise<Ref> {
   );
 }
 
-/** Site d'un bookmaker (`BookmakerSite` : clé ou nom affiché). */
-export async function resolveBookmakerSite(raw: unknown): Promise<Ref> {
-  const db = prisma as unknown as { bookmakerSite: { findMany(a: unknown): Promise<Array<{ key: string; label: string }>> } };
-  const rows = await db.bookmakerSite.findMany({ select: { key: true, label: true } });
-  return pickNamed(
-    { plural: "bookmakers", one: "le bookmaker" },
-    str(raw),
-    rows.map((r) => ({ id: r.key, name: r.label, extra: [r.key] })),
-  );
-}
-
 /** Ordre par numéro (« l'ordre 3 », « 3 ») ou par identifiant. */
 export async function resolveOrder(raw: unknown): Promise<Ref> {
   const s = str(raw).trim();

@@ -14,7 +14,6 @@ import { MissionFiltersForm, MissionsTable } from "@/components/agents/missions-
 import { BetCategories } from "@/components/agents/sports/bet-categories";
 import { BetPicks } from "@/components/agents/sports/bet-picks";
 import { BetSummary } from "@/components/agents/sports/bet-summary";
-import { Bookmakers } from "@/components/agents/sports/bookmakers";
 import { SportsSettingsFields } from "@/components/agents/sports/sports-settings-fields";
 import { LevelPicker, PauseButton, SimulationSwitch } from "@/components/agents/team-controls";
 import { EmptyState } from "@/components/admin/empty-state";
@@ -48,17 +47,8 @@ import {
   loadToClassify,
 } from "@/lib/agents/casino-queries";
 import { simulationSentence, teamPills } from "@/lib/agents/display";
-import { SPORTS_DEFAULT_FORBIDDEN_WORDS, isBookmakerKey, parseSportsSettings, parseSummaryBy } from "@/lib/agents/sports";
-import {
-  loadAssetMime,
-  loadBetCategories,
-  loadBetSummary,
-  loadBookmakers,
-  loadOddsCallsThisMonth,
-  loadPicksSince,
-  loadProxySummary,
-  loadSportsSettings,
-} from "@/lib/agents/sports-queries";
+import { SPORTS_DEFAULT_FORBIDDEN_WORDS, parseSportsSettings, parseSummaryBy } from "@/lib/agents/sports";
+import { loadBetCategories, loadBetSummary, loadOddsCallsThisMonth, loadPicksSince, loadSportsSettings } from "@/lib/agents/sports-queries";
 import { parseMissionFilters } from "@/lib/agents/missions";
 import {
   loadAgentsOfTeam,
@@ -137,7 +127,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
         loadThemeMediaCounts(casinoSettings.themes.map((t) => t.key)),
       ])
     : [null, { rows: [], total: 0 }, [], [], {}];
-  // Équipe Paris sportifs (phase 23) : catégories, paris du jour, bilan sur la période, bookmakers, réglages.
+  // Équipe Paris sportifs (phase 23) : catégories, paris du jour, bilan sur la période, réglages.
   const isSports = team === "sports";
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const betPeriod = resolvePeriod(
@@ -145,22 +135,17 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
     now,
   );
   const summaryBy = parseSummaryBy(one(sp.bilan));
-  const captureId = one(sp.capture);
-  const captureBk = one(sp.bk);
   const sportsData = isSports
     ? await (async () => {
         const categories = await loadBetCategories();
         const { dateFrom, dateTo } = periodDates(betPeriod);
-        const [picks, settings, summary, bookmakers, proxy, calls, captureMime] = await Promise.all([
+        const [picks, settings, summary, calls] = await Promise.all([
           loadPicksSince(periodStart(resolvePeriod({ range: "today" }, now))),
           loadSportsSettings(),
           loadBetSummary({ from: dateFrom, to: dateTo, by: summaryBy }),
-          loadBookmakers(categories),
-          loadProxySummary(),
           loadOddsCallsThisMonth(now),
-          captureId ? loadAssetMime(captureId) : Promise.resolve(null),
         ]);
-        return { categories, picks, settings, summary, bookmakers, proxy, calls, captureMime };
+        return { categories, picks, settings, summary, calls };
       })()
     : null;
   const sportsSettings = sportsData?.settings ?? parseSportsSettings(null);
@@ -438,17 +423,6 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
               isAdmin={isAdmin}
             />
             <BetSummary rows={sportsData.summary} by={summaryBy} period={betPeriod} />
-            <Bookmakers
-              bookmakers={sportsData.bookmakers}
-              proxy={sportsData.proxy}
-              isAdmin={isAdmin}
-              capture={
-                captureId && sportsData.captureMime
-                  ? { bookmaker: isBookmakerKey(captureBk) ? captureBk : null, id: captureId, mimeType: sportsData.captureMime }
-                  : null
-              }
-              now={now}
-            />
           </>
         ) : null}
 

@@ -25,7 +25,6 @@ const m = vi.hoisted(() => {
       verifySecret: fn(async () => ({ ok: true, message: "clé acceptée" })),
       deleteSecret: fn(async () => undefined),
       createTestBetMission: fn(async () => ({ ok: true, missionId: "mi3" })),
-      testBookmakerConnection: fn(async () => ({ result: { ok: true }, assetId: "a1", message: "connexion réussie." })),
       classifyCasinoMedia: fn(async () => ({ ok: true, message: "Média classé ✅" })),
       applyRecommendation: fn(async () => ({ ok: true, message: "Appliqué." })),
       undoRecommendation: fn(),
@@ -34,10 +33,6 @@ const m = vi.hoisted(() => {
       answerHumanRequestFromSite: fn(async () => ({ ok: true, message: "Réponse enregistrée." })),
       skipHumanRequest: fn(async () => ({ ok: true, message: "Passée." })),
       relaunchHumanRequest: fn(async () => ({ ok: true, message: "Relancée." })),
-      testSite: fn(),
-      relearnSite: fn(),
-      openVisibleBrowser: fn(),
-      setSiteUrl: fn(async () => ({ ok: true, message: "", site: { baseUrl: "https://new" } })),
       markAdsRecommendation: fn(async () => ({ ok: true, message: "Noté." })),
       stopOrder: fn(async () => ({ ok: true })),
       extendOrder: fn(async () => ({ ok: true })),
@@ -174,19 +169,10 @@ vi.mock("@/lib/assistant/config", () => ({
 
 import { runCreateTestMission, runCreateTestPost, runSaveChannelPlan, runSaveTeamSettings, runStartBench } from "./teams";
 import { runDeleteSecret, runSaveBudgets, runSaveGeneralSettings, runSaveSecret, runVerifySecret } from "./settings";
-import {
-  runCreateTestBet,
-  runDeleteBookmakerCredentials,
-  runDeleteScreenshotProxy,
-  runSaveBetCategory,
-  runSaveBookmakerCredentials,
-  runSaveScreenshotProxy,
-  runTestBookmakerConnection,
-} from "./sports";
+import { runCreateTestBet, runSaveBetCategory } from "./sports";
 import { runAddCasinoTheme, runClassifyCasinoMedia, runCreateCasinoTestPost, runRemoveCasinoTheme, runRenameCasinoTheme } from "./casino";
 import { runAlgoReport, runRecommendation, runSaveAlgoSettings } from "./algo";
 import { runAnswerHumanRequest, runRelaunchHumanRequest, runSkipHumanRequest } from "./validations";
-import { runOpenBrowser, runRelearnSite, runSetSiteUrl, runTestSite } from "./bookmakers";
 import { runMarkAdsRecommendation, runSaveAdsAlertSettings, runSaveAdsThresholds } from "./ads";
 import { runExtendOrder, runStopOrder } from "./orders";
 import { runSaveBossBudget, runSaveBossName } from "./boss";
@@ -265,11 +251,6 @@ const CASES: Array<{ name: string; core: Core; form: Record<string, string | str
   { name: "relancer une demande", core: runRelaunchHumanRequest, form: { requestId: "req1" }, admin: false },
   { name: "catégorie de paris", core: runSaveBetCategory, form: CATEGORY, admin: true },
   { name: "pari de test", core: runCreateTestBet, form: {}, admin: false },
-  { name: "identifiants bookmaker", core: runSaveBookmakerCredentials, form: { bookmaker: "sportaza", login: "moi@x.fr", password: "motdepasse_secret" }, admin: true },
-  { name: "retirer les identifiants", core: runDeleteBookmakerCredentials, form: { bookmaker: "sportaza" }, admin: true },
-  { name: "tester la connexion", core: runTestBookmakerConnection, form: { bookmaker: "sportaza" }, admin: true },
-  { name: "adresse de secours", core: runSaveScreenshotProxy, form: { proxy: "http://u:proxy_secret@h:8080" }, admin: true },
-  { name: "retirer l'adresse de secours", core: runDeleteScreenshotProxy, form: {}, admin: true },
   { name: "classer un média", core: runClassifyCasinoMedia, form: { assetId: "a1", theme: ["roulette"] }, admin: false },
   { name: "post de test Casino", core: runCreateCasinoTestPost, form: { format: "photo" }, admin: false },
   { name: "ajouter un thème", core: runAddCasinoTheme, form: { label: "Poker" }, admin: true },
@@ -278,10 +259,6 @@ const CASES: Array<{ name: string; core: Core; form: Record<string, string | str
   { name: "proposition Algorithme", core: runRecommendation, form: { action: "apply", id: "r1" }, admin: false },
   { name: "rapport Algorithme", core: runAlgoReport, form: {}, admin: true },
   { name: "réglages Algorithme", core: runSaveAlgoSettings, form: ALGO, admin: true },
-  { name: "tester un bookmaker", core: runTestSite, form: { siteKey: "sportaza" }, admin: true },
-  { name: "ré-apprendre un bookmaker", core: runRelearnSite, form: { siteKey: "sportaza" }, admin: true },
-  { name: "navigateur du Mac", core: runOpenBrowser, form: { siteKey: "sportaza" }, admin: true },
-  { name: "adresse d'un bookmaker", core: runSetSiteUrl, form: { siteKey: "sportaza", url: "https://new" }, admin: true },
   { name: "recommandation pubs", core: runMarkAdsRecommendation, form: { id: "r1", status: "DONE" }, admin: false },
   { name: "seuils Ads", core: runSaveAdsThresholds, form: THRESHOLDS, admin: true },
   { name: "alertes Ads", core: runSaveAdsAlertSettings, form: ALERTS, admin: true },
@@ -308,9 +285,6 @@ beforeEach(() => {
   m.answers.set("recommendation.findUnique", { id: "r1", status: "PROPOSED", size: "SMALL", target: "CHANNEL_PLAN", field: "mix", source: null, teamKey: "ads" });
   m.answers.set("recommendation.findMany", [{ id: "rec1" }]);
   m.answers.set("teamOrder.findUnique", { id: "o1", number: 12, status: "RUNNING" });
-  m.answers.set("referenceChannel.findFirst", { id: "ref1", username: "roulette_pro", title: null });
-  m.answers.set("bookmakerSite.findUnique", { key: "sportaza", label: "Sportaza", baseUrl: "https://sportaza.com" });
-  m.answers.set("setting.findMany", [{ key: "agents.secret.providers.bookmakers.default.credentials" }]);
   m.answers.set("humanRequest.findUnique", { kind: "CHOICE" });
 });
 
@@ -350,7 +324,6 @@ describe("droits : un responsable ne fait pas ce qui est réservé aux administr
     expect(await runAddCasinoTheme(fd({ label: "Poker" }), MANAGER)).toMatchObject({ error: "Les thèmes de l'équipe sont réservés aux administrateurs." });
     expect(await runStartBench(fd({ personaId: "p1" }), MANAGER)).toMatchObject({ error: "Le banc d'essai est réservé aux administrateurs." });
     expect(await runStopOrder(fd({ orderId: "o1" }), MANAGER)).toMatchObject({ error: "Arrêter un ordre est réservé aux administrateurs." });
-    expect(await runTestSite(fd({ siteKey: "sportaza" }), MANAGER)).toMatchObject({ error: "Tester un bookmaker est réservé aux administrateurs." });
   });
 
   it("un responsable règle son équipe sans toucher aux plafonds ni au fournisseur des vidéos", async () => {
@@ -371,8 +344,6 @@ describe("mêmes refus que le site", () => {
     ["clé inconnue", runSaveSecret, { key: "providers.autre", value: "abcdefghijk" }, "Clé inconnue : rechargez la page."],
     ["plafond négatif", runSaveBudgets, { "dating.budget_video": "-3" }, "Plafond « Vidéos IA » : saisissez un montant en euros (0 ou plus)."],
     ["cotes à l'envers", runSaveBetCategory, { ...CATEGORY, minOdds: "3", maxOdds: "2" }, "La cote minimale doit être plus petite que la cote maximale."],
-    ["sans mot de passe", runSaveBookmakerCredentials, { bookmaker: "sportaza", login: "moi" }, "Saisissez le mot de passe du compte."],
-    ["adresse illisible", runSaveScreenshotProxy, { proxy: "pas une adresse" }, "Adresse illisible : elle commence par http://, https:// ou socks5://."],
     ["aucun thème coché", runClassifyCasinoMedia, { assetId: "a1" }, "Cochez au moins un thème pour ranger ce média."],
     ["thème en double", runAddCasinoTheme, { label: "Roulette" }, "Le thème « Roulette » existe déjà."],
     ["demande sans réponse", runAnswerHumanRequest, { requestId: "req1" }, "Écrivez ou choisissez une réponse."],
@@ -395,11 +366,9 @@ describe("mêmes refus que le site", () => {
     expect(m.writers.saveAssistantConfig).not.toHaveBeenCalled();
   });
 
-  it("ordre déjà fini, référence déjà retirée, proposition qui a changé d'état", async () => {
+  it("ordre déjà fini, proposition qui a changé d'état", async () => {
     m.answers.set("teamOrder.findUnique", { id: "o1", number: 12, status: "DONE" });
     expect(await runStopOrder(fd({ orderId: "o1" }), ADMIN)).toMatchObject({ error: "Ordre n°12 est déjà terminé ou arrêté : rien à arrêter." });
-    m.answers.set("referenceChannel.findFirst", null);
-    expect(await runRemoveReference(fd({ referenceId: "ref1" }), ADMIN)).toMatchObject({ error: "Cette référence a déjà été retirée.", code: "not_found" });
     m.answers.set("recommendation.findUnique", { id: "r1", status: "APPLIED", size: "SMALL", target: "CHANNEL_PLAN", field: "mix", source: null });
     expect(await runRecommendation(fd({ action: "apply", id: "r1" }), ADMIN)).toMatchObject({ error: "Cette proposition a déjà changé d'état : rechargez la page." });
   });
@@ -411,11 +380,9 @@ describe("secrets : jamais dans un message, un aperçu ni le journal", () => {
     const text = JSON.stringify([r, m.audits]);
     return SECRETS.filter((s) => text.includes(s));
   };
-  it("clé d'un fournisseur, identifiants, adresse de secours, clé Anthropic, clé Venice", async () => {
+  it("clé d'un fournisseur, clé Anthropic, clé Venice", async () => {
     const runs: Array<[Core, Record<string, string>]> = [
       [runSaveSecret, { key: "providers.fal.apiKey", value: SECRETS[0]! }],
-      [runSaveBookmakerCredentials, { bookmaker: "sportaza", login: "moi@x.fr", password: SECRETS[1]! }],
-      [runSaveScreenshotProxy, { proxy: `http://u:${SECRETS[2]}@h:8080` }],
       [runSaveAiSettings, { ...AI, apiKey: SECRETS[3]! }],
       [runVerifyAssistantKey, { apiKey: SECRETS[4]! }],
     ];
@@ -540,13 +507,6 @@ describe("opérations de Kevin (LOT_D_IMPL)", () => {
       "u1",
       "TELEGRAM",
     );
-  });
-
-  it("« ajoute mon compte Sportaza » : identifiants chiffrés, réponse sans le mot de passe", async () => {
-    const r = await impl("univers.bookmaker_identifiants").run({ bookmaker: "Sportaza", login: "moi@x.fr", password: "motdepasse_secret" }, KEVIN, {});
-    expect(r.ok).toBe(true);
-    expect(JSON.stringify(r)).not.toContain("motdepasse_secret");
-    expect(m.engine.saveSecret).toHaveBeenCalledWith({}, "providers.bookmakers.sportaza.password", "motdepasse_secret", { userId: "u1", via: "TELEGRAM" });
   });
 
   it("thèmes casino par leur nom ; média à classer le plus ancien par défaut", async () => {

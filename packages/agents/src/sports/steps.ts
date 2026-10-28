@@ -1,6 +1,6 @@
 /**
  * Étapes de la chaîne Paris (phase 23), appelées par les agents partagés quand la mission est de l'équipe sports :
- * - Rédaction : image (capture de l'agent Capture, capture directe ou repli) + texte écrit par le code ;
+ * - Rédaction : image (capture envoyée par l'équipe, sinon repli) + texte écrit par le code ;
  * - Contrôle : règles de contenu (mots interdits du pari), coup d'envoi, cote RE-VÉRIFIÉE chez le fournisseur
  *   (écart toléré de la catégorie), doublon 48 h, image présente ; validations imposées puis niveau d'autonomie ;
  * - Publication : immédiate (`scheduledAt` = maintenant), simulation → canal Test, jamais à moins de N minutes du coup
@@ -25,8 +25,6 @@ import { ensurePickImage } from "./pick-image";
 import { parseSportsSettings, withTeamBounds, type SportsSettings } from "./settings";
 import { skipPick } from "./skip";
 import type { PickReasoning } from "../agents/cotes/select";
-import { isDirectPick, verifyDirectOdds } from "./direct-odds";
-import { BOOKMAKER_LIMITS } from "../bookmakers/contract";
 import { isHumanOddsPick, ODDS_LEVEL_HUMAN } from "./human-odds-text";
 
 type Loaded = { pick: PickRow; category: BetCategoryInfo; s: SportsSettings };
@@ -48,9 +46,7 @@ export async function sportsRedaction(mission: Mission, ctx: AgentContext): Prom
   if (isResult(l)) return l;
   const { pick, category, s } = l;
   const image = await ensurePickImage(ctx, mission, pick);
-  // Le site bloque le serveur (agent Capture) : parade demandée au client, une seule fois.
-  if ((mission.payload.capture as { blocked?: unknown } | undefined)?.blocked === true) await askWorkaroundOnce(ctx);
-  // Cote lue sur le site du bookmaker au moment de la capture : écartée si elle a bougé.
+  // Cote lue sur la capture de l'équipe : écartée si elle a bougé.
   if (image.kind === "screenshot" && image.readOdds !== null) {
     const check = checkOddsDrift(pick.odds, image.readOdds, category.maxOddsDriftPct);
     if (!check.ok) return skipPick(ctx, mission, pick, `sur le site : ${check.reason}`, { code: check.code, oddsAtSend: image.readOdds });
@@ -98,7 +94,7 @@ function contentProblems(ctx: AgentContext, s: SportsSettings, text: string): st
   }).problems.map((x) => x.message);
 }
 
-/** Pari de test (faux fournisseur) : jamais lu sur un vrai site. */
+/** Pari de test (faux fournisseur). */
 function isFakePick(mission: Mission, pick: PickRow): boolean {
   return (pick.reasoning as { source?: string } | null)?.source === "fake" || mission.payload.oddsSource === "fake";
 }
@@ -108,7 +104,7 @@ function isFakePick(mission: Mission, pick: PickRow): boolean {
  * est écarté, la mission annulée SANS compter d'échec : ce n'est pas une panne, l'équipe ne se met pas en pause).
  */
 async function currentOdds(mission: Mission, ctx: AgentContext, pick: PickRow, s: SportsSettings): Promise<{ odds: number | null } | { skip: string }> {
-  const source = (pick.reasoning as { source?: string } | null)?.source === "fake" || mission.payload.oddsSource === "fake" ? "fake" : "live";
+  const source = isFakePick(mission, pick) ? "fake" : "live";
   const resolved = await resolveOddsProvider(ctx, { source, maxCalls: s.maxApiCallsPerMonth, fakeShiftMs: (pick.reasoning as { fakeShiftMs?: number } | null)?.fakeShiftMs ?? null });
   if (!resolved) return { skip: "clé de cotes absente" };
   try {
@@ -135,11 +131,6 @@ export async function sportsControl(mission: Mission, ctx: AgentContext): Promis
     const odds = pick.oddsLevel === ODDS_LEVEL_HUMAN ? (pick.oddsAtSend ?? pick.odds) : null;
     if (odds === null) return skipPick(ctx, mission, pick, "cote de l'équipe absente : le pari ne part pas sans elle");
     drift = { current: odds, driftPct: 0 };
-  } else if (isDirectPick(pick) && !isFakePick(mission, pick)) {
-    // Phase 35 : cote lue sur le site du client → double lecture (deux chemins, identiques, à moins de 3 min).
-    const v = await verifyDirectOdds(mission, ctx, pick, category, "controle");
-    if (!("ok" in v)) return v.result;
-    drift = { current: v.odds, driftPct: v.driftPct };
   } else {
     const cur = await currentOdds(mission, ctx, pick, s);
     if ("skip" in cur) return skipPick(ctx, mission, pick, cur.skip);
@@ -201,14 +192,6 @@ export async function sportsPublication(mission: Mission, ctx: AgentContext): Pr
     // Cote de l'équipe (capture jointe) : publiée telle quelle, jamais remplacée par une estimation.
     if (pick.oddsLevel !== ODDS_LEVEL_HUMAN) return skipPick(ctx, mission, pick, "au moment de publier : cote de l'équipe absente");
     oddsAtSend = pick.oddsAtSend ?? pick.odds;
-  } else if (isDirectPick(pick) && !isFakePick(mission, pick)) {
-    // Phase 35 : la double lecture du Contrôle doit avoir moins de 3 minutes au moment de publier, sinon elle est
-    // refaite (jamais une cote publiée sur une seule lecture ni sur une lecture trop ancienne).
-    if (!oddsAtSend || now.getTime() - checkedAt > BOOKMAKER_LIMITS.doubleReadWindowMs) {
-      const v = await verifyDirectOdds(mission, ctx, pick, category, "publication");
-      if (!("ok" in v)) return v.result;
-      oddsAtSend = v.odds;
-    }
   } else if (!oddsAtSend || now.getTime() - checkedAt > s.recheckAfterMinutes * 60_000) {
     // Validation longue : la cote est relue avant l'envoi (jamais une vieille cote).
     const cur = await currentOdds(mission, ctx, pick, s);
@@ -255,15 +238,4 @@ export async function sportsPublication(mission: Mission, ctx: AgentContext): Pr
     output: { slot: now.toISOString(), postId: res.postId, publishChannelId: sends[0]!.channelId, simulation },
     summary: res.created ? `publié tout de suite sur ${simulation ? "le canal Test (simulation)" : `${res.created} canal${res.created > 1 ? "aux" : ""}`}, cote ${oddsAtSend}` : `déjà publié (${res.postId})`,
   };
-}
-
-async function askWorkaroundOnce(ctx: AgentContext): Promise<void> {
-  // Import différé : `setup` enregistre ses réponses auprès de `human/respond`, qui dépend du moteur (cycle d'imports).
-  const { askCaptureWorkaround, SPORTS_WORKAROUND_REQUEST_KEY } = await import("./setup");
-  if (await ctx.prisma.humanRequest.findFirst({ where: { key: SPORTS_WORKAROUND_REQUEST_KEY }, select: { id: true } })) return;
-  try {
-    await askCaptureWorkaround(ctx);
-  } catch (err) {
-    ctx.logger?.warn({ err: (err as Error).message }, "[agents] question de parade non posée");
-  }
 }

@@ -10,7 +10,7 @@ import { TEAM_LABELS, type AgentsDeps } from "../types";
 import { decideValidation } from "../validation/requests";
 import { currentHumanRequest, humanRequestByMessageId, sendNextHumanRequest } from "../human/requests";
 import { respondToRequest, skipRequest, type HumanRequestRow } from "../human/respond";
-import { bookmakerPasswordSecretKey, bookmakerSecretKey, saveSecret, secretSavedHead, verifySecret } from "../human/secrets";
+import { saveSecret, secretSavedHead, verifySecret } from "../human/secrets";
 import { interpretAnswer, looksLikeSecretValue, normalizeText, secretValueOf } from "../human/answer";
 import { isSecretCommandText, parseAdminCommand, type AdminCommand } from "./commands";
 import { adminTelegramId, esc, nowOf, readSetting, telegramActorUserId, writeSetting } from "./journal";
@@ -40,6 +40,9 @@ export type AdminTextInput = {
 };
 
 /** Réponse quand une clé arriverait par un vocal : rien n'est enregistré. */
+/** « bookmaker <nom> <identifiant> <mot de passe> » : plus rien n'est gardé (lecture des sites retirée). */
+export const BOOKMAKER_CREDENTIALS_REFUSAL = "Je ne lis plus les sites des bookmakers, je n'ai donc plus besoin de leurs identifiants : je n'ai rien gardé.";
+
 export const VOICE_SECRET_REFUSAL =
   "🔒 Une clé doit arriver par écrit : je n'enregistre jamais une clé dictée. Colle-la en réponse au message de la question.";
 
@@ -204,9 +207,8 @@ async function runCommand(
     case "secret":
       return storeSecretCommand(deps, cmd.key, cmd.value, actor);
     case "bookmaker":
-      // Deux clés séparées (comme le site et les questions du bot) ; le mot de passe déclenche le test de connexion.
-      await saveSecret(deps, bookmakerSecretKey(cmd.name), cmd.login, actor);
-      return storeSecretCommand(deps, bookmakerPasswordSecretKey(cmd.name), cmd.password, actor);
+      // Les sites des bookmakers ne sont plus lus (28 octobre 2026) : identifiants jamais gardés (message effacé).
+      return { handled: true, reply: BOOKMAKER_CREDENTIALS_REFUSAL };
     case "budget":
       // Les vidéos IA sont produites par l'équipe Dating : hausse → confirmation du Boss, baisse → immédiate.
       return viaBossAction(deps, "plafond", { equipe: "dating", poste: "video", euros: cmd.euros }, actor, chat);

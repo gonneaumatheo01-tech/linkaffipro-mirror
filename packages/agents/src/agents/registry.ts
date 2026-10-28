@@ -38,7 +38,6 @@ export const PAID_PROVIDERS: Partial<Record<AgentKey, ProviderKey[]>> = {
   controle: ["llm"],
   "media-ia": ["video", "image"],
   cotes: ["odds"],
-  capture: ["screenshot"],
 };
 
 /** Agents qui vérifient eux-mêmes leurs plafonds (le poste dépend du format, avec repli) : le moteur ne bloque pas. */

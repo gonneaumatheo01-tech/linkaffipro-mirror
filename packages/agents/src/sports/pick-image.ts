@@ -1,13 +1,11 @@
 /**
- * Image d'un pari (phase 23) quand l'agent Capture (chantier B) n'a rien déposé : capture demandée directement au
- * fournisseur de captures (`ctx.providers.screenshot`, faux en test), sinon image de repli (origine TEMPLATE,
- * TOUJOURS validée par le client). L'image de repli fabriquée ici est un simple fond aux couleurs de la marque
+ * Image d'un pari (phase 23) : capture envoyée par l'équipe (agent Capture, paris par capture), sinon image de repli
+ * (origine TEMPLATE, TOUJOURS validée par le client ; plus de capture automatique des sites depuis le 28 octobre 2026). L'image de repli fabriquée ici est un simple fond aux couleurs de la marque
  * (aucun moteur de rendu) : le texte du post porte le match, le marché et la cote.
  */
 import { createHash } from "node:crypto";
 import { deflateSync } from "node:zlib";
 import type { AgentContext, Mission } from "../types";
-import type { CaptureRequest, CaptureResult, ScreenshotProvider } from "../providers/screenshot";
 import type { PickRow } from "./data";
 
 export type PickImage =
@@ -50,44 +48,29 @@ export function fallbackPng(width = 640, height = 336): Uint8Array {
   );
 }
 
-async function storeAsset(ctx: AgentContext, pick: PickRow, bytes: Uint8Array, origin: "HUMAN_SITE" | "TEMPLATE"): Promise<string> {
+async function storeFallback(ctx: AgentContext, pick: PickRow, bytes: Uint8Array): Promise<string> {
   // Empreinte salée par le pari : deux paris n'ont jamais la même ligne de média (le repli est identique en octets).
-  const sha256 = createHash("sha256").update(bytes).update(origin === "TEMPLATE" ? `repli:${pick.id}` : "").digest("hex");
+  const sha256 = createHash("sha256").update(bytes).update(`repli:${pick.id}`).digest("hex");
   const existing = await ctx.prisma.mediaAsset.findUnique({ where: { sha256 }, select: { id: true } });
   if (existing) return existing.id;
   const a = await ctx.prisma.mediaAsset.create({
     data: {
-      filename: `${origin === "TEMPLATE" ? "repli" : "capture"}-${pick.bookmaker}-${pick.id}.png`,
+      filename: `repli-${pick.bookmaker}-${pick.id}.png`,
       mimeType: "image/png",
       size: bytes.length,
       sha256,
       bytes: Buffer.from(bytes),
       teamKey: "sports",
       kind: "SCREENSHOT",
-      origin,
-      tags: ["screenshot", pick.bookmaker, ...(origin === "TEMPLATE" ? ["repli"] : [])],
+      origin: "TEMPLATE",
+      tags: ["screenshot", pick.bookmaker, "repli"],
     },
     select: { id: true },
   });
   return a.id;
 }
 
-export function shotRequestOf(pick: PickRow): CaptureRequest {
-  const eventUrl = (pick.reasoning as { eventUrl?: unknown } | null)?.eventUrl;
-  return {
-    bookmaker: pick.bookmaker,
-    homeTeam: pick.homeTeam,
-    awayTeam: pick.awayTeam,
-    kickoffAt: pick.kickoffAt,
-    marketLabel: pick.marketLabel,
-    selectionLabel: pick.selectionLabel,
-    line: pick.line,
-    expectedOdds: pick.odds,
-    eventUrl: typeof eventUrl === "string" ? eventUrl : null,
-  };
-}
-
-/** Image déjà déposée par l'agent Capture (charge utile ou pari), sinon capture directe, sinon repli. */
+/** Image déjà déposée par l'agent Capture (charge utile ou pari), sinon repli. */
 export async function ensurePickImage(ctx: AgentContext, mission: Mission, pick: PickRow): Promise<PickImage> {
   const given = (typeof mission.payload.screenshotAssetId === "string" && mission.payload.screenshotAssetId) || pick.screenshotAssetId;
   if (given) {
@@ -100,22 +83,8 @@ export async function ensurePickImage(ctx: AgentContext, mission: Mission, pick:
       return a.origin === "TEMPLATE" ? { kind: "fallback", assetId: a.id, reason: why } : { kind: "screenshot", assetId: a.id, readOdds };
     }
   }
-  const provider = ctx.providers.screenshot as ScreenshotProvider | undefined | null;
-  let result: CaptureResult | null = null;
-  if (provider && mission.payload.captureTried !== true) {
-    try {
-      result = await provider.capture(shotRequestOf(pick));
-    } catch (err) {
-      result = { ok: false, kind: "unknown", message: (err as Error).message.slice(0, 200) };
-    }
-  }
-  if (result?.ok) {
-    const assetId = await storeAsset(ctx, pick, result.png, "HUMAN_SITE");
-    await ctx.prisma.bettingPick.update({ where: { id: pick.id }, data: { screenshotAssetId: assetId } });
-    return { kind: "screenshot", assetId, readOdds: result.readOdds };
-  }
-  const reason = result && !result.ok ? `${result.kind} : ${result.message}`.slice(0, 200) : "aucun outil de capture disponible";
-  const assetId = await storeAsset(ctx, pick, fallbackPng(), "TEMPLATE");
+  const reason = "pas de capture envoyée par l'équipe";
+  const assetId = await storeFallback(ctx, pick, fallbackPng());
   await ctx.prisma.bettingPick.update({ where: { id: pick.id }, data: { screenshotAssetId: assetId } });
   return { kind: "fallback", assetId, reason };
 }

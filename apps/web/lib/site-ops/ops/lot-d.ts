@@ -36,7 +36,6 @@ const sports = () => import("./lot-d/sports");
 const casino = () => import("./lot-d/casino");
 const algo = () => import("./lot-d/algo");
 const validations = () => import("./lot-d/validations");
-const bookmakers = () => import("./lot-d/bookmakers");
 const ads = () => import("./lot-d/ads");
 const orders = () => import("./lot-d/orders");
 const boss = () => import("./lot-d/boss");
@@ -108,26 +107,6 @@ export const LOT_D_IMPL: SiteOpImpl[] = [
     const m = await sports();
     return { prepare: m.kevinTestBetForm, core: m.runCreateTestBet };
   }),
-  op("univers.bookmaker_identifiants", async () => {
-    const m = await sports();
-    return { prepare: (i: In) => m.kevinBookmakerForm(i, true), core: m.runSaveBookmakerCredentials };
-  }),
-  op("univers.bookmaker_identifiants_retirer", async () => {
-    const m = await sports();
-    return { prepare: (i: In) => m.kevinBookmakerForm(i, false), core: m.runDeleteBookmakerCredentials };
-  }),
-  op("univers.bookmaker_tester_connexion", async () => {
-    const m = await sports();
-    return { prepare: (i: In) => m.kevinBookmakerForm(i, false), core: m.runTestBookmakerConnection };
-  }),
-  op("univers.proxy_capture", async () => {
-    const m = await sports();
-    return { prepare: plain((i) => ({ proxy: str(i.proxy) })), core: m.runSaveScreenshotProxy };
-  }),
-  op("univers.proxy_capture_retirer", async () => {
-    const m = await sports();
-    return { prepare: none, core: m.runDeleteScreenshotProxy };
-  }),
   // ------------------------------------------------------------------------------------------------- Casino
   op("univers.media_casino_classer", async () => {
     const m = await casino();
@@ -161,31 +140,6 @@ export const LOT_D_IMPL: SiteOpImpl[] = [
   op("agents.algo_reglages", async () => {
     const m = await algo();
     return { prepare: m.kevinAlgoSettingsForm, core: m.runSaveAlgoSettings };
-  }),
-  // ---------------------------------------------------------------------------------------------- Bookmakers
-  op("agents.bookmaker_tester", async () => {
-    const m = await bookmakers();
-    return { prepare: m.kevinSiteForm, core: m.runTestSite };
-  }),
-  op("agents.bookmaker_reapprendre", async () => {
-    const m = await bookmakers();
-    return { prepare: m.kevinSiteForm, core: m.runRelearnSite };
-  }),
-  op("agents.bookmaker_navigateur", async () => {
-    const m = await bookmakers();
-    return { prepare: m.kevinSiteForm, core: m.runOpenBrowser };
-  }),
-  op("agents.bookmaker_adresse", async () => {
-    const m = await bookmakers();
-    return { prepare: m.kevinSiteForm, core: m.runSetSiteUrl };
-  }),
-  op("agents.bookmaker_cible", async () => {
-    const m = await bookmakers();
-    return { prepare: m.kevinSiteTargetForm, core: m.runSetSiteTarget };
-  }),
-  op("agents.bookmaker_activer", async () => {
-    const m = await bookmakers();
-    return { prepare: m.kevinSiteActiveForm, core: m.runToggleSiteActive };
   }),
   // ----------------------------------------------------------------------------------------------- Agent Ads
   op("agents.ads_recommandation", async () => {

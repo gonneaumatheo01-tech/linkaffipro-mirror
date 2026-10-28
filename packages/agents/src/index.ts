@@ -48,7 +48,6 @@ export { DATING_DEFAULT_MIX } from "./chiefs/dating-format";
 export { DATING_DEFAULT_BUDGET_CENTS } from "./missions/settings";
 export { LOW_SOURCE_STOCK, unusedSourceCount } from "./agents/mediatheque/stock";
 export type * from "./providers/odds";
-export type * from "./providers/screenshot";
 export * from "./missions/settings";
 export * from "./missions/usage";
 export * from "./missions/mission";
@@ -131,12 +130,8 @@ export { casinoThemesOf, channelThemes } from "./casino/data";
 export { inventedFigures, offerFiguresIn } from "./rules/figures";
 export { runCasinoMediatheque, casinoFallbacksOf } from "./agents/mediatheque/casino";
 export * from "./sports/contracts";
-// Chantier B (phase 23) : captures chez les bookmakers, garde « jamais de mise », parade anti-blocage.
-export * from "./providers/screenshot/index";
-export { connectionMessage, registerBookmakerVerifiers, CONNECTION_TEST_WAIT_MS, type ConnectionTestOutcome } from "./sports/connection";
-export { agent as captureAgent, captureRequestOf, type CapturePayload } from "./agents/capture";
-import { registerBookmakerVerifiers } from "./sports/connection";
-registerBookmakerVerifiers();
+// Agent Capture (phase 23) : depuis le 28 octobre 2026, la capture et la cote viennent de l'équipe (aucun site lu).
+export { agent as captureAgent, type CapturePayload } from "./agents/capture";
 // Chantier A (phase 23) : cotes, sélection, chaîne du Chef Paris, résultats.
 export { createSportsGameOddsProvider, verifySportsGameOddsKey, SGO_BASE, type SportsGameOddsProvider } from "./providers/sportsgameodds";
 export { americanToDecimal, mapEvent, mapSelections, mapResult } from "./providers/sportsgameodds-map";
@@ -179,7 +174,7 @@ export { runSportsPassage, type SportsPassageResult } from "./sports/passage";
 export { duePassage, parsePassageState, SPORTS_PASSAGES_SETTING } from "./sports/passage-state";
 export { runSportsSettle, type SettleRunResult } from "./sports/settle";
 export { computeBetSummary, sportsReportNotes, weekStart } from "./sports/summary";
-export { ensureSportsSetupQuestions, askCaptureWorkaround, parseNumberList, SPORTS_SETUP_SETTING, WORKAROUND_OPTIONS } from "./sports/setup";
+export { ensureSportsSetupQuestions, parseNumberList, SPORTS_SETUP_SETTING } from "./sports/setup";
 export { rankCandidates, type Candidate, type PickReasoning } from "./agents/cotes/select";
 export { fallbackPng } from "./sports/pick-image";
 export * from "./ads/contracts";
@@ -263,7 +258,7 @@ export { AGENT_DIRECTORY, agentDirectory, agentEntry, findAgent, agentCard, agen
 export { viewPlan, planLines, mixLabel, nextPassageOf, type ViewPlanInput, type PlanEntry } from "./orders/view/plan";
 export { viewScheduled, scheduledLines, type ViewScheduledInput, type ScheduledItem } from "./orders/view/scheduled";
 export { viewSportsChannel, previewSportsPicks, categoriesForChannel, type PreviewCandidate } from "./orders/view/sports";
-export { viewMatches, matchLines, registerBookmakerMatchLister, sportIdOf, bookKey, type ViewMatchesInput, type MatchesResult, type BookmakerMatch, type BookmakerMatchLister, type MatchesDeps } from "./orders/view/matches";
+export { viewMatches, matchLines, sportIdOf, bookKey, type ViewMatchesInput, type MatchesResult, type BookmakerMatch, type MatchesDeps } from "./orders/view/matches";
 export { viewDone, pendingValidations, validationLines, failureText, type ViewDoneInput } from "./orders/view/done";
 export { whyNothing, WHY_CAUSES, type WhyCause, type WhyFinding } from "./orders/view/why";
 export { slotRange, resolveDay, fitLines, VIEW_MAX_LINES, DAY_SLOTS, type DaySlot, type ViewResult } from "./orders/view/common";
@@ -318,83 +313,6 @@ export { orderFacts } from "./orders/facts";
 export { parseOrderPlan, type OrderProgress } from "./orders/store";
 export { orderMissionFacts, resolvePeriod, frRange, type OrderMissionFacts } from "./orders/capabilities/kit";
 export { SPORTS_THEMES, resolveTheme, themeByKey, themeOfMarkets, marketsAvailable, themeOddsCounts, themesWithOdds, listBetThemes, DEFAULT_THEME_LEAGUES, type SportsTheme, type ThemeAvailability } from "./sports/themes";
-export * from "./bookmakers/contract";
-// Phase 35, chantier A : transport des bookmakers (serveur, Mac, choix de la cible, verrou par site, rythme, nuit),
-// file des travaux de lecture et garde « jamais de mise » étendue à la lecture.
-export * from "./bookmakers/jobs";
-export * from "./bookmakers/guard";
-export * from "./bookmakers/transport/index";
-// Phase 35, chantier D : sites, identifiants communs, santé, gestes (tester, apprendre, navigateur du Mac), vues de Kevin.
-export * from "./bookmakers/sites";
-export { readBookmakerCredentialsFor, hasDefaultCredentials, credentialsSummary, askBookmakerCredentials, combineDefaultCredentials, DEFAULT_LOGIN_REQUEST_KEY, DEFAULT_PASSWORD_REQUEST_KEY, TEST_ALL_REQUEST_KEY, CREDENTIALS_ASKED_SETTING, type SiteCredentials } from "./bookmakers/credentials";
-export * from "./bookmakers/health";
-export * from "./bookmakers/actions";
-export { siteMatchesView, bookmakersStatusView, oddsOfView, resolveSiteView, agoLabel, frOdds, pickSelection, type MatchesQuery, type OddsQuery } from "./bookmakers/views";
-export { BOOKMAKERS_VARIANTS } from "./boss/bookmakers-texts";
-// Phase 35, chantier B : apprendre un site (enregistrement guidé, masquage, analyse par Opus, validation, recette).
-export * from "./bookmakers/learn/index";
-// Phase 35, chantier C : lecteur à trois niveaux (cache, double lecture, diagnostic), fournisseur `bookmaker-direct`,
-// vérification des paris lus sur un site du client, capture par la recette apprise.
-export {
-  readEvents,
-  readEventsStored,
-  readMarkets,
-  readMarketsStored,
-  readOddsTwice,
-  storedEvent,
-  storedEvents,
-  allowedHostsOf,
-  diagnosePage,
-  diagnoseByRules,
-  parseAiDiagnosis,
-  maskForAi,
-  actionFor,
-  gestureOf,
-  PAGE_DIAGNOSES,
-  BookmakerReadError,
-  createMemoryPace,
-  memorySiteLock,
-  isNightInParis,
-  toDecimalOdds,
-  sameOddsExact,
-  expandMarketKeys,
-  translateRow,
-  loadActiveRecipe,
-  parseRecipeRow,
-  readOddsOnImage,
-  parseImageOdds,
-  type ReadEventsQuery,
-  type ReadMarketsOptions,
-  type OddsTwiceQuery,
-  type OddsTwiceResult,
-  type StoredEvent,
-  type StoredOdds,
-  type DiagnosedPage,
-  type DiagnosisAction,
-  type PageInput,
-  type BookmakerReadDeps,
-  type BookmakerHooks,
-  type BookmakerHookEvent,
-  type ReadSite,
-  type SiteLock,
-  type SitePace,
-  type ActiveRecipe,
-} from "./bookmakers/read/index";
-export { recipeCaptureConfig, stepSelector, marketBlockSelector } from "./bookmakers/read/capture-config";
-export {
-  createBookmakerDirectProvider,
-  cachedDirectEvents,
-  directEventId,
-  parseDirectEventId,
-  readySites,
-  matchOddsEvent,
-  leagueKeyOf,
-  BOOKMAKER_DIRECT,
-  DIRECT_EVENT_PREFIX,
-  type BookmakerDirectDeps,
-  type BookmakerDirectProvider,
-} from "./providers/bookmaker-direct";
-export { verifyDirectOdds, isDirectPick, MAX_RESELECTIONS, MAX_RECAPTURES, type DirectOddsOk } from "./sports/direct-odds";
 export { expandCategoryMarkets } from "./sports/data";
 export { unusualOddsOf, UNUSUAL_ODDS_GAP_PCT } from "./agents/cotes/select";
 export * from "./site/contract";

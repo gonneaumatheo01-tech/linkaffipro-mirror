@@ -113,8 +113,6 @@ const LEA_TG = 7101;
 const KEVIN_TG = 5550;
 const GROUP = -1007777000111;
 const KEVIN_TOKEN = `${KEVIN_TG}:KEVIN-TOKEN-${"k".repeat(30)}`;
-const SPORTAZA_LOGIN = "mathieu.sportaza@exemple.fr";
-const SPORTAZA_PASSWORD = "Sp0rtaza!Secret#2026";
 
 /** Appels des instances grammY des webhooks (Kevin). */
 const hooked: Array<{ method: string; payload: Record<string, unknown> }> = [];
@@ -165,7 +163,6 @@ const fakeLlm = createFakeBossLlm([
     () => site("envois", "envois.creer", { channels: ["Zone Interdite"], intent: "schedule", scheduledAt: tomorrowLocal(20) }),
   ],
   ["active la catégorie corners avec des cotes entre 1,6 et 2,5", site("univers", "univers.categorie_paris_regler", { categorie: "Corners (Kevin)", active: true, minOdds: 1.6, maxOdds: 2.5 })],
-  ["ajoute mon compte Sportaza", site("univers", "univers.bookmaker_identifiants", { bookmaker: "sportaza" })],
   ["ajoute Léa à l'équipe comme responsable", site("equipe", "equipe.inviter", { role: "MANAGER" })],
   ["son adresse c'est lea@exemple.fr", site("equipe", "equipe.inviter", { email: "lea@exemple.fr", role: "MANAGER" })],
   ["préviens-moi si les dépenses pub dépassent 200 € par jour", { name: "pas_prevu", input: {} }],
@@ -526,43 +523,6 @@ describe("phase 34 : les 12 exemples du prompt, de bout en bout", () => {
     expect(ask.text).toMatch(/[Cc]orners/);
     const c = await prisma.betCategory.findUniqueOrThrow({ where: { key: "kp-corners" } });
     expect(c, done.text).toMatchObject({ active: true, minOdds: 1.6, maxOdds: 2.5 });
-  });
-
-  it("9. « ajoute mon compte Sportaza » en privé : identifiant et mot de passe demandés à part, chiffrés, messages effacés, rien en clair nulle part", async () => {
-    const since = new Date();
-    const ask = await say("ajoute mon compte Sportaza");
-    expect(ask.text).not.toContain(SPORTAZA_LOGIN);
-    const first = await prisma.humanRequest.findFirstOrThrow({ where: { kind: "SECRET", status: "PENDING" } });
-    const m1 = mark();
-    const a1 = await say(SPORTAZA_LOGIN, { reply_to_message: { message_id: first.telegramMessageId, date: 0, chat: { id: ADMIN, type: "private" }, text: "?" } });
-    expect(deletedSince(m1)).toContain(a1.update.message!.message_id);
-    const second = await prisma.humanRequest.findFirstOrThrow({ where: { kind: "SECRET", status: "PENDING" } });
-    expect(second.id).not.toBe(first.id);
-    const m2 = mark();
-    const a2 = await say(SPORTAZA_PASSWORD, { reply_to_message: { message_id: second.telegramMessageId, date: 0, chat: { id: ADMIN, type: "private" }, text: "?" } });
-    expect(deletedSince(m2)).toContain(a2.update.message!.message_id);
-    const login = await prisma.setting.findUnique({ where: { key: "agents.secret.providers.bookmakers.sportaza.login" } });
-    const password = await prisma.setting.findUnique({ where: { key: "agents.secret.providers.bookmakers.sportaza.password" } });
-    expect(login, a2.text).not.toBeNull();
-    expect(password).not.toBeNull();
-    expect(JSON.stringify(login!.value)).not.toContain(SPORTAZA_LOGIN);
-    expect(JSON.stringify(password!.value)).not.toContain(SPORTAZA_PASSWORD);
-    const { decrypt } = await import("@linkaffipro/core");
-    expect(decrypt((login!.value as { enc: string }).enc)).toBe(SPORTAZA_LOGIN);
-    expect(decrypt((password!.value as { enc: string }).enc)).toBe(SPORTAZA_PASSWORD);
-    // Rien en clair : ni journal d'événements, ni journal des actions, ni mémoire de Kevin, ni réponses, ni réglages.
-    const everything = JSON.stringify([
-      await prisma.event.findMany({ where: { createdAt: { gte: since } } }),
-      await prisma.auditLog.findMany({ where: { createdAt: { gte: since } } }),
-      await prisma.bossTurn.findMany({ where: { createdAt: { gte: since } } }),
-      await prisma.humanRequest.findMany({ where: { createdAt: { gte: since } } }),
-      await prisma.setting.findMany({ where: { updatedAt: { gte: since } } }),
-      sentSince({ h: 0, d: 0 }),
-    ], (_k, v) => (typeof v === "bigint" ? v.toString() : v));
-    expect(everything).not.toContain(SPORTAZA_LOGIN);
-    expect(everything).not.toContain(SPORTAZA_PASSWORD);
-    // Les secrets du déroulé (rangement temporaire) sont effacés après usage.
-    expect(await prisma.setting.count({ where: { key: { startsWith: "agents.secret.site." } } })).toBe(0);
   });
 
   it("10. « ajoute Léa à l'équipe comme responsable » : l'adresse est demandée, puis invitation responsable + lien en privé", async () => {

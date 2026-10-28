@@ -126,11 +126,11 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
   }),
   e({
     key: "capture",
-    label: "Capture écran",
+    label: "Capture du pari",
     kind: "agent",
     teams: ["sports"],
     chief: "chef-sports",
-    role: "Ouvre le site du bookmaker, vérifie que la cote est toujours là et en fait la capture, sans jamais miser.",
+    role: "Demande à l'équipe la capture du pari et la cote exacte sur le site du bookmaker, puis les joint au post.",
     synonyms: ["capture", "capture ecran", "capture d'ecran", "captures", "screenshot", "celui qui fait les captures", "photographe"],
   }),
   e({
@@ -719,7 +719,7 @@ async function agentSettingsLines(deps: AgentsDeps, agent: AgentEntry, channelId
         lines.push(`Passages à ${s.runHours.map((h) => `${h} h`).join(", ")}, matchs jusqu'à ${s.lookaheadHours} h à l'avance.`);
         if (cats.length) lines.push(`Catégories actives : ${cats.slice(0, 4).map((c) => `${c.name} (cotes ${c.minOdds} à ${c.maxOdds})`).join(", ")}.`);
         else lines.push("Aucune catégorie de paris active.");
-      } else lines.push(`Écart de cote toléré avant l'envoi : ${s.maxOddsDriftPct} %.`);
+      } else lines.push("Je ne lis jamais les sites des bookmakers : l'équipe m'envoie la capture et la cote de chaque pari.");
       break;
     }
     case "media-ia": {

@@ -10,17 +10,13 @@ import type { ActorRef } from "../admin/team";
 import { agentAudit, agentEvent, nowOf } from "../admin/journal";
 import { last4 } from "./answer";
 
-/** Clés connues dans cette phase (les phases suivantes en ajoutent : fal, cotes, bookmaker…). */
+/** Clés connues (fal, Magic Hour, cotes, API-Football). */
 export const SECRET_KEYS = [
   "providers.fal.apiKey",
   "providers.magichour.apiKey",
   "providers.odds.apiKey",
   // 28 octobre 2026 : statistiques des matchs (paris par capture).
   "providers.apifootball.apiKey",
-  // Phase 23 : compte bookmaker (identifiant puis mot de passe) et adresse IP résidentielle des captures.
-  "providers.bookmakers.sportaza.login",
-  "providers.bookmakers.sportaza.password",
-  "providers.screenshotProxy",
 ] as const;
 
 export type SecretSummary = { set: boolean; last4: string | null; updatedAt: Date | null };
@@ -29,17 +25,6 @@ export const SECRET_SETTING_PREFIX = "agents.secret.";
 
 export function secretSettingKey(key: string): string {
   return `${SECRET_SETTING_PREFIX}${key}`;
-}
-
-/**
- * Clés d'identifiants d'un bookmaker (phase 23) : deux clés séparées, `.login` (identifiant) et `.password`
- * (mot de passe, vérifié par un test de connexion). `bookmakerSecretKey` = clé de l'identifiant.
- */
-export function bookmakerSecretKey(name: string): string {
-  return `providers.bookmakers.${name.toLowerCase().replace(/[^a-z0-9_-]/g, "")}.login`;
-}
-export function bookmakerPasswordSecretKey(name: string): string {
-  return `providers.bookmakers.${name.toLowerCase().replace(/[^a-z0-9_-]/g, "")}.password`;
 }
 
 /** Libellé affiché (« clé fal.ai »), jamais la valeur. */
