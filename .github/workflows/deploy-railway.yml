@@ -15,11 +15,8 @@ jobs:
       - name: Install Railway CLI
         run: curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.sh | sh
 
-      - name: Link project
-        run: railway link d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 --environment production
-
       - name: Deploy web
-        run: railway up --service web --detach
+        run: railway up --service web --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 -e production
 
   deploy-worker:
     runs-on: ubuntu-latest
@@ -30,8 +27,5 @@ jobs:
       - name: Install Railway CLI
         run: curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.sh | sh
 
-      - name: Link project
-        run: railway link d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 --environment production
-
       - name: Deploy worker
-        run: railway up --service worker --detach
+        run: railway up --service worker --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 -e production
