@@ -114,8 +114,38 @@ const enqueueProspection = async (job: ProspectionQueueJob, o: { jobId?: string;
 
 let deps: ProspectionKevinDeps;
 
+// ------------------------------------------------------------------------------------------------ fausse boîte aux lettres du userbot
+
+type UserbotReq = { kind: string; accountId: string; op: "search" | "profile"; query?: string; channel?: { username: string | null }; status: string };
+/** Faux userbot : relève les demandes `prospect-search` pendant les attentes ; FLOOD_WAIT à partir de la demande `floodFrom`. */
+const userbot = { on: false, floodFrom: 23, seen: [] as UserbotReq[] };
+async function beat() {
+  const value = { at: now().toISOString() };
+  await prisma.setting.upsert({ where: { key: "userbot.mailbox.heartbeat" }, create: { key: "userbot.mailbox.heartbeat", value }, update: { value } });
+}
+async function serveUserbot() {
+  await beat();
+  const rows = await prisma.setting.findMany({ where: { key: { startsWith: "userbot.request." } } });
+  for (const row of rows) {
+    const v = row.value as unknown as UserbotReq;
+    if (v.status !== "PENDING" || v.kind !== "prospect-search") continue;
+    userbot.seen.push(v);
+    const k = userbot.seen.length;
+    const response =
+      k >= userbot.floodFrom
+        ? { ok: false, floodWaitSeconds: 420 }
+        : v.op === "search"
+          ? { ok: true, calls: 1, channels: [{ id: String(9000 + k), accessHash: "h", username: `trouve_compte_${k}`, title: `Trouvé ${k}`, subscribers: 4000 + k }] }
+          : { ok: true, calls: 1, profile: { id: "x", username: v.channel?.username ?? null, title: "Canal trouvé", subscribers: 4100, about: "Pronos", linkedChat: null } };
+    await prisma.setting.update({ where: { key: row.key }, data: { value: { ...v, status: "DONE", response } as never } });
+  }
+}
+let offerButtons: string[] = [];
+
 async function runJob(job: ProspectionQueueJob, jobId = "t") {
   ran.push(job);
+  // La boucle du userbot bat en continu quand il tourne.
+  if (userbot.on) await beat();
   return processAgentsProspection({ id: jobId, name: `agents-prospection:${job.type}`, data: job } as unknown as Job<AgentsProspectionJob>, async () => deps) as Promise<Record<string, unknown>>;
 }
 
@@ -137,7 +167,9 @@ const orchestratorJobs: AgentsOrchestratorJob[] = [];
 let kevin: GrammyBot;
 let kevinCalls: TelegramCall[] = [];
 
-const fakeBossLlm = createFakeBossLlm([]);
+const fakeBossLlm = createFakeBossLlm([
+  [/réseau de @pronos_maxime/i, { name: "prospection_reseau", input: { canal: "@pronos_maxime" } }],
+]);
 
 function bossTextDeps(): BossTextDeps {
   return {
@@ -234,6 +266,7 @@ beforeAll(async () => {
     clock: () => clock,
     sleep: async (ms: number) => {
       clock += ms;
+      if (userbot.on) await serveUserbot();
     },
     throttle: memoryHostThrottle(),
     robotsCache: new Map(),
@@ -364,5 +397,162 @@ describe("prospection avancée de bout en bout (base réelle, faux web, fausse I
     expect(sent()).toEqual([]);
     const ev = await prisma.prospectEvent.findMany({ where: { type: "REQUALIFIED" } });
     expect(JSON.stringify(ev.map((e) => e.payload))).not.toMatch(/PSG|Ligue 1|Primeira/);
+  });
+
+  let alertCards: TelegramCall[] = [];
+
+  it("6 h 30 : réseaux puis valeurs ; 9 h : Top avec le réseau en une ligne ; 9 h 10 : alertes avec boutons, QA appelé", async () => {
+    clock = paris("2026-11-03", "06:30");
+    expect((await runJob({ type: "prospection.schedule" })).advanced).toMatchObject({ morning: true });
+    expect(queue.map((q) => q.job.type)).toEqual(["prospection.networks", "prospection.values"]);
+    await drain();
+    // Un seul réseau : les 3 canaux du même admin (même contact, signature, groupe lié), jamais les autres.
+    const nets = await prisma.prospectNetwork.findMany({ include: { members: { select: { username: true } } } });
+    expect(nets).toHaveLength(1);
+    expect(nets[0]).toMatchObject({ name: "Réseau @maxime_pub", mainContact: "@maxime_pub", origin: "AUTO" });
+    expect(nets[0]!.members.map((m) => m.username).sort()).toEqual(["maxime_basket", "maxime_tennis", "pronos_maxime"]);
+    expect((nets[0]!.evidence as Array<{ kind: string }>).map((e) => e.kind)).toEqual(expect.arrayContaining(["same_contact", "same_signature", "same_linked_group"]));
+    // Valeurs : toujours une fourchette, jamais un chiffre seul, « non calibrée ».
+    const vals = await prisma.prospect.findMany({ where: { status: "QUALIFIED" }, select: { username: true, valueEstimate: true } });
+    const withValue = vals.filter((v) => v.valueEstimate);
+    expect(withValue.length).toBeGreaterThanOrEqual(5);
+    for (const v of withValue) {
+      const e = v.valueEstimate as { low: number; base: number; high: number; calibratedBy: string };
+      expect(e.low, v.username!).toBeLessThan(e.base);
+      expect(e.base, v.username!).toBeLessThan(e.high);
+      expect(e.calibratedBy).toBe("default");
+    }
+
+    clock = paris("2026-11-03", "09:10");
+    const n = kevinCalls.length;
+    const qa = qaLlm.calls.length;
+    const r = await runJob({ type: "prospection.schedule" });
+    expect(r.queued).toContain("daily-top");
+    expect((r.advanced as Record<string, unknown>).queued).toEqual(["alerts-digest"]);
+    await drain();
+    const texts = kevinTexts(n);
+    // Top : un réseau = UNE carte (titre en une ligne, ses 3 canaux, un seul deal), les boutons de sa tête de liste.
+    expect(texts[0]).toMatch(/7 canaux/);
+    const netCard = texts.find((t) => t.startsWith("Réseau @maxime_pub"))!;
+    expect(netCard.split("\n")[0]).toBe("Réseau @maxime_pub : 3 canaux FR, 6,3k vues/post cumulées");
+    expect(netCard).toMatch(/Un seul deal pour 3 canaux/);
+    expect(netCard).toMatch(/estimation non calibrée/);
+    expect(texts.filter((t) => /@maxime_tennis/.test(t))).toHaveLength(1);
+    const maxime = await prospectBy("pronos_maxime");
+    const netCall = sent(n).find((c) => String(c.payload.text).startsWith("Réseau @maxime_pub"))!;
+    expect(buttonsOf(netCall).map((b) => b.callback_data)).toEqual(["contacted", "signed", "dossier", "later", "no"].map((a) => `prospect:${maxime.id}:${a}`));
+
+    // 9 h 10 : en-tête puis une alerte par message, opportunités d'abord, chacune avec ✅ Vu, 📝 Note, 🔕.
+    const head = texts.findIndex((t) => /4 choses ont bougé/.test(t));
+    expect(head).toBeGreaterThan(0);
+    expect(texts.slice(head + 1)).toEqual([
+      expect.stringMatching(/1xBet.*@apostas_portugal.*22 jours/),
+      expect.stringMatching(/@calcio_vip_club.*750.*1,1k.*30 jours/),
+      expect.stringMatching(/@pronos_maxime.*niveau A.*B/),
+      expect.stringMatching(/@slots_kaiser.*@kaiser_werbung.*@kaiser_alt/),
+    ]);
+    alertCards = sent(n).slice(-4);
+    const alerts = await prisma.prospectAlert.findMany({ orderBy: { strength: "desc" } });
+    alertCards.forEach((c, k) => expect(buttonsOf(c).map((b) => b.callback_data)).toEqual(["seen", "note", "mute"].map((a) => `pra:${alerts[k]!.id}:${a}`)));
+    expect(alerts.every((a) => a.status === "SENT" && a.sentAt?.getTime() === clock)).toBe(true);
+    // QA Global : la liste du jour et le message des alertes, une fois chacun.
+    expect(qaLlm.calls.length - qa).toBe(2);
+    expect(await prisma.qaCheck.findFirstOrThrow({ where: { contentId: "prospection-alerts:2026-11-03:4" } })).toMatchObject({ verdict: "APPROVED", contentType: "ALERT" });
+    // Une fois par jour.
+    const n2 = kevinCalls.length;
+    await runJob({ type: "prospection.schedule" });
+    await drain();
+    expect(sent(n2)).toEqual([]);
+  });
+
+  it("boutons pra: : ✅ Vu, 📝 Note (la réponse va sur la fiche), 🔕 Plus pour ce canal", async () => {
+    clock = paris("2026-11-03", "09:20");
+    const alerts = await prisma.prospectAlert.findMany({ orderBy: { strength: "desc" } });
+    const seen = await press(`pra:${alerts[0]!.id}:seen`);
+    expect(seen.toast).toBeTruthy();
+    expect(await prisma.prospectAlert.findUniqueOrThrow({ where: { id: alerts[0]!.id } })).toMatchObject({ status: "SEEN" });
+    expect(kevinCalls.at(-1)!.method).toBe("editMessageReplyMarkup");
+
+    const ask = await press(`pra:${alerts[1]!.id}:note`);
+    expect(ask.reply).toMatch(/@calcio_vip_club/);
+    const orch = orchestratorJobs.length;
+    expect(await say("Il cherche un nouveau partenaire, je l'appelle jeudi")).toMatch(/@calcio_vip_club/);
+    expect(orchestratorJobs.length).toBe(orch);
+    const calcio = await prospectBy("calcio_vip_club");
+    expect(await prisma.prospectNote.findFirst({ where: { prospectId: calcio.id } })).toMatchObject({ note: expect.stringContaining("nouveau partenaire"), authorType: "client" });
+
+    const kaiser = await prospectBy("slots_kaiser");
+    await press(`pra:${alerts[3]!.id}:mute`);
+    expect(await prospectBy("slots_kaiser")).toMatchObject({ watchMuted: true });
+    expect(await prisma.prospectAlert.findUniqueOrThrow({ where: { id: alerts[3]!.id } })).toMatchObject({ status: "MUTED", prospectId: kaiser.id });
+  });
+
+  it("« réseau de @pronos_maxime » : les 3 canaux et les preuves ; la recherche par compte est proposée une fois", async () => {
+    clock = paris("2026-11-03", "09:30");
+    const reply = await say("Kevin, réseau de @pronos_maxime");
+    expect(reply).toMatch(/^Réseau @maxime_pub : 3 canaux FR/);
+    for (const n of ["@maxime_tennis", "@maxime_basket", "@pronos_maxime"]) expect(reply).toContain(n);
+    expect(reply).toMatch(/Preuves : même contact @maxime_pub/);
+    // Après une lecture de l'admin en privé : la recherche par compte réel, proposée une seule fois, à confirmer.
+    const offer = sent().at(-1)!;
+    expect(String(offer.payload.text)).toMatch(/compte réel, en lecture seule, sans rien rejoindre ni écrire/);
+    offerButtons = buttonsOf(offer).map((b) => b.callback_data);
+    expect(offerButtons).toEqual([expect.stringMatching(/^bsc:\w+:yes$/), expect.stringMatching(/^bsc:\w+:no$/)]);
+    const n = kevinCalls.length;
+    await say("Kevin, réseau de @pronos_maxime");
+    expect(kevinTexts(n).join("\n")).not.toMatch(/compte réel/);
+  });
+
+  it("recherche par compte réel : refusée tant que non confirmée, puis lot de 20 demandes ; FLOOD_WAIT → arrêt propre, source coupée", async () => {
+    await prisma.telegramUserAccount.create({ data: { label: "Lecteur", phone: "+33600000032", sessionEncrypted: encrypt("session-de-test"), status: "ACTIVE", isActive: true } });
+    // Pas encore confirmée : le lot ne demande rien au userbot.
+    userbot.on = true;
+    await beat();
+    expect((await runJob({ type: "prospection.account-search", lot: { vertical: "SPORTS", languages: ["fr"] } })).search).toMatchObject({ ok: false, requests: 0, stopped: "désactivée" });
+    expect(userbot.seen).toHaveLength(0);
+    // Planification de nuit : rien non plus.
+    clock = paris("2026-11-04", "02:00");
+    await runJob({ type: "prospection.schedule" });
+    expect(queue.some((q) => q.job.type === "prospection.account-search")).toBe(false);
+    queue.length = 0;
+
+    // OUI (bouton sous la proposition, moins de 10 minutes après) → activée.
+    clock = paris("2026-11-03", "09:35");
+    const yes = await press(offerButtons[0]!);
+    expect(yes.reply).toMatch(/recherche par compte|activée|c'est parti/i);
+    expect(await prisma.setting.findUnique({ where: { key: "prospection.account_search.enabled" } })).toMatchObject({ value: true });
+
+    // Nuit suivante : un lot par verticale ; Paris = 20 demandes au plus (recherches + fiches publiques) au rythme de 5 s.
+    clock = paris("2026-11-04", "02:00");
+    expect((await runJob({ type: "prospection.schedule" })).advanced).toMatchObject({ account: 2 });
+    expect(queue.map((q) => (q.job as { lot?: { vertical: string } }).lot?.vertical)).toEqual(["SPORTS", "CASINO"]);
+    const n = kevinCalls.length;
+    const [sports, casino] = [queue.shift()!, queue.shift()!];
+    const r1 = (await runJob(sports.job, sports.jobId)).search;
+    const r2 = (await runJob(casino.job, casino.jobId)).search;
+    // Lot complet : 20 demandes (10 recherches + 10 fiches publiques), un nouveau canal par recherche.
+    expect(r1).toEqual({ ok: true, requests: 20, found: 10, newCount: 10, stopped: null });
+    // Second lot : FLOOD_WAIT à sa 3e demande → arrêt propre (ce qui est trouvé est gardé), source coupée, Kevin prévient.
+    expect(r2).toEqual({ ok: false, requests: 3, found: 1, newCount: 1, stopped: "FLOOD_WAIT" });
+    expect(userbot.seen).toHaveLength(23);
+    // Lecture seule : recherche globale et fiche publique, rien d'autre (aucune adhésion, aucun message).
+    expect(new Set(userbot.seen.map((x) => `${x.kind}/${x.op}`))).toEqual(new Set(["prospect-search/search", "prospect-search/profile"]));
+    // 5 secondes au moins entre deux demandes, lots compris.
+    const at = userbot.seen.map((x) => Date.parse((x as unknown as { createdAt: string }).createdAt));
+    for (let k = 1; k < at.length; k++) expect(at[k]! - at[k - 1]!).toBeGreaterThanOrEqual(5000);
+    expect(await prisma.setting.findUnique({ where: { key: "prospection.account_search.enabled" } })).toMatchObject({ value: false });
+    const counters = (await prisma.setting.findUniqueOrThrow({ where: { key: "prospection.account_search.counters" } })).value as { perAccount: Record<string, number>; flood: { seconds: number } };
+    expect(Object.values(counters.perAccount)).toEqual([23]);
+    expect(counters.flood).toMatchObject({ seconds: 420 });
+    expect(kevinTexts(n)).toEqual([expect.stringMatching(/ralentir.*420 s.*coupée/)]);
+    // Les canaux trouvés suivent la chaîne normale (lecture par t.me/s, jamais par le compte).
+    expect(await prisma.prospect.count({ where: { sourceType: "ACCOUNT_SEARCH" } })).toBe(11);
+    expect(queue.filter((q) => q.job.type === "prospection.enrich")).toHaveLength(11);
+    await drain(paris("2026-11-04", "06:00"));
+    expect(userbot.seen).toHaveLength(23);
+    // Coupée : le lot suivant ne demande plus rien.
+    expect((await runJob({ type: "prospection.account-search", lot: { vertical: "SPORTS", languages: [] } })).search).toMatchObject({ requests: 0, stopped: "désactivée" });
+    expect(userbot.seen).toHaveLength(23);
+    userbot.on = false;
   });
 });
