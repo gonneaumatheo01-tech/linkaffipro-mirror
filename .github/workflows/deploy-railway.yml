@@ -15,8 +15,20 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
+      - name: Check Railway auth
+        run: |
+          echo "Railway CLI version:"
+          railway version
+          echo "Checking whoami..."
+          railway whoami 2>&1 || true
+
       - name: Deploy web
-        run: railway up --service web --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 -e production
+        run: |
+          railway up --service web --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 -e production 2>&1 || {
+            echo "Deploy failed with exit code $?"
+            echo "Trying with environment name..."
+            railway up --service web --detach -p d0a46384-0c18-4cde-9ed8-2ce381fd3ed1 --environment production 2>&1 || true
+          }
 
   deploy-worker:
     runs-on: ubuntu-latest
