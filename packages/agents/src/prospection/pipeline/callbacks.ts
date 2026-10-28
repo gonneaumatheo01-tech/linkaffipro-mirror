@@ -20,6 +20,7 @@ import { formatEur, handleOf } from "../score/format";
 import { numberSetting, objectOf, prospectionNow, rawProspectionSetting } from "../score/settings";
 import { dealButtons, parseProspectCallback } from "./cards";
 import { snoozeProspect, transitionProspect } from "./status";
+import { askLinkAffiId } from "../learn/link";
 
 export const PENDING_DEAL_PREFIX = "prospection.pending_deal.";
 export const PENDING_DEAL_TTL_MS = 30 * 60_000;
@@ -243,5 +244,8 @@ export async function answerPendingDeal(deps: ProspectionDeps, chatId: string, t
     const r = await transitionProspect(deps, p.id, "SIGNED", { by: "client", dealType: deal.dealType, dealTerms: deal.dealTerms, payload: { via: "telegram" } });
     if (!r.ok) return pick(PROSPECT_CALLBACK_VARIANTS.refused({ reason: r.reason }), "prospect.cb.refused", chatId);
   }
-  return pick(PROSPECT_CALLBACK_VARIANTS.signedDone({ handle, deal: dealWords(deal.dealType, deal.dealTerms) }), "prospect.deal.done", chatId);
+  const done = pick(PROSPECT_CALLBACK_VARIANTS.signedDone({ handle, deal: dealWords(deal.dealType, deal.dealTerms) }), "prospect.deal.done", chatId);
+  // Phase 32 : à la signature, Kevin demande l'identifiant Link Affi (rattachement des vrais résultats).
+  const ask = await askLinkAffiId(deps as never, p.id, { chatKey: chatId }).catch(() => null);
+  return ask ? `${done}\n${ask.text}` : done;
 }

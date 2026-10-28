@@ -4,6 +4,7 @@ import { createProspectionEnqueue, type AgentsProspectionJob } from "@linkaffipr
 import type { Repeatable } from "./index";
 import { logger } from "../logger";
 import { workerAgentsDeps } from "../agents/deps";
+import { createLinkAffiReader } from "../agents/linkaffi-reader";
 
 const KNOWN = new Set([
   "prospection.schedule",
@@ -30,6 +31,9 @@ const KNOWN = new Set([
 /** Tâches qui lisent le réseau (pages publiques t.me, annuaires, recherche web). */
 const NETWORK_JOBS = new Set(["prospection.discover", "prospection.enrich", "prospection.requalify-one"]);
 
+/** Tâches de la boucle Link Affi (phase 32) : lecteur Link Affi en lecture seule, null sans variables `LINKAFFI_*`. */
+const LINKAFFI_JOBS = new Set(["prospection.learn-pull", "prospection.calibrate", "prospection.monthly-report", "prospection.link-reminders"]);
+
 let enqueue: ReturnType<typeof createProspectionEnqueue> | null = null;
 
 /**
@@ -42,6 +46,7 @@ export async function workerProspectionDeps(job: ProspectionQueueJob): Promise<P
   enqueue ??= createProspectionEnqueue();
   const deps = { ...base, prospection: { enqueue } } as ProspectionKevinDeps;
   if (NETWORK_JOBS.has(job.type)) deps.web = await loadProspectionWeb(base);
+  if (LINKAFFI_JOBS.has(job.type)) deps.linkAffiReader = createLinkAffiReader();
   return deps;
 }
 

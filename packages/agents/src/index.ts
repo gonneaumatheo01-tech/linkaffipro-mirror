@@ -524,4 +524,55 @@ export * from "./prospection/index";
 // `prospection/index.ts` : même liaison, aucun conflit.
 export * from "./prospection/contract-advanced";
 export { mergeProspects, splitProspect } from "./prospection/network/index";
-export { linkAffiliate } from "./prospection/learn/index";
+export { linkAffiliate, applyCalibration, undoCalibration, listCalibrationChoices } from "./prospection/learn/index";
+export { markAlertSeen, muteAlertKind, unmuteAlertKind, muteProspectAlerts, unmuteProspectAlerts } from "./prospection/watch/index";
+// Phase 32, chantier B : Valorisateur et boucle Link Affi (Kevin, site, lecteur Link Affi du worker).
+export {
+  estimateProspectValue,
+  refreshValues,
+  explainProspectValue,
+  pipelineValue,
+  formatValueRange,
+  formatValueAssumptions,
+  formatRangeSum,
+  valueSentence,
+  valueEstimateOf,
+  estimateValue,
+  segmentOf,
+  segmentLabel,
+  CONFIDENCE_LABELS as PROSPECT_VALUE_CONFIDENCE_LABELS,
+  VALUE_VARIANTS,
+  type ValueExplanation,
+  type PipelineValue,
+  type PipelineValueLine,
+} from "./prospection/value/index";
+export {
+  askLinkAffiId,
+  answerLinkChoice,
+  runLinkReminders,
+  pullAffiliateResults,
+  churnProposals,
+  proposeCalibration,
+  sendMonthlyReport,
+  buildMonthlyReport as buildProspectionMonthlyReport,
+  listCalibrationChoices,
+  calibrationChoicesMessage,
+  applyCalibration,
+  undoCalibration,
+  calibrationHistory,
+  calibrationSegments,
+  affiliatePerformance,
+  estimatedVsReal,
+  signedAffiliates,
+  attribution as prospectAttribution,
+  aggregateAffiliateStats,
+  recentAffiliatesFrom,
+  profileNameOf,
+  type AffiliatePerformance,
+  type EstimatedVsReal,
+  type CalibrationChoice,
+  type CalibrationActor,
+  type ApplyCalibrationResult,
+  type UndoCalibrationResult,
+  type AttributionRow as ProspectAttributionRow,
+} from "./prospection/learn/index";

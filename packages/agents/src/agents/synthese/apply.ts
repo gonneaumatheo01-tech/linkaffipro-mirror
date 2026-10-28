@@ -34,6 +34,9 @@ export type RecommendationRow = {
 export const MARKET_NEVER_APPLIED =
   "Les propositions de l'analyse du marché ne s'appliquent jamais depuis la plateforme : acceptez-la ou refusez-la dans Agents → Analyses, puis agissez vous-même.";
 
+/** Phase 32 : refus d'appliquer ou d'annuler un calibrage de la Prospection par la mécanique de l'équipe Algorithme. */
+export const PROSPECTION_CALIBRATION_ELSEWHERE = "Le calibrage de la prospection se règle dans Agents → Prospection → Valeur, ou avec Kevin (« applique 1 »).";
+
 type Actor = ActorRef | { by: "GRAND_CHEF" };
 const isHuman = (a: Actor): a is ActorRef => !("by" in a);
 
@@ -112,6 +115,8 @@ export async function applyRecommendationImpl(deps: AgentsDeps, id: string, acto
   if (rec.teamKey === ADS_TEAM_KEY) return { ok: false, message: ADS_NEVER_APPLIED };
   // Analyse du marché (phase 29) : elle recommande, le client agit ; rien n'est écrit ici (« applique 2 » chez Kevin).
   if (rec.teamKey === "analystes" || rec.source === "market_analysis") return { ok: false, message: MARKET_NEVER_APPLIED };
+  // Phase 32 : le calibrage de la Prospection a sa propre application (choix numérotés, bornes, suivi).
+  if (rec.teamKey === "prospection" || rec.source === "prospection_calibration") return { ok: false, message: PROSPECTION_CALIBRATION_ELSEWHERE };
   if (rec.status !== "PROPOSED") return { ok: false, message: rec.status === "APPLIED" ? "Déjà appliquée." : "Cette recommandation n'est plus proposée." };
   // Phase 30 : jamais appliquée sans l'approbation du QA Global pour son contenu actuel (humain comme Grand Chef).
   const notApproved = await recommendationNotApproved(deps, rec as never);
@@ -166,6 +171,7 @@ export async function applyRecommendationImpl(deps: AgentsDeps, id: string, acto
 export async function undoRecommendationImpl(deps: AgentsDeps, id: string, actor: ActorRef): Promise<RecommendationActionResult> {
   const rec = (await deps.prisma.recommendation.findUnique({ where: { id } })) as RecommendationRow | null;
   if (!rec) return { ok: false, message: "Recommandation introuvable." };
+  if (rec.teamKey === "prospection" || rec.source === "prospection_calibration") return { ok: false, message: PROSPECTION_CALIBRATION_ELSEWHERE };
   if (rec.status !== "APPLIED") return { ok: false, message: "Seul un réglage appliqué peut être annulé." };
   const cur = await currentValue(deps, rec.target, rec.targetId, rec.field);
   if (cur === undefined) return { ok: false, message: "La cible de ce réglage n'existe plus." };

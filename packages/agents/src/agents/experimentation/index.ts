@@ -144,6 +144,8 @@ export async function closeExperiments(deps: AgentsDeps, opts: { force?: boolean
   })) as ExperimentRow[];
   const out: ClosedExperiment[] = [];
   for (const exp of due) {
+    // Phase 32 : les suivis du calibrage de la Prospection sont clos par la Prospection (`learn/apply.ts`).
+    if (exp.teamKey === "prospection") continue;
     // Phase 27 : un « avant / après » d'inspiration est clos par son propre bilan de nuit (jamais prolongé ici).
     const insp = (exp.result as { inspiration?: { mode?: unknown } } | null)?.inspiration;
     if (insp && insp.mode === "avant_apres") continue;
