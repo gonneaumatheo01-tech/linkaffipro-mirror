@@ -237,6 +237,8 @@ const KEVIN_FILES = [
   // Phase 31 : textes de Kevin pour la prospection (réponses, listes, offres, retours, fiches des agents, ordres).
   ...tsFiles(join(SRC_DIR, "prospection"), (f) => /\/(kevin[^/]*|jobs)\.ts$/.test(f)),
   join(SRC_DIR, "orders", "capabilities", "prospection.ts"),
+  // Phase 32 : capacités de la prospection avancée (alertes, réseaux, valeur, affiliés, calibrage, compte réel).
+  join(SRC_DIR, "orders", "capabilities", "prospection-advanced.ts"),
   ...KEVIN_ORDER_FILES,
   ...tsFiles(join(SRC_DIR, "orders", "view")),
   ...KEVIN_SHARED_FILES,
