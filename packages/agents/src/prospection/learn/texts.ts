@@ -5,7 +5,7 @@
  */
 import { voiceTemplate, type VoiceTable } from "../../boss/voice";
 
-const NBSP = " ";
+const NBSP = "\u00a0";
 type H = { handle: string };
 const H_SAMPLES: H[] = [{ handle: "@pronos_fr" }, { handle: "Casino Italia" }];
 const q = (s: string) => `«${NBSP}${s}${NBSP}»`;

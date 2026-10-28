@@ -21,7 +21,7 @@ import { PERFORMANCE_VARIANTS } from "./texts";
 
 type Deps = Pick<ProspectionKevinDeps, "prisma" | "now" | "clock">;
 
-const NBSP = " ";
+const NBSP = "\u00a0";
 
 export type MonthResult = { month: string; clicks: number | null; regs: number | null; ftd: number | null; revenueCents: number | null; missing: string[]; days: number };
 export type Volumes = { clicks: number | null; ftd: number | null };

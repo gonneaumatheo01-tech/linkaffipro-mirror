@@ -122,11 +122,11 @@ async function boundsRefusal(deps: Deps, rec: CalibrationRecRow, current: unknow
   const base = await monthBaseOf(deps, rec.target, rec.targetId, rec.field, current, now);
   if (rec.target === CALIBRATION_TARGETS.coefficient) {
     const after = typeof rec.after === "number" ? rec.after : NaN;
-    if (!Number.isFinite(after) || !withinCoefficientBounds(Number(base), after)) return `la limite de ${Math.round(CALIBRATION_BOUNDS.coefficientMaxChange * 100)} % par mois serait dépassée`;
+    if (!Number.isFinite(after) || !withinCoefficientBounds(Number(base), after)) return `la limite de ${Math.round(CALIBRATION_BOUNDS.coefficientMaxChange * 100)}\u00a0% par mois serait dépassée`;
     return null;
   }
-  if (rec.target === CALIBRATION_TARGETS.weights) return withinWeightBounds(weightsOf(base), weightsOf(rec.after)) ? null : `la limite de ${Math.round(CALIBRATION_BOUNDS.weightMaxChange * 100)} % par mois serait dépassée`;
-  if (rec.target === CALIBRATION_TARGETS.shares) return withinShareBounds(sharesOf(base), sharesOf(rec.after)) ? null : `la limite de ${Math.round(CALIBRATION_BOUNDS.weightMaxChange * 100)} % par mois serait dépassée`;
+  if (rec.target === CALIBRATION_TARGETS.weights) return withinWeightBounds(weightsOf(base), weightsOf(rec.after)) ? null : `la limite de ${Math.round(CALIBRATION_BOUNDS.weightMaxChange * 100)}\u00a0% par mois serait dépassée`;
+  if (rec.target === CALIBRATION_TARGETS.shares) return withinShareBounds(sharesOf(base), sharesOf(rec.after)) ? null : `la limite de ${Math.round(CALIBRATION_BOUNDS.weightMaxChange * 100)}\u00a0% par mois serait dépassée`;
   return "réglage inconnu";
 }
 

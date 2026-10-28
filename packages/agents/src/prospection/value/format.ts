@@ -8,11 +8,11 @@ import type { ValueEstimate } from "../contract-advanced";
 import { formatCount, formatEur, formatPct } from "../score/format";
 import { segmentLabel } from "./segment";
 
-const NBSP = " ";
+const NBSP = "\u00a0";
 
 /** « 1 150 » (espace insécable fine des milliers, comme le reste du site). */
 export function formatEuroAmount(n: number): string {
-  return Math.round(n).toLocaleString("fr-FR").replace(/[   ]/g, NBSP);
+  return Math.round(n).toLocaleString("fr-FR").replace(/[\u202f\u00a0 ]/g, NBSP);
 }
 
 export const CONFIDENCE_LABELS: Record<ValueEstimate["confidence"], string> = { low: "confiance faible", medium: "confiance moyenne", high: "confiance bonne" };

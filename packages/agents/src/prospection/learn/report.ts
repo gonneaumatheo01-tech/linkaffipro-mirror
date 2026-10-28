@@ -25,7 +25,7 @@ import { REPORT_VARIANTS } from "./texts";
 
 type Deps = ProspectionKevinDeps & QaDeps;
 
-const NBSP = " ";
+const NBSP = "\u00a0";
 /** Affiliés détaillés au plus dans le rapport. */
 export const REPORT_MAX_AFFILIATES = 8;
 

@@ -74,7 +74,7 @@ describe("estimation (pur)", () => {
 
   it("texte : toujours une fourchette, jamais « rapportera »", () => {
     const t = formatValueRange({ low: 210, high: 1150, calibratedBy: "default" });
-    expect(t).toBe("210 – 1 150 €/mois estimés, non calibrée");
+    expect(t).toBe("210 – 1\u00a0150\u00a0€/mois estimés, non calibrée");
     expect(t).not.toMatch(/rapportera/);
   });
 });

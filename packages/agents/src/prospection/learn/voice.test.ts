@@ -25,7 +25,7 @@ describe("voix de Kevin (Valorisateur, boucle Link Affi)", () => {
         expect(texts.length, `${name}.${key}`).toBeGreaterThan(0);
         for (const t of texts) {
           const p = problems(t, rules);
-          if (p.length) failures.push(`${name}.${key} : ${p.join(", ")} « ${t} »`);
+          if (p.length) failures.push(`${name}.${key} : ${p.join(", ")} «\u00a0${t}\u00a0»`);
           if (/rapportera/i.test(t)) failures.push(`${name}.${key} : « rapportera »`);
         }
       }
@@ -45,7 +45,7 @@ describe("voix de Kevin (Valorisateur, boucle Link Affi)", () => {
     expect(t).toMatch(/revenu mensuel par joueur/);
   });
 
-  it("guillemets français : espace insécable à l'intérieur de « »", () => {
+  it("guillemets français : espace insécable à l'intérieur de «\u00a0»", () => {
     const dirs = [fileURLToPath(new URL(".", import.meta.url)), fileURLToPath(new URL("../value/", import.meta.url))];
     const bad: string[] = [];
     for (const dir of dirs)

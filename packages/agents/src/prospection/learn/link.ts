@@ -34,7 +34,7 @@ type ProspectLite = { id: string; username: string | null; title: string; status
 /** Identifiant d'affilié lisible (« 1234 », « affilié 1234 », uuid) ; null si illisible. Pur. */
 export function parseAffiliateId(text: string): string | null {
   const t = text
-    .replace(/ | /g, " ")
+    .replace(/\u00a0|\u202f/g, " ")
     .replace(/^.*?\baffili[ée]e?\s*(n°|no|#)?\s*/iu, "")
     .trim();
   return /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(t) ? t : null;
@@ -141,7 +141,7 @@ function shortAffiliateId(id: string): string {
  * pas de question ouverte ou si le message n'est pas un numéro seul (Kevin le traite alors normalement).
  */
 export async function answerLinkChoice(deps: Deps, text: string): Promise<string | null> {
-  const m = /^\s*(\d{1,2})\s*$/.exec(text.replace(/ /g, " "));
+  const m = /^\s*(\d{1,2})\s*$/.exec(text.replace(/\u00a0/g, " "));
   if (!m) return null;
   const ask = await readLinkAsk(deps);
   if (!ask || !ask.candidates.length) return null;
