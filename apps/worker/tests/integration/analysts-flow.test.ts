@@ -471,7 +471,8 @@ describe("équipe Analystes de bout en bout (base réelle, faux web, fausse IA)"
       expect(e.summary.length).toBeLessThanOrEqual(500);
       expect(e.url).toMatch(/^https:\/\//);
       expect(e.rawText).toBeTruthy();
-      expect(e.rawTextPurgeAt!.getTime() - e.createdAt.getTime()).toBeGreaterThan(6 * 86400_000);
+      // Horloge simulée (pas `createdAt`, posé par la base à la vraie date du jour).
+      expect(e.rawTextPurgeAt!.getTime() - SUNDAY).toBeGreaterThan(6 * 86400_000);
       expect(e.verified).toBe(false);
     }
     // Plateforme et risque gardés en étiquettes ; aucune alerte (aucun risque élevé, aucune tendance virale).
