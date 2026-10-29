@@ -184,6 +184,8 @@ export type AgentsOrchestratorJob =
   | { type: "resume" }
   /** Phase 33 : suivi des ordres de Kevin (progression, fin, reprise), toutes les 10 minutes. */
   | { type: "orders-tick" }
+  /** Envois programmés de Kevin (29 octobre 2026), toutes les 5 minutes. */
+  | { type: "routines-tick" }
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }
   | { type: "validations" }

@@ -1,3 +1,22 @@
+# Statut — 29 octobre 2026 (suite) : Kevin envoie ce que tu veux, à qui tu veux, quand tu veux
+
+## Fait
+- ✅ Kevin sait maintenant programmer des envois : « envoie chaque matin tous les canaux paris sportifs que tu as trouvés à @Raul_FNZ », « envoie-moi tous les lundis à 8 h les dépenses du mois », « envoie au groupe les paris du jour à 10 h », ou « envoie à Léa … » tout de suite.
+- ✅ Ça marche avec tout ce que Kevin sait lire ou répondre (listes, états, chiffres, réponses libres). Il montre ce qu'il va envoyer et demande OUI. « mes envois programmés » pour la liste, « arrête l'envoi 2 » pour en couper un.
+- ✅ La personne reçoit en privé si elle a déjà écrit /start à Kevin, sinon dans le groupe de l'équipe avec une mention. Si rien ne passe, Kevin te prévient.
+- ✅ Phrase corrigée : Kevin ne dit plus « je peux les prochains canaux… ».
+- ✅ Tests du paquet agents : 1 563 verts.
+
+## Test de 5 minutes
+1. Écrire à Kevin : « envoie chaque matin à 9 h tous les canaux paris sportifs que tu as trouvés à @Raul_FNZ », puis répondre OUI.
+2. Écrire « mes envois programmés » : l'envoi doit apparaître.
+3. Demain à 9 h, Raul reçoit la liste (en privé s'il a écrit /start à Kevin, sinon dans le groupe de l'équipe).
+
+## Problèmes et actions humaines
+- Pour qu'il reçoive en privé, Raul doit écrire une fois /start à @kevcanauxbot. Sinon Kevin passe par le groupe de l'équipe (s'il y en a un).
+
+---
+
 # Statut — 29 octobre 2026 : Kevin répond comme Claude
 
 ## Fait

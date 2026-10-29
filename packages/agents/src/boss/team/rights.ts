@@ -58,6 +58,9 @@ export const BOSS_TEAM_ADMIN_KEYS = new Set(["presenter_membre", "modifier_membr
 
 /** Réservées à l'admin, quelle que soit la classe (démarrage guidé, annulation de SA confirmation, groupe). */
 export const BOSS_ADMIN_ONLY_KEYS = new Set([
+  // Envois programmés (29 octobre 2026) : envoyer nos données à quelqu'un, l'admin seul.
+  "programmer_envoi",
+  "arreter_envoi",
   "commencer",
   "annule",
   "groupe_equipe",
