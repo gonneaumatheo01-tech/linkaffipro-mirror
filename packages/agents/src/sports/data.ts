@@ -93,11 +93,7 @@ export type PickRow = {
   skipReason: string | null;
   result: unknown;
   createdAt: Date;
-  /** Phase 35 : bookmaker du client lu directement (clé `BookmakerSite`) et identifiant du match sur ce site. */
-  siteKey?: string | null;
-  siteEventId?: string | null;
-  /** Phase 35 : les deux lectures (`BookmakerOdds`) qui ont validé la cote, et leurs niveaux (« api+dom »). */
-  oddsReadIds?: unknown;
+  /** Paris par capture : `human-pending` (capture et cote attendues) puis `human` (reçues de l'équipe). */
   oddsLevel?: string | null;
 };
 

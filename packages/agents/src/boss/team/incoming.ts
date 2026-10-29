@@ -42,10 +42,7 @@ import {
   takePendingIntro,
   type TeamMemberRow,
 } from "./members";
-import { kevinForwardedPost } from "../../inspiration/kevin-forward";
 import { rememberForwarded, type TelegramForwardMessage } from "../inputs/forwarded";
-import { readCollect } from "../../inspiration/kevin";
-import type { ForwardedMessage } from "../../inspiration/sources/forwarded";
 import { bossUsername, claimDeleteRightAsk, claimGroupWelcome, groupReplacementSummary, readBossGroupId, setBossGroup } from "./group";
 import { pick, voiceTemplate, type VoiceTable } from "../voice";
 
@@ -563,17 +560,11 @@ async function incoming(deps: AgentsDeps, msg: BossTeamMessage): Promise<BossTea
     if (/^\/start(?:@\w+)?(?:\s|$)/.test(msg.text.trim())) return reply(MEMBER_PRIVATE_WELCOME(member.firstName, name, msg.chat.id));
   }
   // Phase 34 : tout message transféré par une personne connue est gardé 30 min comme contenu possible (une donnée,
-  // jamais exécutée ni envoyée à l'IA), avant le rangement d'inspiration ci-dessous qui reste inchangé.
+  // jamais exécutée ni envoyée à l'IA).
   if (msg.forwarded && msg.raw)
     await rememberForwarded(deps, { chatId: msg.chat.id.toString(), message: msg.raw as TelegramForwardMessage }).catch((err: Error) =>
       deps.logger?.warn({ err: err.message }, "[boss] message transféré non gardé"),
     );
-  // Phase 27 : post transféré d'un canal tiers → rangé comme post de référence (une réponse par lot, une minute après).
-  // Dans le groupe, seulement s'il s'adresse à Kevin, ou si Kevin a demandé des transferts à cette personne ici.
-  if (msg.forwarded && msg.raw && (!group || addr.addressed || (await collectAskedTo(deps, msg.chat.id, msg.from.id)))) {
-    const stored = await kevinForwardedPost(deps, { message: msg.raw as ForwardedMessage, chat, speaker });
-    if (stored.handled) return stored.reply ? { kind: "reply", reply: stored.reply } : ignore("post de référence rangé");
-  }
   if (msg.forwarded && !addr.addressed) return ignore("message transféré");
   // Vocal adressé à Kevin dans le groupe (réponse à un de ses messages, ou mention en légende) : pas écouté ici.
   if (group && msg.hasVoice && addr.addressed) return reply(pick(TEAM_INCOMING_VARIANTS.voice, "incoming.voice", msg.chat.id));
@@ -684,8 +675,3 @@ export async function bossGroupMembership(deps: AgentsDeps, ev: BossMembershipEv
   }
 }
 
-/** Kevin a-t-il demandé des posts transférés à cette personne dans cette conversation (collecte ouverte) ? */
-async function collectAskedTo(deps: AgentsDeps, chatId: bigint, fromId: bigint): Promise<boolean> {
-  const c = await readCollect(deps, chatId.toString()).catch(() => null);
-  return !!c && c.telegramUserId === fromId.toString();
-}

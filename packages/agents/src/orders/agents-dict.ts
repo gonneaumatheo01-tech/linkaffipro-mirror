@@ -83,7 +83,7 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     key: "chef-algo",
     label: "Chef Algorithme",
     kind: "chef",
-    teams: ["algo", "inspiration"],
+    teams: ["algo"],
     chief: "grand-chef",
     role: "Mesure ce qui marche et règle les autres équipes dans leurs bornes ; ne publie rien.",
     synonyms: ["chef algorithme", "chef algo", "chef de l'algo", "chef de l'equipe algorithme"],
@@ -126,11 +126,11 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
   }),
   e({
     key: "capture",
-    label: "Capture écran",
+    label: "Capture du pari",
     kind: "agent",
     teams: ["sports"],
     chief: "chef-sports",
-    role: "Ouvre le site du bookmaker, vérifie que la cote est toujours là et en fait la capture, sans jamais miser.",
+    role: "Demande à l'équipe la capture du pari et la cote exacte sur le site du bookmaker, puis les joint au post.",
     synonyms: ["capture", "capture ecran", "capture d'ecran", "captures", "screenshot", "celui qui fait les captures", "photographe"],
   }),
   e({
@@ -222,15 +222,6 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     chief: "chef-algo",
     role: "Transforme les analyses en réglages concrets par canal, chiffres à l'appui, et écrit le rapport « Ce qui marche ».",
     synonyms: ["synthese", "synthese et reglages", "reglages", "celui qui regle", "celui des reglages", "rapport de la semaine"],
-  }),
-  e({
-    key: "inspiration",
-    label: "Inspiration",
-    kind: "agent",
-    teams: ["inspiration"],
-    chief: "chef-algo",
-    role: "Lit un canal qui marche, en tire un profil de style et des idées, sans jamais copier.",
-    synonyms: ["inspiration", "agent inspiration", "canal d'inspiration", "celui qui lit les autres canaux", "concurrents", "espion"],
   }),
   // Phase 28 : équipe Montage (vidéo longue du client → shorts, chaque short validé par le client avant tout envoi).
   e({
@@ -512,7 +503,6 @@ export function orderTeamLabel(t: OrderTeamKey): string {
   if (t === "analystes") return "Analystes";
   if (t === "qa") return "Contrôle qualité";
   if (t === "prospection") return "Prospection";
-  if (t === "inspiration") return "Inspiration";
   if (t === "transverse") return "toutes les équipes";
   return TEAM_LABELS[t as TeamKey] ?? t;
 }
@@ -729,7 +719,7 @@ async function agentSettingsLines(deps: AgentsDeps, agent: AgentEntry, channelId
         lines.push(`Passages à ${s.runHours.map((h) => `${h} h`).join(", ")}, matchs jusqu'à ${s.lookaheadHours} h à l'avance.`);
         if (cats.length) lines.push(`Catégories actives : ${cats.slice(0, 4).map((c) => `${c.name} (cotes ${c.minOdds} à ${c.maxOdds})`).join(", ")}.`);
         else lines.push("Aucune catégorie de paris active.");
-      } else lines.push(`Écart de cote toléré avant l'envoi : ${s.maxOddsDriftPct} %.`);
+      } else lines.push("Je ne lis jamais les sites des bookmakers : l'équipe m'envoie la capture et la cote de chaque pari.");
       break;
     }
     case "media-ia": {

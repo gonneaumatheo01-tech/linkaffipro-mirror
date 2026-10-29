@@ -420,9 +420,6 @@ importers:
       pino:
         specifier: ^10.4.0
         version: 10.4.0
-      playwright-core:
-        specifier: 1.64.0
-        version: 1.64.0
       telegram:
         specifier: ^2.26.22
         version: 2.26.22
@@ -460,9 +457,6 @@ importers:
       '@linkaffipro/db':
         specifier: workspace:*
         version: link:../db
-      playwright-core:
-        specifier: 1.64.0
-        version: 1.64.0
     devDependencies:
       '@linkaffipro/config':
         specifier: workspace:*

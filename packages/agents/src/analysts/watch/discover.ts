@@ -11,7 +11,7 @@ import { AnalystsAiError, callAnalystsLlm, cleanLine, nowOf, parseAiObject, SUMM
 import { createAnalystsWeb } from "./polite";
 import { subredditOf, type WatchScrapeConfig } from "./readers";
 import { safeHttpUrl } from "./server-tools";
-import { normalizeChannelUsername } from "../../inspiration/sources/web-preview";
+import { normalizeChannelUsername } from "../../channel-reader/web-preview";
 import { localQuery, WATCH_LANGUAGES } from "./terms";
 import { EUROPE_COUNTRIES } from "../contract";
 

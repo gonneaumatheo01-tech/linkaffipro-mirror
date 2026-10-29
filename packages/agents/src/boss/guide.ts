@@ -4,7 +4,7 @@
  * Les étapes suivent l'ordre de `docs/A-FAIRE-HUMAIN.md` (« Mettre les agents en route ») et chacune est calculée
  * depuis les DONNÉES (aucune case à cocher) : bot Boss, rapport du matin, clé fal.ai, médias de chaque persona
  * Rencontres, plafond vidéo, plan Rencontres, vidéos et plan Casino (seulement s'il existe un canal casino), clé des
- * cotes, compte bookmaker, catégories de paris, niveau de l'équipe Algorithme, seuils et dépenses pub ; le passage en
+ * cotes, catégories de paris, niveau de l'équipe Algorithme, seuils et dépenses pub ; le passage en
  * vrai d'une équipe est facultatif et ne compte pas dans l'avancement.
  *
  * `bossStartReply` : 3 lignes d'état, l'avancement « 3/14 », puis « On commence par … ? » et LA question
@@ -22,7 +22,7 @@ import {
   SOURCE_VIDEOS_WANTED,
 } from "../human/dating-setup";
 import { DAILY_REPORT_KEY, DAILY_REPORT_QUESTION } from "../human/site";
-import { secretSettingKey, secretSummary } from "../human/secrets";
+import { secretSummary } from "../human/secrets";
 import { personaTagOf } from "../library/tags";
 import { isAgentsPausedAll } from "../missions/settings";
 import { ODDS_SECRET_KEY } from "../providers/odds-registry";
@@ -101,18 +101,6 @@ async function closedRequest(deps: BossGuideDeps, key: string): Promise<boolean>
   return (await deps.prisma.humanRequest.count({ where: { key, status: { in: [...ANSWERED] } } })) > 0;
 }
 
-/** Un compte bookmaker complet (identifiant ET mot de passe enregistrés) : nom du premier trouvé, ou null. */
-async function bookmakerWithCredentials(deps: BossGuideDeps): Promise<string | null> {
-  const prefix = secretSettingKey("providers.bookmakers.");
-  const rows = await deps.prisma.setting.findMany({ where: { key: { startsWith: prefix } }, select: { key: true } });
-  const keys = new Set(rows.map((r) => r.key));
-  for (const k of keys) {
-    const m = /^agents\.secret\.providers\.bookmakers\.([^.]+)\.login$/.exec(k);
-    if (m && keys.has(secretSettingKey(`providers.bookmakers.${m[1]}.password`))) return m[1]!;
-  }
-  return null;
-}
-
 /** Questions des médias d'une persona Rencontres (mêmes clés et suites que `ensureDatingSetupQuestions`). */
 function personaAsks(
   p: { id: string; name: string; loraUrl: string | null; loraTrigger: string | null; referenceImageIds: unknown },
@@ -186,7 +174,7 @@ async function adsAsks(deps: BossGuideDeps): Promise<AskHumanInput[] | null> {
 export async function bossSetupSteps(deps: BossGuideDeps): Promise<BossGuideStep[]> {
   const p = deps.prisma;
   const name = await readBossName(deps);
-  const [bossBot, dailyReport, falKey, personas, datingConfig, datingPlans, casinoChannels, casinoPlans, oddsKey, bookmaker] =
+  const [bossBot, dailyReport, falKey, personas, datingConfig, datingPlans, casinoChannels, casinoPlans, oddsKey] =
     await Promise.all([
       p.bot.findFirst({ where: { role: "ADMIN", isActive: true }, select: { id: true, username: true } }),
       p.setting.findUnique({ where: { key: DAILY_REPORT_KEY } }),
@@ -197,7 +185,6 @@ export async function bossSetupSteps(deps: BossGuideDeps): Promise<BossGuideStep
       p.channel.count({ where: { vertical: "CASINO", isActive: true, isTest: false } }),
       p.channelAgentPlan.count({ where: { teamKey: "casino", enabled: true } }),
       secretSummary(p, ODDS_SECRET_KEY),
-      bookmakerWithCredentials(deps),
     ]);
   const steps: BossGuideStep[] = [];
 
@@ -356,36 +343,6 @@ export async function bossSetupSteps(deps: BossGuideDeps): Promise<BossGuideStep
         key: ODDS_SECRET_KEY,
         question:
           "Équipe Paris sportifs : il me faut la clé de l'API des cotes SportsGameOdds. Crée un compte gratuit sur https://sportsgameodds.com (offre gratuite), copie la clé API et colle-la ici. Je la vérifie tout de suite et j'efface ton message.",
-        onAnswer: { resume: false },
-      },
-    ],
-  });
-  const loginSet = (await secretSummary(p, "providers.bookmakers.sportaza.login")).set;
-  steps.push({
-    key: "sports.bookmaker",
-    label: "le compte bookmaker",
-    team: "sports",
-    short: "bookmaker",
-    done: bookmaker !== null,
-    why: "Il sert seulement à faire la capture du pari (jamais de mise). J'efface tes messages aussitôt.",
-    asks: [
-      ...(loginSet
-        ? []
-        : [
-            {
-              teamKey: "sports" as const,
-              kind: "SECRET" as const,
-              key: "providers.bookmakers.sportaza.login",
-              question:
-                "Pour les captures d'écran des paris : envoie l'identifiant (e-mail ou nom d'utilisateur) du compte Sportaza. J'efface ton message aussitôt.",
-              onAnswer: { resume: false },
-            },
-          ]),
-      {
-        teamKey: "sports",
-        kind: "SECRET",
-        key: "providers.bookmakers.sportaza.password",
-        question: "Maintenant le mot de passe du compte Sportaza. J'efface ton message aussitôt et je teste la connexion (aucune mise, jamais).",
         onAnswer: { resume: false },
       },
     ],

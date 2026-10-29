@@ -1,10 +1,10 @@
 /**
  * Phase 23 : une journée de l'équipe Paris sportifs sur base réelle, horloge injectée. Faux fournisseur de cotes
- * (fixtures SportsGameOdds recalées sur l'horloge) et faux fournisseur de captures (image PNG, cote lue = cote
- * retenue ; un match « bloqué » par le site). Canal Paris en simulation : tout part sur le canal Test.
- * Vérifié : passage de 10 h → 4 paris retenus (un par match) ; 2 publiés tout de suite sur le canal Test avec leur
- * capture ; 1 écarté au Contrôle pour cote bougée (journalisé, jamais publié) ; 1 image de repli soumise à
- * validation ; puis, après les matchs, résultats réglés (`settle`) et bilan calculé.
+ * (fixtures SportsGameOdds recalées sur l'horloge) ; aucun site de bookmaker lu (28 octobre 2026) : chaque pari part
+ * avec l'image de repli, toujours validée. Canal Paris en simulation : tout part sur le canal Test.
+ * Vérifié : passage de 10 h → 4 paris retenus (un par match) ; 2 validés puis publiés tout de suite sur le canal Test ;
+ * 1 écarté au Contrôle pour cote bougée (journalisé, jamais publié) ; 1 laissé sans réponse ; puis, après les matchs,
+ * résultats réglés (`settle`, la validation sans réponse est écartée) et bilan calculé.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@linkaffipro/db";
@@ -14,13 +14,10 @@ import {
   createFakeOddsProvider,
   decideValidation,
   FAKE_ODDS_ANCHOR,
-  fallbackPng,
   runCycle,
   runNextStep,
   runSportsSettle,
   type AgentStepJob,
-  type CaptureRequest,
-  type CaptureResult,
   type EngineDeps,
 } from "@linkaffipro/agents";
 import { processScheduler } from "../../src/processors/scheduler";
@@ -34,22 +31,6 @@ const steps: Array<{ agent: string; job: AgentStepJob }> = [];
 const adminSent: string[] = [];
 let nextMsg = 7000;
 const odds = createFakeOddsProvider({ now: () => now });
-let blockedTeam = "";
-const captures: CaptureRequest[] = [];
-const screenshot = {
-  name: "fake",
-  async capture(req: CaptureRequest): Promise<CaptureResult> {
-    captures.push(req);
-    if (req.homeTeam === blockedTeam) return { ok: false, kind: "geo_blocked", message: "site indisponible dans ce pays" };
-    return { ok: true, png: fallbackPng(320, 200), readOdds: req.expectedOdds, pageUrl: "https://www.sportaza.example/match" };
-  },
-  async testConnection(): Promise<CaptureResult> {
-    return { ok: true, png: fallbackPng(10, 10), readOdds: 0, pageUrl: "https://www.sportaza.example" };
-  },
-  async renderTemplate(): Promise<Uint8Array> {
-    return fallbackPng(1080, 1080);
-  },
-};
 const deps: EngineDeps = {
   prisma,
   now: () => now,
@@ -65,7 +46,7 @@ const deps: EngineDeps = {
       return { messageId: nextMsg++ };
     },
   },
-  providers: { llm: createFakeLlm(), odds, screenshot },
+  providers: { llm: createFakeLlm(), odds },
 };
 
 async function drain(): Promise<string[]> {
@@ -149,12 +130,11 @@ describe("équipe Paris sportifs : une journée simulée (base réelle)", () => 
     expect(await prisma.agentMission.count({ where: { teamKey: "sports" } })).toBe(4);
   });
 
-  it("chaîne : 2 publiés avec capture, 1 écarté pour cote bougée, 1 repli à valider", async () => {
+  it("chaîne : 2 validés et publiés avec l'image de repli, 1 écarté pour cote bougée, 1 sans réponse", async () => {
     const picks = await prisma.bettingPick.findMany({ orderBy: { interestScore: "desc" } });
     const moved = picks[2]!;
     const blocked = picks[3]!;
     odds.setOdds(moved.eventId, moved.marketId, "sportaza", Math.round(moved.odds * 1.2 * 100) / 100);
-    blockedTeam = blocked.homeTeam;
     await drain();
     // Ligue et marché jamais utilisés : validés comme le bouton ✅ (toujours validé, quel que soit le niveau).
     for (let round = 0; round < 3; round++) {
@@ -184,10 +164,8 @@ describe("équipe Paris sportifs : une journée simulée (base réelle)", () => 
     expect(validation.reason).toMatch(/image de repli/);
     const asset = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: by(blocked.id).screenshotAssetId! }, select: { origin: true, kind: true } });
     expect(asset).toEqual({ origin: "TEMPLATE", kind: "SCREENSHOT" });
-    // Site bloqué : la parade est demandée au client (adresse IP résidentielle ou Mac).
-    expect(await prisma.humanRequest.count({ where: { key: "sports.captureWorkaround" } })).toBe(1);
 
-    // Publiés : programmés « maintenant » sur le canal Test, capture jointe, en-tête de simulation.
+    // Publiés : programmés « maintenant » sur le canal Test, image de repli jointe, en-tête de simulation.
     const posts = await prisma.post.findMany({ where: { id: { in: [by(picks[0]!.id).postId!, by(picks[1]!.id).postId!] } } });
     expect(posts).toHaveLength(2);
     for (const p of posts) {
@@ -196,7 +174,7 @@ describe("équipe Paris sportifs : une journée simulée (base réelle)", () => 
       expect(p.text.startsWith("[SIMULATION équipe Paris sportifs → Paris VIP]\n")).toBe(true);
       expect((p.mediaAssetIds as string[]).length).toBe(1);
       const shot = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: (p.mediaAssetIds as string[])[0]! }, select: { origin: true, kind: true } });
-      expect(shot).toEqual({ origin: "HUMAN_SITE", kind: "SCREENSHOT" });
+      expect(shot).toEqual({ origin: "TEMPLATE", kind: "SCREENSHOT" });
     }
     expect(by(picks[0]!.id).oddsAtSend).toBe(picks[0]!.odds);
     // Envoyés par le scheduler existant (bot simulé), en photo.
@@ -212,7 +190,7 @@ describe("équipe Paris sportifs : une journée simulée (base réelle)", () => 
     now = new Date(FAKE_ODDS_ANCHOR.getTime() + 2 * 86_400_000);
     const r = await runSportsSettle(deps);
     expect(r.settled).toBe(2);
-    // La validation du repli n'a pas eu de réponse avant le match : écartée.
+    // La validation sans réponse avant le match : écartée.
     expect(r.expired).toBe(1);
     const published = await prisma.bettingPick.findMany({ where: { status: { in: ["WON", "LOST", "VOID"] } } });
     expect(published).toHaveLength(2);

@@ -30,6 +30,8 @@ const files = [...ROOTS.flatMap(sourceFiles), join(WEB, "proxy.ts")]
 
 /** Une adresse commence juste après un guillemet, une apostrophe ou un accent grave (ou après l'hôte). */
 const OLD_SECTION = /(?:["'`]|localhost)\/(broadcasts|automations|bots|journal|links)(?![\w-])/;
+/** Rubriques retirées le 28 octobre 2026 (canal d'inspiration, lecture des sites des bookmakers). */
+const REMOVED_SECTION = /["'`]\/agents\/(inspiration|bookmakers)(?![\w-])/;
 /** Ancien tableau de bord : `/?tab=…` (désormais une page par rubrique : `/stats/ads`…). */
 const OLD_DASHBOARD_TAB = /["'`]\/\?(?:[^"'`]*&)?tab=/;
 /** Anciens onglets des statistiques : `/stats?tab=…` (désormais `/stats/ads`, `/stats/funnel`…). */
@@ -52,6 +54,10 @@ describe("anciennes adresses absentes du code", () => {
 
   it("aucune page déplacée citée à son ancienne adresse", () => {
     expect(offenders(OLD_SECTION)).toEqual([]);
+  });
+
+  it("aucune rubrique retirée citée (inspiration, bookmakers)", () => {
+    expect(offenders(REMOVED_SECTION)).toEqual([]);
   });
 
   it("aucun onglet de l'ancien tableau de bord sur « / »", () => {

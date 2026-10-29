@@ -11,8 +11,8 @@
  * Données minimales (règle 3) : seul un pseudonyme est gardé comme auteur (jamais un nom qui ressemble à un vrai nom,
  * une adresse, un lien de profil) ; courriels, téléphones et liens de profil sont retirés du texte.
  */
-import { parseHtml, querySelectorAll, textOf, type HtmlNode } from "../../bookmakers/read/html";
-import { normalizeChannelUsername, readWebPreview } from "../../inspiration/sources/web-preview";
+import { parseHtml, querySelectorAll, textOf, type HtmlNode } from "../../html/parse";
+import { normalizeChannelUsername, readWebPreview } from "../../channel-reader/web-preview";
 import { ANALYSTS_LIMITS, type AnalystsWeb, type Market, type RawItem } from "../contract";
 import { cleanLine } from "./ai";
 import { PoliteFetchError } from "./polite";

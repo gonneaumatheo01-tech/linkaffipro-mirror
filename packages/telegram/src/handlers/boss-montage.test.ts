@@ -106,6 +106,21 @@ describe("vidéo envoyée à Kevin par l'admin", () => {
     expect(t.deps.downloadTelegramFile).not.toHaveBeenCalled();
   });
 
+  it("légende « mets Léa à la place de la personne » : pas de montage, la phrase part au chemin rapide de Kevin", async () => {
+    const t = setup();
+    const fast = t.deps.bossEngine!.fastPath as ReturnType<typeof vi.fn>;
+    fast.mockImplementationOnce(async () => ({ handled: true, reply: "Je mets Léa à la place de la personne. Réponds OUI." }) as BossFastResult);
+    await t.bot.handleUpdate(msg({ video: { ...VIDEO, duration: 12, file_size: 3_000_000 }, caption: "mets Léa à la place de la personne dans cette vidéo" }));
+    expect(t.jobs).toHaveLength(0);
+    expect(fast).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ text: "mets Léa à la place de la personne dans cette vidéo", chat: { type: "private", chatId: ADMIN_TG_ID } }));
+    expect(t.sent()).toHaveLength(1);
+    expect(String(t.sent()[0]!.payload.text)).toMatch(/Léa/);
+    await new Promise((r) => setTimeout(r, 40));
+    // Pas de question « je la monte ou je la garde ? » en plus.
+    expect(t.sent()).toHaveLength(1);
+    expect(t.deps.downloadTelegramFile).not.toHaveBeenCalled();
+  });
+
   it("vidéo seule : question « je la monte ou je la garde ? » avec 2 boutons, un instant après", async () => {
     const t = setup();
     await t.bot.handleUpdate(msg({ video: VIDEO }));

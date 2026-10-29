@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import { purgeReferenceTexts, rehashReferenceShingles } from "@linkaffipro/agents";
 import { prisma, audit, recordEvent } from "@linkaffipro/db";
 import { logger } from "../logger";
 import {
@@ -65,22 +64,23 @@ export const REDACTED_PAYLOAD = { redacted: true } as const;
 const PURGED_QUEUED_ERROR =
   "Non envoyé : resté en file (envoi interrompu ou personne supprimée), texte effacé par la purge.";
 
+/** Textes des posts de référence (ancien canal d'inspiration, données gardées) effacés après 30 jours. */
+export const REFERENCE_TEXT_RETENTION_DAYS = 30;
+
 /**
- * Canal d'inspiration (phase 27), isolé du reste de la purge (une erreur de l'un n'empêche jamais l'autre) : textes des
- * posts de référence effacés après 30 jours, puis, une seule fois, empreintes de copie recalculées et anciens
- * événements de posts transférés masqués. Ne lève jamais.
+ * Anciens canaux d'inspiration (phase 27, retirée le 28 octobre 2026 ; tables gardées), isolés du reste de la purge
+ * (une erreur de l'un n'empêche jamais l'autre) : textes des posts de référence effacés après 30 jours (les empreintes de
+ * copie restent pour le Contrôle qualité), puis, une seule fois, anciens événements de posts transférés masqués.
+ * Ne lève jamais.
  */
 export async function runInspirationPurge(now = new Date()): Promise<{ referenceTextsPurged: number }> {
   let referenceTextsPurged = 0;
   try {
-    referenceTextsPurged = (await purgeReferenceTexts({ prisma }, now)).purged;
+    const cutoff = new Date(now.getTime() - REFERENCE_TEXT_RETENTION_DAYS * 86_400_000);
+    const r = await prisma.referencePost.updateMany({ where: { textPurgedAt: null, createdAt: { lt: cutoff } }, data: { text: null, textPurgedAt: now } });
+    referenceTextsPurged = r.count;
   } catch (err) {
     logger.error({ err: String((err as Error)?.message ?? err) }, "[purge] textes des posts de référence : échec");
-  }
-  try {
-    await rehashReferenceShingles({ prisma, now: () => now });
-  } catch (err) {
-    logger.error({ err: String((err as Error)?.message ?? err) }, "[purge] recalcul des empreintes de copie : échec");
   }
   try {
     await redactForwardedEventsOnce(prisma, now);
@@ -90,7 +90,7 @@ export async function runInspirationPurge(now = new Date()): Promise<{ reference
   return { referenceTextsPurged };
 }
 
-/** Purge complète : rétention, puis canal d'inspiration même si la rétention a échoué (l'erreur est relancée après). */
+/** Purge complète : rétention, puis anciens canaux d'inspiration même si la rétention a échoué (l'erreur est relancée après). */
 export async function runPurge(now = new Date()): Promise<PurgeResult> {
   let retention: Omit<PurgeResult, "referenceTextsPurged"> | null = null;
   let failure: unknown = null;

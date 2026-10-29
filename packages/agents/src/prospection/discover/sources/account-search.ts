@@ -22,8 +22,7 @@
  */
 import { agentEvent, readSetting, writeSetting } from "../../../admin/journal";
 import { pick } from "../../../boss/voice";
-import { freeReaderAccounts } from "../../../inspiration/sources/account";
-import { askUserbot, USERBOT_SHORT_TIMEOUT_MS, userbotMailboxAlive, UserbotTimeout } from "../../../inspiration/sources/userbot-mailbox";
+import { askUserbot, freeReaderAccounts, USERBOT_SHORT_TIMEOUT_MS, userbotMailboxAlive, UserbotTimeout } from "../../../channel-reader/userbot-mailbox";
 import { parisDay } from "../../../rules/time";
 import type { AgentsPrisma } from "../../../types";
 import { ACCOUNT_SEARCH, type ProspectionAdvancedJob } from "../../contract-advanced";

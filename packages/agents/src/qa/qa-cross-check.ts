@@ -8,10 +8,10 @@
  *   un canal casino, source introuvable ou adresse cassée). Ils sont aussi transmis au modèle.
  * - Indices du code (`hints`) : transmis au modèle qui tranche (chiffres absents des données consultées, adresses
  *   inconnues de la veille).
- * Le contrôle de copie réutilise `inspiration/copy-check.ts` (empreintes des posts de référence, texte effacé compris) ;
+ * Le contrôle de copie réutilise `rules/copy-check.ts` (empreintes des posts de référence, texte effacé compris) ;
  * le motif ne cite JAMAIS les mots repris (`COPY_PROBLEM`).
  */
-import { copiedSequence, COPY_PROBLEM, shingleHashes } from "../inspiration/copy-check";
+import { copiedSequence, COPY_PROBLEM, shingleHashes } from "../rules/copy-check";
 import { casinoMediaRefusal } from "../casino/control";
 import { parseAlgoSettings, DEFAULT_ALGO_SETTINGS } from "../algo/settings";
 import { DEFAULT_ALLOWED_LINK_HOSTS, foreignLinks, forbiddenWordsIn, mentionsAi } from "../rules/content";
@@ -232,7 +232,7 @@ async function teamForbiddenWords(deps: AgentsDeps, teamKey: string): Promise<{ 
   };
 }
 
-/** Empreintes de toutes les sources de référence (posts des canaux d'inspiration) + textes fournis par l'appelant. */
+/** Empreintes de toutes les sources de référence (posts des anciens canaux d'inspiration, gardés) + textes fournis par l'appelant. */
 async function referenceShingles(deps: AgentsDeps, context: QaContext): Promise<Set<string>> {
   const rows = (await deps.prisma.referencePost.findMany({
     orderBy: { postedAt: "desc" },
@@ -338,19 +338,10 @@ export async function loadQaContext(deps: AgentsDeps, input: QaCrossCheckInput):
         const plan = await safe(
           errors,
           "plan du canal",
-          async () => (await deps.prisma.channelAgentPlan.findUnique({ where: { channelId }, select: { styleProfileId: true, styleNotes: true } })) as { styleProfileId: string | null; styleNotes: string | null } | null,
+          async () => (await deps.prisma.channelAgentPlan.findUnique({ where: { channelId }, select: { styleNotes: true } })) as { styleNotes: string | null } | null,
           null,
         );
         if (plan?.styleNotes) loaded.styleNotes = clip(plan.styleNotes, 600);
-        if (plan?.styleProfileId) {
-          const sp = await safe(
-            errors,
-            "profil de style",
-            async () => (await deps.prisma.styleProfile.findUnique({ where: { id: plan.styleProfileId! }, select: { rules: true, description: true, flagged: true } })) as { rules: unknown; description: string | null; flagged: unknown } | null,
-            null,
-          );
-          if (sp) loaded.styleProfile = { rules: sp.rules, description: clip(sp.description, 800), flagged: sp.flagged };
-        }
         loaded.appliedRecommendations = await safe(errors, "recommandations du canal", () => recommendationsFor(deps, { targetId: channelId, statuses: ["APPLIED"] }), []);
       }
     }

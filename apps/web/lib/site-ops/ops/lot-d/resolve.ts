@@ -81,17 +81,6 @@ export async function resolveBetCategory(raw: unknown): Promise<Ref> {
   );
 }
 
-/** Site d'un bookmaker (`BookmakerSite` : clé ou nom affiché). */
-export async function resolveBookmakerSite(raw: unknown): Promise<Ref> {
-  const db = prisma as unknown as { bookmakerSite: { findMany(a: unknown): Promise<Array<{ key: string; label: string }>> } };
-  const rows = await db.bookmakerSite.findMany({ select: { key: true, label: true } });
-  return pickNamed(
-    { plural: "bookmakers", one: "le bookmaker" },
-    str(raw),
-    rows.map((r) => ({ id: r.key, name: r.label, extra: [r.key] })),
-  );
-}
-
 /** Ordre par numéro (« l'ordre 3 », « 3 ») ou par identifiant. */
 export async function resolveOrder(raw: unknown): Promise<Ref> {
   const s = str(raw).trim();
@@ -103,19 +92,6 @@ export async function resolveOrder(raw: unknown): Promise<Ref> {
       : null;
   if (!row) return { ok: false, result: fail(s ? `Je ne trouve pas l'ordre « ${s} ».` : "Quel ordre ?", "not_found") };
   return { ok: true, id: row.id, name: `Ordre n° ${row.number}` };
-}
-
-/** Canal d'inspiration (référence) : identifiant, @nom ou titre ; les références retirées ne comptent pas. */
-export async function resolveReference(raw: unknown): Promise<Ref> {
-  const rows = await prisma.referenceChannel.findMany({
-    where: { removedAt: null },
-    select: { id: true, username: true, title: true },
-  });
-  return pickNamed(
-    { plural: "canaux d'inspiration", one: "le canal d'inspiration" },
-    str(raw).replace(/^(https?:\/\/)?(t\.me|telegram\.me)\/(s\/)?/i, "").replace(/^@/, ""),
-    rows.map((r) => ({ id: r.id, name: r.title ?? (r.username ? `@${r.username}` : r.id), extra: r.username ? [r.username] : [] })),
-  );
 }
 
 /** Demande au client : identifiant, sinon la demande en cours (« la question », « la demande »). */

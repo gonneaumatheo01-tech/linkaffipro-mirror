@@ -2,7 +2,7 @@
 
 Généré par `pnpm kevin:parity -- --write` (ne pas modifier à la main). Chaque action du site se fait aussi en parlant à Kevin sur Telegram, sauf les exclusions listées avec leur remplacement.
 
-État du 27 octobre 2026 : 243 actions du site, 233 faisables par Kevin, 10 exclues (avec remplacement), 0 manquantes.
+État du 28 octobre 2026 : 242 actions du site, 232 faisables par Kevin, 10 exclues (avec remplacement), 0 manquantes.
 
 ## /
 
@@ -62,12 +62,7 @@ Exclusions (impossible dans Telegram) :
 | Retirer un thème casino (refusé s'il a encore des médias ou s'il est dans le plan d'un canal) | « retire le thème poker » | `removeCasinoThemeAction` |
 | Renommer un thème casino (le mot-clé des légendes ne change pas) | « renomme le thème live en Tables en direct » | `renameCasinoThemeAction` |
 | Produire un pari de test en simulation (cotes d'essai, aucune vraie mise, canal Test) | « fais un pari de test » | `createTestBetAction` |
-| Retirer les identifiants d'un compte bookmaker | « retire mon compte Sportaza » | `deleteBookmakerCredentialsAction` |
-| Retirer l'adresse internet de secours des captures | « retire le proxy des captures » | `deleteScreenshotProxyAction` |
 | Créer ou modifier une catégorie de paris, tous les champs : nom, sport, marchés, ligues, bookmakers, cotes minimale et maximale, paris par jour, canaux, campagne, délai avant le match, écart de cote toléré, active, ordre | « active la catégorie corners avec des cotes entre 1,6 et 2,5 » | `saveBetCategoryAction` |
-| Enregistrer l'identifiant et le mot de passe d'un compte bookmaker (chiffrés, jamais de mise) | « ajoute mon compte Sportaza » | `saveBookmakerCredentialsAction` |
-| Enregistrer l'adresse internet de secours des captures (si le bookmaker bloque), chiffrée | « voici l'adresse de secours des captures » | `saveScreenshotProxyAction` |
-| Tester la connexion au compte bookmaker (connexion et capture de la page d'accueil, aucune mise) | « teste la connexion à Sportaza » | `testBookmakerConnectionAction` |
 | Créer une mission de test d'une équipe (un post sur le canal Test, en simulation) | « fais une mission de test pour le casino » | `createTestMissionAction` |
 | catalogue niveau | catalogue niveau | `setAutonomyLevelAction` |
 | catalogue simulation | catalogue simulation | `setSimulationAction` |
@@ -90,28 +85,12 @@ Exclusions (impossible dans Telegram) :
 | Accepter ou refuser une recommandation de l'analyse de marché (rien n'est changé chez Meta, TikTok, sur les canaux ni les budgets) | « j'accepte la recommandation 2 de l'analyse de marché » | `decideMarketRecommendationAction` |
 | Supprimer une source de la veille et ses entrées (les règles publicitaires et les rapports restent) | « supprime la source STM Forum » | `deleteSourceAction` |
 
-## /agents/bookmakers
-
-| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
-|---|---|---|
-| Ouvrir le navigateur sur le Mac, sur un bookmaker (pour passer un contrôle ou un code) | « ouvre le navigateur sur Sportaza » | `openBrowserAction` |
-| Faire ré-apprendre la lecture d'un bookmaker (quelques minutes, dépense d'IA) | « ré-apprends Sportaza » | `relearnSiteAction` |
-| Changer l'adresse du site d'un bookmaker | « l'adresse de Sportaza est sportaza.com/fr/sports » | `setSiteUrlAction` |
-| Tester la lecture d'un bookmaker (connexion et une lecture des matchs, aucune mise) | « teste la lecture de Sportaza » | `testSiteAction` |
-
 ## /agents/boss
 
 | Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
 |---|---|---|
 | Changer le plafond mensuel de l'IA de Kevin (500 € au plus ; 0 = commandes exactes seulement) | « monte ton plafond à 50 € par mois » | `saveBossBudgetAction` |
 | Changer le prénom affiché du Boss | « appelle-toi Max » | `saveBossNameAction` |
-
-## /agents/inspiration/[id]
-
-| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
-|---|---|---|
-| Retirer un canal d'inspiration (ses posts lus et son profil de style sont effacés) | « retire la référence @roulette_pro » | `removeReferenceAction` |
-| Annuler une inspiration appliquée (toutes les propositions d'une référence, ou une seule) : réglages d'avant remis | « annule l'inspiration de @roulette_pro » | `undoInspirationAction` |
 
 ## /agents/montage/[id]
 
@@ -158,6 +137,101 @@ Exclusions (impossible dans Telegram) :
 | Noter où en est un canal de la prospection (contacté, a répondu, en discussion, signé avec ses conditions, actif, a arrêté, pas intéressé, reprendre, plus tard, ne plus montrer) ; rien n'est envoyé au canal | « j'ai contacté @parisfoot » | `setProspectStatusAction` |
 | Activer ou désactiver une offre aux affiliés (désactivée : elle ne sert plus à noter les canaux, rien n'est effacé) | « désactive l'offre Celsius » | `toggleOfferAction` |
 | Mettre en pause (1, 7 ou 30 jours) ou reprendre une source de découverte de la prospection (annuaires, recherche internet, réseaux sociaux, canaux cités, Analystes) | « mets les annuaires en pause une semaine » | `toggleSourcePauseAction` |
+| Appliquer des propositions de calibrage de la valeur estimée (coefficients, poids de la note, répartition des recherches), dans les bornes, annulable | « applique 1 et 3 » | `applyCalibrationAction` |
+| Rattacher un canal signé à son identifiant d'affilié Link Affi, pour lire ses vrais résultats chaque mois (lecture seule) | « @parisfoot = affilié 1234 » | `linkAffiliateAction` |
+| Marquer vue une alerte de la veille de la prospection (elle sort de la liste à voir) | « vu pour l'alerte 2 » | `markAlertSeenAction` |
+| Regrouper plusieurs canaux de la prospection en un réseau (« c'est la même personne ») : une seule ligne, un seul accord à négocier | « @a et @b c'est la même personne » | `mergeProspectsAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `muteAlertKindAction` |
+| Ne plus recevoir d'alerte de la veille pour un canal de la prospection (« plus pour ce canal »), ou les rétablir ; le canal reste suivi | « plus d'alerte pour @parisfoot » | `muteProspectAlertsAction` |
+| Sortir un canal de son réseau (l'équipe ne le regroupera plus avec ces canaux) | « sépare @parisfoot de son réseau » | `splitProspectAction` |
+| Couper la recherche de canaux par compte Telegram réel (la rallumer demande une confirmation à Kevin) | « coupe la recherche par compte » | `stopAccountSearchAction` |
+| Annuler le dernier calibrage appliqué (les estimations reprennent les coefficients d'avant) | « annule le calibrage » | `undoCalibrationAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `unmuteAlertKindAction` |
+
+## /agents/prospection/affilies
+
+| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
+|---|---|---|
+| Appliquer des propositions de calibrage de la valeur estimée (coefficients, poids de la note, répartition des recherches), dans les bornes, annulable | « applique 1 et 3 » | `applyCalibrationAction` |
+| Rattacher un canal signé à son identifiant d'affilié Link Affi, pour lire ses vrais résultats chaque mois (lecture seule) | « @parisfoot = affilié 1234 » | `linkAffiliateAction` |
+| Marquer vue une alerte de la veille de la prospection (elle sort de la liste à voir) | « vu pour l'alerte 2 » | `markAlertSeenAction` |
+| Regrouper plusieurs canaux de la prospection en un réseau (« c'est la même personne ») : une seule ligne, un seul accord à négocier | « @a et @b c'est la même personne » | `mergeProspectsAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `muteAlertKindAction` |
+| Ne plus recevoir d'alerte de la veille pour un canal de la prospection (« plus pour ce canal »), ou les rétablir ; le canal reste suivi | « plus d'alerte pour @parisfoot » | `muteProspectAlertsAction` |
+| Sortir un canal de son réseau (l'équipe ne le regroupera plus avec ces canaux) | « sépare @parisfoot de son réseau » | `splitProspectAction` |
+| Couper la recherche de canaux par compte Telegram réel (la rallumer demande une confirmation à Kevin) | « coupe la recherche par compte » | `stopAccountSearchAction` |
+| Annuler le dernier calibrage appliqué (les estimations reprennent les coefficients d'avant) | « annule le calibrage » | `undoCalibrationAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `unmuteAlertKindAction` |
+
+## /agents/prospection/alertes
+
+| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
+|---|---|---|
+| Appliquer des propositions de calibrage de la valeur estimée (coefficients, poids de la note, répartition des recherches), dans les bornes, annulable | « applique 1 et 3 » | `applyCalibrationAction` |
+| Rattacher un canal signé à son identifiant d'affilié Link Affi, pour lire ses vrais résultats chaque mois (lecture seule) | « @parisfoot = affilié 1234 » | `linkAffiliateAction` |
+| Marquer vue une alerte de la veille de la prospection (elle sort de la liste à voir) | « vu pour l'alerte 2 » | `markAlertSeenAction` |
+| Regrouper plusieurs canaux de la prospection en un réseau (« c'est la même personne ») : une seule ligne, un seul accord à négocier | « @a et @b c'est la même personne » | `mergeProspectsAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `muteAlertKindAction` |
+| Ne plus recevoir d'alerte de la veille pour un canal de la prospection (« plus pour ce canal »), ou les rétablir ; le canal reste suivi | « plus d'alerte pour @parisfoot » | `muteProspectAlertsAction` |
+| Sortir un canal de son réseau (l'équipe ne le regroupera plus avec ces canaux) | « sépare @parisfoot de son réseau » | `splitProspectAction` |
+| Couper la recherche de canaux par compte Telegram réel (la rallumer demande une confirmation à Kevin) | « coupe la recherche par compte » | `stopAccountSearchAction` |
+| Annuler le dernier calibrage appliqué (les estimations reprennent les coefficients d'avant) | « annule le calibrage » | `undoCalibrationAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `unmuteAlertKindAction` |
+
+## /agents/prospection/reseaux
+
+| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
+|---|---|---|
+| Appliquer des propositions de calibrage de la valeur estimée (coefficients, poids de la note, répartition des recherches), dans les bornes, annulable | « applique 1 et 3 » | `applyCalibrationAction` |
+| Rattacher un canal signé à son identifiant d'affilié Link Affi, pour lire ses vrais résultats chaque mois (lecture seule) | « @parisfoot = affilié 1234 » | `linkAffiliateAction` |
+| Marquer vue une alerte de la veille de la prospection (elle sort de la liste à voir) | « vu pour l'alerte 2 » | `markAlertSeenAction` |
+| Regrouper plusieurs canaux de la prospection en un réseau (« c'est la même personne ») : une seule ligne, un seul accord à négocier | « @a et @b c'est la même personne » | `mergeProspectsAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `muteAlertKindAction` |
+| Ne plus recevoir d'alerte de la veille pour un canal de la prospection (« plus pour ce canal »), ou les rétablir ; le canal reste suivi | « plus d'alerte pour @parisfoot » | `muteProspectAlertsAction` |
+| Sortir un canal de son réseau (l'équipe ne le regroupera plus avec ces canaux) | « sépare @parisfoot de son réseau » | `splitProspectAction` |
+| Couper la recherche de canaux par compte Telegram réel (la rallumer demande une confirmation à Kevin) | « coupe la recherche par compte » | `stopAccountSearchAction` |
+| Annuler le dernier calibrage appliqué (les estimations reprennent les coefficients d'avant) | « annule le calibrage » | `undoCalibrationAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `unmuteAlertKindAction` |
+
+## /agents/prospection/sources
+
+| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
+|---|---|---|
+| Ajouter à la main un canal Telegram public à la prospection (il est lu en priorité, jamais rejoint ni contacté) | « ajoute t.me/pronosfoot à la prospection » | `addManualProspectAction` |
+| Ajouter une note sur un canal de la prospection | « note @parisfoot : veut des visuels mardi » | `addProspectNoteAction` |
+| Marquer plusieurs canaux de la prospection d'un coup comme contactés, ou les ignorer (pas intéressé) | « marque @a, @b et @c comme contactés » | `bulkProspectStatusAction` |
+| Valider ou refuser une proposition d'ajout aux repères de la prospection | « valide la proposition 1 des repères » | `decideDictAction` |
+| Proposer d'ajouter une marque, un repère de lien d'affiliation, un raccourcisseur ou un mot de code promo / de contact aux repères de la prospection (validé ensuite par un administrateur) | « ajoute la marque Celsius (FR) aux repères de la prospection » | `proposeDictAction` |
+| Créer ou modifier une offre aux affiliés (marque, marché, pays acceptés, prime par joueur, part du revenu, mixte) | « ajoute une offre : Celsius, FR BE, prime par joueur 120 » | `saveOfferAction` |
+| Changer les réglages de la prospection : activée, pays et marchés cherchés, nombre et heure de la liste du matin, notes des niveaux, poids de la note, rappels, plafonds par jour et dépense mensuelle de l'IA | « envoie-moi 15 canaux le matin au lieu de 10 » | `saveProspectionSettingsAction` |
+| Noter où en est un canal de la prospection (contacté, a répondu, en discussion, signé avec ses conditions, actif, a arrêté, pas intéressé, reprendre, plus tard, ne plus montrer) ; rien n'est envoyé au canal | « j'ai contacté @parisfoot » | `setProspectStatusAction` |
+| Activer ou désactiver une offre aux affiliés (désactivée : elle ne sert plus à noter les canaux, rien n'est effacé) | « désactive l'offre Celsius » | `toggleOfferAction` |
+| Mettre en pause (1, 7 ou 30 jours) ou reprendre une source de découverte de la prospection (annuaires, recherche internet, réseaux sociaux, canaux cités, Analystes) | « mets les annuaires en pause une semaine » | `toggleSourcePauseAction` |
+| Appliquer des propositions de calibrage de la valeur estimée (coefficients, poids de la note, répartition des recherches), dans les bornes, annulable | « applique 1 et 3 » | `applyCalibrationAction` |
+| Rattacher un canal signé à son identifiant d'affilié Link Affi, pour lire ses vrais résultats chaque mois (lecture seule) | « @parisfoot = affilié 1234 » | `linkAffiliateAction` |
+| Marquer vue une alerte de la veille de la prospection (elle sort de la liste à voir) | « vu pour l'alerte 2 » | `markAlertSeenAction` |
+| Regrouper plusieurs canaux de la prospection en un réseau (« c'est la même personne ») : une seule ligne, un seul accord à négocier | « @a et @b c'est la même personne » | `mergeProspectsAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `muteAlertKindAction` |
+| Ne plus recevoir d'alerte de la veille pour un canal de la prospection (« plus pour ce canal »), ou les rétablir ; le canal reste suivi | « plus d'alerte pour @parisfoot » | `muteProspectAlertsAction` |
+| Sortir un canal de son réseau (l'équipe ne le regroupera plus avec ces canaux) | « sépare @parisfoot de son réseau » | `splitProspectAction` |
+| Couper la recherche de canaux par compte Telegram réel (la rallumer demande une confirmation à Kevin) | « coupe la recherche par compte » | `stopAccountSearchAction` |
+| Annuler le dernier calibrage appliqué (les estimations reprennent les coefficients d'avant) | « annule le calibrage » | `undoCalibrationAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `unmuteAlertKindAction` |
+
+## /agents/prospection/valeur
+
+| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
+|---|---|---|
+| Appliquer des propositions de calibrage de la valeur estimée (coefficients, poids de la note, répartition des recherches), dans les bornes, annulable | « applique 1 et 3 » | `applyCalibrationAction` |
+| Rattacher un canal signé à son identifiant d'affilié Link Affi, pour lire ses vrais résultats chaque mois (lecture seule) | « @parisfoot = affilié 1234 » | `linkAffiliateAction` |
+| Marquer vue une alerte de la veille de la prospection (elle sort de la liste à voir) | « vu pour l'alerte 2 » | `markAlertSeenAction` |
+| Regrouper plusieurs canaux de la prospection en un réseau (« c'est la même personne ») : une seule ligne, un seul accord à négocier | « @a et @b c'est la même personne » | `mergeProspectsAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `muteAlertKindAction` |
+| Ne plus recevoir d'alerte de la veille pour un canal de la prospection (« plus pour ce canal »), ou les rétablir ; le canal reste suivi | « plus d'alerte pour @parisfoot » | `muteProspectAlertsAction` |
+| Sortir un canal de son réseau (l'équipe ne le regroupera plus avec ces canaux) | « sépare @parisfoot de son réseau » | `splitProspectAction` |
+| Couper la recherche de canaux par compte Telegram réel (la rallumer demande une confirmation à Kevin) | « coupe la recherche par compte » | `stopAccountSearchAction` |
+| Annuler le dernier calibrage appliqué (les estimations reprennent les coefficients d'avant) | « annule le calibrage » | `undoCalibrationAction` |
+| Couper ou rétablir un type d'alerte de la veille pour tous les canaux (a lâché une marque, nouvelle marque, en forte hausse, en baisse, ne publie plus, vend de la pub, contact changé, niveau en hausse ou en baisse, affilié qui ne poste pas nos liens, qui pousse un concurrent, phrase à risque) | « plus d'alertes de ce type : en baisse » | `unmuteAlertKindAction` |
 
 ## /agents/settings
 

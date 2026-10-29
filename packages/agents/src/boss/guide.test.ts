@@ -30,8 +30,6 @@ async function everything(kit: Kit) {
   await push(kit, "agentTeamConfig", { teamKey: "dating", simulation: true, autonomyLevel: 0, monthlyBudgetCents: { video: 10_000 } });
   await push(kit, "channelAgentPlan", { teamKey: "dating", enabled: true, channelId: "c1" });
   await push(kit, "setting", secret("providers.odds.apiKey"));
-  await push(kit, "setting", secret("providers.bookmakers.sportaza.login"));
-  await push(kit, "setting", secret("providers.bookmakers.sportaza.password"));
   await push(kit, "betCategory", { name: "Tirs cadrés", active: true, updatedById: "u1", sortOrder: 0 });
   await push(kit, "agentTeamConfig", { teamKey: "algo", simulation: true, autonomyLevel: 1, monthlyBudgetCents: {} });
   await push(kit, "setting", { key: "agents.ads.thresholds", value: {} });
@@ -52,7 +50,6 @@ describe("Kevin : étapes de mise en route calculées depuis les données", () =
       "dating.videoBudget",
       "dating.plan",
       "sports.oddsKey",
-      "sports.bookmaker",
       "sports.categories",
       "algo.level",
       "ads.thresholds",
@@ -61,13 +58,13 @@ describe("Kevin : étapes de mise en route calculées depuis les données", () =
     ]);
     expect(steps.every((s) => !s.done)).toBe(true);
     expect(steps.find((s) => s.key === "real")?.optional).toBe(true);
-    expect(bossSetupProgress(steps).label).toBe("0/12");
+    expect(bossSetupProgress(steps).label).toBe("0/11");
     expect(firstMissingBossStep(steps)?.key).toBe("boss");
     expect(steps[0]!.howTo).toContain("@BotFather");
     expect(steps[0]!.howTo).toContain("« Kevin »");
   });
 
-  it("une persona Rencontres et un canal casino : une étape par persona, deux étapes casino, 3/14", async () => {
+  it("une persona Rencontres et un canal casino : une étape par persona, deux étapes casino, 3/13", async () => {
     const kit = createTestKit();
     await bossAndReport(kit);
     await push(kit, "setting", secret("providers.fal.apiKey"));
@@ -80,19 +77,8 @@ describe("Kevin : étapes de mise en route calculées depuis les données", () =
     const persona = steps.find((s) => s.key.startsWith("persona."))!;
     expect(persona.label).toBe("les médias de Léa");
     expect(persona.asks?.map((a) => a.key.split(".").pop())).toEqual(["loraUrl", "loraTrigger", "referenceImages", "sourceVideos"]);
-    expect(bossSetupProgress(steps).label).toBe("3/14");
+    expect(bossSetupProgress(steps).label).toBe("3/13");
     expect(firstMissingBossStep(steps)?.key).toBe(persona.key);
-  });
-
-  it("compte bookmaker : identifiant ET mot de passe, sinon seul ce qui manque est demandé", async () => {
-    const kit = createTestKit();
-    await push(kit, "setting", secret("providers.bookmakers.sportaza.login"));
-    let step = (await bossSetupSteps(kit.deps)).find((s) => s.key === "sports.bookmaker")!;
-    expect(step.done).toBe(false);
-    expect(step.asks?.map((a) => a.key)).toEqual(["providers.bookmakers.sportaza.password"]);
-    await push(kit, "setting", secret("providers.bookmakers.sportaza.password"));
-    step = (await bossSetupSteps(kit.deps)).find((s) => s.key === "sports.bookmaker")!;
-    expect(step.done).toBe(true);
   });
 
   it("catégories : la catégorie active d'office ne suffit pas, il faut un choix", async () => {
@@ -125,7 +111,7 @@ describe("Kevin : « commencer »", () => {
     await bossAndReport(kit);
     const r = await bossStartReply(kit.deps);
     expect(r.reply).toContain("Tout est encore en test");
-    expect(r.reply).toMatch(/2\/12/);
+    expect(r.reply).toMatch(/2\/11/);
     expect(r.reply).toMatch(/(On commence par|On s'attaque à) la clé fal\.ai \?/);
     expect(kit.sent).toHaveLength(0);
     await r.followUp!();
@@ -186,7 +172,7 @@ describe("Kevin : « commencer »", () => {
     const steps = await bossSetupSteps(kit.deps);
     expect(steps.filter((s) => !s.done).map((s) => s.key)).toEqual(["real"]);
     const r = await bossStartReply(kit.deps);
-    expect(r.reply).toMatch(/\(12\/12\) ✅/);
+    expect(r.reply).toMatch(/\(11\/11\) ✅/);
     expect(r.reply).toContain("passe le casino en vrai");
     expect(r.followUp).toBeUndefined();
   });

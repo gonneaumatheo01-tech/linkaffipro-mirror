@@ -25,8 +25,6 @@ export const QUEUE_NAMES = [
   "agents-sports",
   "agents-algo",
   "agents-ads",
-  // Phase 35 : lectures des bookmakers faites par le serveur (un seul lecteur à la fois par site).
-  "agents-bookmakers",
   // Phase 28 : équipe Montage (ffmpeg, une tâche à la fois).
   "agents-montage",
   // Phase 29 : équipe Analystes (veille du marché, règles des plateformes pub, rapports ; lecture réseau, 2 à la fois).
@@ -150,8 +148,6 @@ export const JOB_RETRY_OPTIONS: Record<
   "agents-sports": { attempts: 1 },
   "agents-algo": { attempts: 1 },
   "agents-ads": { attempts: 1 },
-  // Phase 35 : la ligne `BookmakerReadJob` fait foi (reprise par le balayage de 15 s, abandon après deux prises).
-  "agents-bookmakers": { attempts: 1 },
   // Phase 28 : 3 essais (2 reprises : 1 min puis 2 min) ; l'étape repart de la base (un short rangé n'est jamais
   // refait) ; au 3e échec, la chaîne marque l'échec et Kevin prévient (la tâche se termine alors sans erreur).
   "agents-montage": { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
@@ -253,10 +249,6 @@ export type ChatJob =
  */
 export type AgentsOrchestratorJob =
   | { type: "cycle"; teamKey?: "dating" | "casino" | "sports" | "algo" }
-  /** Phase 27 : lecture d'un canal de référence, transmise aussitôt à `agents-algo` (`inspiration-read`, même identifiant). */
-  | { type: "inspiration-read"; referenceChannelId: string }
-  /** Phase 27 (Kevin) : réponse groupée aux posts transférés (une minute après le premier), puis analyse éventuelle. */
-  | { type: "inspiration-forward-ack"; chatKey: string; analyzeRefId?: string }
   | { type: "resume" }
   /** Phase 33 : suivi des ordres de Kevin (`tickOrders` : progression, fin, reprise après redémarrage), toutes les 10 min. */
   | { type: "orders-tick" }
@@ -303,13 +295,6 @@ export type AgentsAlgoJob = { type: "algo"; task: "tick" | "report-now"; send?: 
 export type AgentsQaJob = { type: "qa-sweep" } | { type: "qa-alerts" };
 
 /**
- * File `agents-algo` (phase 27, canal d'inspiration) : `inspiration-read` lit un canal de référence (identifiant
- * `inspiration-read:<id>`, `attempt` pour les nouveaux essais différés) ; `inspiration-reread` (chaque jour) relit les
- * références vivantes dont la relecture hebdomadaire est due.
- */
-export type AgentsInspirationJob = { type: "inspiration-read"; referenceChannelId: string; attempt?: number } | { type: "inspiration-reread" };
-
-/**
  * File `agents-sports` (phase 23) : en plus des étapes, `settle` toutes les 2 h (résultats des paris publiés).
  */
 export type AgentsSportsJob = { type: "sports"; task: "settle" };
@@ -319,15 +304,6 @@ export type AgentsSportsJob = { type: "sports"; task: "settle" };
  * lundi) ; `report-now` : rapport tout de suite (quotidien par défaut, ou de la semaine).
  */
 export type AgentsAdsJob = { type: "tick" } | { type: "report-now"; kind?: "daily" | "weekly"; send?: boolean };
-
-/**
- * File `agents-bookmakers` (phase 35) : `tick` toutes les 15 s (travaux de lecture « serveur » en attente, ménage des
- * travaux abandonnés) ; `run` : un travail précis tout de suite (déposé par `enqueueReadJob`). La base fait foi.
- */
-export type AgentsBookmakersJob = { type: "tick" } | { type: "run"; jobId: string } | AgentsBookmakersHealthJob;
-
-/** Phase 35, chantier D : santé des bookmakers toutes les 30 min (`bookmakersHealth`) ; `force` : même la nuit. */
-export type AgentsBookmakersHealthJob = { type: "bookmakers-health"; force?: boolean };
 
 /**
  * File `agents-montage` (phase 28) : étapes de la chaîne (copie structurelle de `MontageQueueJob` de
@@ -341,7 +317,10 @@ export type AgentsMontageJob =
   | { type: "montage.qc"; montageJobId: string; shortClipId: string }
   | { type: "montage.preview"; montageJobId: string; shortClipId: string }
   | { type: "montage.sweep" }
-  | { type: "montage.cleanup" };
+  | { type: "montage.cleanup" }
+  // Personne remplacée par une persona dans une vidéo envoyée à Kevin (`boss/video-ia-run.ts`) : soumission, relectures.
+  | { type: "video-ia.submit"; chatId: string }
+  | { type: "video-ia.poll"; chatId: string };
 
 /**
  * File `agents-analystes` (phase 29) : copie structurelle de `AnalystsQueueJob` de `@linkaffipro/agents`
@@ -413,16 +392,14 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                         : Q extends "agents-orchestrator"
                           ? AgentsOrchestratorJob
                           : Q extends "agents-algo"
-                            ? AgentStepJob | AgentsAlgoJob | AgentsInspirationJob | AgentsQaJob
+                            ? AgentStepJob | AgentsAlgoJob | AgentsQaJob
                             : Q extends "agents-sports"
                             ? AgentStepJob | AgentsSportsJob
                             : Q extends AgentTeamQueue
                             ? AgentStepJob
                             : Q extends "agents-ads"
                               ? AgentsAdsJob
-                              : Q extends "agents-bookmakers"
-                                ? AgentsBookmakersJob
-                                : Q extends "agents-montage"
+                              : Q extends "agents-montage"
                                   ? AgentsMontageJob
                                   : Q extends "agents-analystes"
                                     ? AgentsAnalystesJob

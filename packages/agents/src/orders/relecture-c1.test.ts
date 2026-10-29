@@ -12,7 +12,6 @@ import { setBetCategoryActive } from "../control/bet-category";
 import { createBetMission } from "../sports/missions";
 import { replacedChannels } from "../sports/passage";
 import { toCategory } from "../sports/data";
-import { isInviteLink } from "./capabilities/inspiration";
 import { estimatedOddsCalls } from "./capabilities/sports";
 import { capability } from "./registry";
 import type { OrderPlan } from "./contract";
@@ -83,19 +82,6 @@ describe("1. classe de confirmation décidée sur ce que les étapes touchent", 
     expect(ab.days).toBe(14);
     const read = await classifyOrder(kit.deps, { ...base, plannedSteps: [{ stepKey: "q", capability: "question", teamKey: "algo", summary: "q", params: {}, touches: { channelIds: [] } }] });
     expect(read.cls).toBe("immediate");
-  });
-});
-
-describe("2. analyser_canal par un ordre : jamais d'entrée par un lien d'invitation", () => {
-  it("lien t.me/+… ou joinchat → refus avec le repli « dis-le-moi directement »", async () => {
-    for (const l of ["https://t.me/+AbCdEfGh123", "t.me/joinchat/AAAA", "tg://join?invite=xyz"]) expect(isInviteLink(l), l).toBe(true);
-    expect(isInviteLink("https://t.me/parisfoot")).toBe(false);
-    expect(isInviteLink("@parisfoot")).toBe(false);
-    const kit = await createBossKit();
-    const cap = capability("inspiration", "analyser_canal")!;
-    const r = await cap.check(kit.deps, { canal: "https://t.me/+AbCdEfGh123", canal_cible: "Paris Foot" });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toMatch(/dis-le-moi directement/);
   });
 });
 

@@ -36,9 +36,6 @@ export const BOSS_READ_KEYS = new Set([
   "recommandations_ads",
   "qui_fait_quoi",
   "aide",
-  // Phase 27 : lire un canal d'inspiration et en parler ne touche à aucun réglage.
-  "analyser_canal",
-  "voir_inspiration",
   // Phase 33 : lire les ordres et ce qui reste impossible (jamais les lancer, modifier ou arrêter sur un vrai canal).
   "mes_ordres",
   "ordre_statut",
@@ -67,15 +64,14 @@ export const BOSS_ADMIN_ONLY_KEYS = new Set([
   "commencer",
   "annule",
   "groupe_equipe",
-  // Phase 27 : appliquer, annuler ou retirer une inspiration change les réglages : l'admin seul.
-  "appliquer_inspiration",
-  "annuler_inspiration",
-  "retirer_reference",
   // Phase 28 : le montage vidéo se lance, se modifie, s'annule et s'envoie par l'admin seul.
   "montage_video",
   "modifier_short",
   "annuler_montage",
   "envoyer_shorts",
+  // Personne remplacée par une persona dans une vidéo : lancer et arrêter = l'admin seul (dépense).
+  "remplacer_personne",
+  "annuler_remplacement",
 ]);
 
 /** Réponses aux demandes et décisions sur les validations : permises au membre à qui elles sont adressées. */

@@ -46,7 +46,7 @@ export const EXECUTE_VARIANTS = {
   unmetHead: ["Ça, je ne sais pas encore le faire.", "Là je ne sais pas encore faire.", "Ça, pas encore possible de mon côté."],
   /** Une seule variante : le fil de confiance du chemin rapide et du worker compare ce texte. */
   secretRemoved: [
-    "🔒 J'ai retiré ce message : ça ressemblait à une clé ou à un mot de passe, je ne l'ai ni lu ni gardé. Pour me donner tes identifiants bookmakers, écris « identifiants bookmakers » : je te les demande en privé, un par un. Pour une clé, écris « clé », le nom du fournisseur, puis la clé.",
+    "🔒 J'ai retiré ce message : ça ressemblait à une clé ou à un mot de passe, je ne l'ai ni lu ni gardé. Pour une clé, écris « clé », le nom du fournisseur, puis la clé.",
   ],
   forwarded: [
     "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.",
@@ -409,13 +409,13 @@ export function nearestActions(text: string, catalog: readonly BossAction[] = BO
 /**
  * Une action proposée quand Kevin ne peut pas : une LECTURE seulement (`BOSS_READ_KEYS`), immédiate, sans paramètre
  * requis (rejouable telle quelle par OUI). Jamais une action qui change, défait ou dépense quelque chose
- * (`annuler_reglage`, `arreter_ordre`, `plus_tard`, `test_bookmaker`…) : un OUI ne défait jamais rien.
+ * (`annuler_reglage`, `arreter_ordre`, `plus_tard`…) : un OUI ne défait jamais rien.
  */
 export function suggestable(a: BossAction): boolean {
   return BOSS_READ_KEYS.has(a.key) && !NOT_SUGGESTED.has(a.key) && a.cls === "immediate" && !a.classify && a.parse({}).ok;
 }
 /** Lectures jamais proposées : l'aide (déjà citée), et celles qui lancent un travail ou des appels payants. */
-const NOT_SUGGESTED = new Set(["aide", "analyser_canal", "apercu_matchs", "voir_matchs_bookmaker", "demander_equipe"]);
+const NOT_SUGGESTED = new Set(["aide", "apercu_matchs", "voir_matchs_bookmaker", "demander_equipe"]);
 
 /** Fragment d'une description (« Dire où en sont… » → « te dire où en sont… »), pur. */
 function offerFragment(description: string): string {

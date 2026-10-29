@@ -270,13 +270,14 @@ describe("matchs chez un bookmaker", () => {
     expectGoodLines(r);
   });
 
-  it("Sportaza hors du fournisseur, lecture du site pas validée : propose de tester la connexion", async () => {
+  it("Sportaza hors du fournisseur : son site n'est jamais lu, Kevin le dit sans deviner et propose un autre bookmaker", async () => {
     const kit = await kitAt24();
     const provider = fake(kit, ["bet365", "unibet", "pinnacle", "williamhill"]);
     const r = await viewMatches({ ...kit.deps, providers: { odds: provider } }, { bookmaker: "sportaza", slot: "soir" });
-    expect(r.via).toBe("site_not_validated");
+    expect(r.via).toBe("not_covered");
     expect(provider.calls).not.toContain("listEvents");
-    expect(r.lines.join("\n")).toContain("Je teste la connexion à Sportaza ?");
+    expect(r.lines.join("\n")).toContain("je préfère ne rien deviner");
+    expect(r.lines.join("\n")).toMatch(/à la place \?/);
     expectGoodLines(r);
   });
 

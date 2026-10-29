@@ -94,11 +94,6 @@ vi.mock("@/lib/agents/casino-queries", async () => {
 vi.mock("./[equipe]/sports-actions", () => ({
   saveBetCategoryAction: vi.fn(),
   createTestBetAction: vi.fn(),
-  saveBookmakerCredentialsAction: vi.fn(),
-  deleteBookmakerCredentialsAction: vi.fn(),
-  testBookmakerConnectionAction: vi.fn(),
-  saveScreenshotProxyAction: vi.fn(),
-  deleteScreenshotProxyAction: vi.fn(),
 }));
 vi.mock("@/lib/agents/sports-queries", async () => {
   const { parseSportsSettings } = await import("@/lib/agents/sports");
@@ -156,13 +151,7 @@ vi.mock("@/lib/agents/sports-queries", async () => {
     loadBetSummary: vi.fn(async () => [
       { key: "cat1", label: "Tirs cadrés", published: 4, won: 3, lost: 1, void: 0, hitRate: 0.75, avgOdds: 2.05, roi: 0.12 },
     ]),
-    loadBookmakers: vi.fn(async () => [
-      { key: "sportaza", login: { set: true, last4: "x", updatedAt: null }, password: { set: true, last4: "y", updatedAt: null }, lastTest: null },
-      { key: "5gringos", login: { set: false, last4: null, updatedAt: null }, password: { set: false, last4: null, updatedAt: null }, lastTest: null },
-    ]),
-    loadProxySummary: vi.fn(async () => ({ set: false, last4: null, updatedAt: null })),
     loadOddsCallsThisMonth: vi.fn(async () => 120),
-    loadAssetMime: vi.fn(async () => "image/png"),
   };
 });
 vi.mock("@/lib/agents/dating-queries", () => ({
@@ -710,9 +699,9 @@ describe("rubrique Agents", () => {
     expect(text).toContain("Seuil de manque : 3 vidéos, rotation : 30 jours.");
   });
 
-  it("fiche Paris sportifs : paris du jour, catégories, bilan, bookmakers, réglages", async () => {
+  it("fiche Paris sportifs : paris du jour, catégories, bilan, réglages", async () => {
     const html = await render(
-      TeamPage({ params: Promise.resolve({ equipe: "sports" }), searchParams: sp({ capture: "s9", bk: "sportaza" }) } as never),
+      TeamPage({ params: Promise.resolve({ equipe: "sports" }), searchParams: sp() } as never),
     );
     const text = checks(html);
     for (const t of [
@@ -727,18 +716,12 @@ describe("rubrique Agents", () => {
       "Bilan des paris",
       "Taux de réussite",
       "75 %",
-      "Bookmakers",
-      "Identifiants enregistrés",
-      "Aucun identifiant",
-      "Tester la connexion",
-      "Adresse internet de secours",
       "Passages et cotes",
       "Appels ce mois : 120 sur 2",
       "ne peut pas perdre",
     ])
       expect(text, t).toContain(t);
     expect(html).toContain('src="/api/agents/media/s1"');
-    expect(html).toContain('src="/api/agents/media/s9"');
     expect(html).toContain('name="sportsRunHours"');
     expect(text).not.toContain("Plan par canal");
     expect(text).not.toMatch(/\bproxy\b|Playwright/i);
@@ -749,7 +732,6 @@ describe("rubrique Agents", () => {
     const html = await render(TeamPage({ params: Promise.resolve({ equipe: "sports" }), searchParams: sp() } as never));
     const text = checks(html);
     expect(text).toContain("Produire un pari de test");
-    expect(text).not.toContain("Tester la connexion");
     expect(text).not.toContain("Nouvelle catégorie");
     expect(html).not.toContain('name="sportsRunHours"');
     expect(text).toContain("Passages à 10 h, 15 h et 18 h");

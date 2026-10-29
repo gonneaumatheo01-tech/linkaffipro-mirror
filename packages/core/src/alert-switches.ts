@@ -25,9 +25,6 @@ export const SWITCHABLE_ALERT_KINDS = [
   "ads_conversion_drop",
   "ads_cost_over_threshold",
   "ads_budget_exhausted",
-  // Phase 35 : bookmaker qui ne se lit plus, ou mal (santé toutes les 30 min).
-  "bookmaker_blocked",
-  "bookmaker_degraded",
   // Phase 29 : veille du marché (équipe Analystes) qui échoue en boucle.
   "analysts_failing",
 ] as const;
@@ -49,8 +46,6 @@ export const DEFAULT_ALERT_SWITCHES: Readonly<AlertSwitches> = Object.freeze({
   ads_conversion_drop: true,
   ads_cost_over_threshold: true,
   ads_budget_exhausted: true,
-  bookmaker_blocked: true,
-  bookmaker_degraded: true,
   analysts_failing: true,
 });
 

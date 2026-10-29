@@ -2,7 +2,7 @@
  * Phase 34, chantier F — réception par Kevin des entrées Telegram (updates simulées, faux Telegram, base en mémoire,
  * faux moteur du Boss, aucun réseau) : message transféré gardé comme contenu (album = un accusé, phrase juste avant =
  * pas d'accusé), emojis animés gardés, fichier CSV (légende = demande), boutons de choix des comptes publicitaires,
- * chemin d'inspiration intact.
+ * post d'un canal tiers gardé comme contenu.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Bot } from "grammy";
@@ -154,15 +154,16 @@ describe("message transféré à Kevin (privé de l'admin)", () => {
     expect(t.enqueued[0]!.opts?.delayMs).toBeUndefined();
   });
 
-  it("post d'un canal tiers : rangé pour l'inspiration (réponse groupée plus tard) ET gardé comme contenu", async () => {
+  it("post d'un canal tiers : gardé comme contenu comme tout transfert (une réponse), jamais rangé comme post de référence", async () => {
     const t = setup();
     await t.bot.handleUpdate(
       msg({ text: "Corner ce soir : plus de 9,5", forward_origin: { type: "channel", date: 0, chat: { id: -100555, type: "channel", title: "Club Corner", username: "club_corner" }, message_id: 77 } }),
     );
-    expect(t.kit.tables("referencePost")).toHaveLength(1);
-    expect(t.enqueued.some((e) => e.job.type === "inspiration-forward-ack")).toBe(true);
+    expect(t.kit.tables("referencePost")).toHaveLength(0);
     expect((await peekForwarded(t.kit.deps, CHAT))?.from).toBe("@club_corner");
-    expect(t.fastCalls).toHaveLength(0);
+    expect(t.fastCalls).toHaveLength(1);
+    expect(t.fastCalls[0]).toMatchObject({ forwarded: true });
+    expect(t.enqueued).toEqual([]);
   });
 
   it("un inconnu qui transfère à Kevin : rien n'est gardé, silence", async () => {

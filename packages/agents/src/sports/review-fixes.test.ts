@@ -24,7 +24,6 @@ vi.mock("@linkaffipro/db", async (importOriginal) => {
 import { createEngineKit } from "../testing/engine-kit";
 import { createFakePrisma } from "../testing/fake-prisma";
 import { createFakeOddsProvider, FAKE_ODDS_ANCHOR } from "../providers/fake-odds";
-import { createFakeScreenshotProvider } from "../providers/screenshot/fake";
 import { createOddsQuota, OddsQuotaError } from "../providers/odds-quota";
 import { mapEvent, type SgoEvent } from "../providers/sportsgameodds-map";
 import type { OddsProvider, OddsSelection } from "../providers/odds";
@@ -63,7 +62,7 @@ const CATEGORY = {
 function sportsKit(o: { odds?: OddsProvider; picksPerDay?: number } = {}) {
   // Faux fournisseur (ou fournisseur imposé par le test, qui n'est alors pas modifié).
   const odds = (o.odds ?? createFakeOddsProvider({ now: () => FAKE_ODDS_ANCHOR })) as ReturnType<typeof createFakeOddsProvider>;
-  const kit = createEngineKit({ start: FAKE_ODDS_ANCHOR, providers: { odds, screenshot: createFakeScreenshotProvider() } as never });
+  const kit = createEngineKit({ start: FAKE_ODDS_ANCHOR, providers: { odds } as never });
   const t = kit.prisma._tables;
   t.channel!.push(
     { id: "paris1", title: "Paris VIP", vertical: "SPORTS", isTest: false, isActive: true, language: "fr", telegramChatId: -1003n },

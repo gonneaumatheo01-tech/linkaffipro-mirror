@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestKit } from "../human/test-kit";
-import { handleAdminText } from "./handle";
+import { BOOKMAKER_CREDENTIALS_REFUSAL, handleAdminText } from "./handle";
 
 const lifecycle = vi.hoisted(() => ({
   continueMission: vi.fn(async () => undefined),
@@ -133,11 +133,10 @@ describe("commandes du dialogue admin", () => {
     const kit = createTestKit();
     await handleAdminText(kit.deps, { text: "budget vidéo 100", messageId: 1 });
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ teamKey: "dating", monthlyBudgetCents: { video: 10000 } });
+    // Sites des bookmakers plus jamais lus (28 octobre 2026) : message effacé, rien n'est gardé.
     const r = await handleAdminText(kit.deps, { text: "bookmaker sportaza moi pass-wd99", messageId: 2 });
-    expect(r).toMatchObject({ deleteMessage: true, reply: "Mot de passe sportaza enregistré ✅" });
-    // Deux clés séparées : identifiant puis mot de passe.
-    const keys = kit.tables("setting").map((s) => s.key);
-    expect(keys).toEqual(expect.arrayContaining(["agents.secret.providers.bookmakers.sportaza.login", "agents.secret.providers.bookmakers.sportaza.password"]));
+    expect(r).toMatchObject({ deleteMessage: true, reply: BOOKMAKER_CREDENTIALS_REFUSAL });
+    expect(kit.tables("setting").map((s) => String(s.key)).filter((k) => k.includes("bookmakers"))).toEqual([]);
   });
 
   it("« demandes » et « plus tard »", async () => {

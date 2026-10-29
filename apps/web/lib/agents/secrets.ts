@@ -4,7 +4,6 @@
  */
 import { prisma, type PrismaClient } from "@linkaffipro/db";
 import { SECRET_KEYS, secretSummary, type SecretSummary } from "@linkaffipro/agents";
-import { SCREENSHOT_PROXY_KEY, bookmakerLabel, bookmakerSecretKeys } from "./sports";
 
 export type SecretInfo = { label: string; usage: string; createUrl: string | null };
 
@@ -26,44 +25,16 @@ export const SECRET_INFO: Record<string, SecretInfo> = {
   },
   "providers.apifootball.apiKey": {
     label: "Statistiques des matchs (offre gratuite)",
-    usage: "Matchs et tirs cadrés pour choisir les paris quand les sites des bookmakers ne se lisent pas : vous envoyez ensuite la capture et la cote. Offre gratuite (100 demandes par jour).",
+    usage: "Matchs et tirs cadrés pour choisir les paris (les sites des bookmakers ne sont jamais lus) : vous envoyez ensuite la capture et la cote. Offre gratuite (100 demandes par jour).",
     createUrl: "https://dashboard.api-football.com",
   },
 };
 
-/**
- * Clés de l'équipe Paris sportifs (phase 23) gérées aussi par le site : identifiants du bookmaker partenaire et
- * adresse de secours des captures. Ajoutées ici tant que la liste du paquet (`SECRET_KEYS`) ne les contient pas.
- */
-export const SITE_EXTRA_SECRET_KEYS: readonly string[] = [
-  bookmakerSecretKeys("sportaza").login,
-  bookmakerSecretKeys("sportaza").password,
-  SCREENSHOT_PROXY_KEY,
-];
-
 /** Toutes les clés affichées dans les réglages, sans doublon. */
-export const ALL_SECRET_KEYS: readonly string[] = [...new Set<string>([...SECRET_KEYS, ...SITE_EXTRA_SECRET_KEYS])];
-
-function bookmakerInfo(key: string): SecretInfo | null {
-  const m = /^providers\.bookmakers\.([a-z0-9_-]+)\.(login|password)$/.exec(key);
-  if (!m) return null;
-  const name = bookmakerLabel(m[1]!);
-  return m[2] === "login"
-    ? { label: `${name} : identifiant`, usage: `Identifiant du compte ${name} : l'équipe Paris sportifs s'y connecte seulement pour retrouver le pari et faire la capture d'écran (jamais de mise).`, createUrl: null }
-    : { label: `${name} : mot de passe`, usage: `Mot de passe du compte ${name}, chiffré. Testez la connexion depuis la fiche Paris sportifs.`, createUrl: null };
-}
+export const ALL_SECRET_KEYS: readonly string[] = [...new Set<string>(SECRET_KEYS)];
 
 export function secretInfo(key: string): SecretInfo {
-  if (key === SCREENSHOT_PROXY_KEY)
-    return {
-      label: "Adresse internet de secours des captures",
-      usage: "Seulement si le site du bookmaker bloque les captures : adresse fournie par un service d'adresses résidentielles.",
-      createUrl: null,
-    };
-  return (
-    SECRET_INFO[key] ??
-    bookmakerInfo(key) ?? { label: key.replace(/^providers\./, "").replace(/\.apiKey$/, ""), usage: "", createUrl: null }
-  );
+  return SECRET_INFO[key] ?? { label: key.replace(/^providers\./, "").replace(/\.apiKey$/, ""), usage: "", createUrl: null };
 }
 
 export function isKnownSecretKey(key: string): boolean {

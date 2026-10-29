@@ -57,4 +57,7 @@ jobs:
       - run: pnpm test
       # Tests d'intégration sur les services Postgres et Redis ci-dessus (sans Docker : CI=true est posé par GitHub).
       - run: pnpm test:integration --no-docker
+      # Le typage de Next (build du site) dépasse la mémoire par défaut de Node sur le runner.
       - run: pnpm build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144

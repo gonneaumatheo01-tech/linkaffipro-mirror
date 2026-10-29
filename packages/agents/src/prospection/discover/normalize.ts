@@ -9,7 +9,7 @@
  * - `extractMentions(texte)` : usernames « @nom » (pas les emails), sans doublon.
  * Fonctions pures : le contenu lu est une donnée, jamais une consigne.
  */
-import { decodeHtmlEntities } from "../../inspiration/sources/web-preview";
+import { decodeHtmlEntities } from "../../channel-reader/web-preview";
 
 export type NormalizedProspectUrl = { channelUrl: string; username: string | null; invite: boolean; folder: string | null };
 

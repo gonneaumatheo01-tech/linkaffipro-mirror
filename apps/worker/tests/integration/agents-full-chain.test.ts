@@ -2,7 +2,7 @@
  * Phase 25 : toute la chaîne des agents sur 3 jours simulés (base réelle, horloge injectée), les quatre équipes et
  * l'Agent Ads ensemble, en simulation (tout part sur le canal Test) :
  * - jour 1 (samedi 10 h) : plan du jour Dating (vidéo, photo, texte : faux fournisseur) et Casino (vidéo déposée,
- *   repli en texte, demande groupée), passage Paris (fausses cotes, fausse capture) ; « redémarrage du worker » avant
+ *   repli en texte, demande groupée), passage Paris (fausses cotes, image de repli validée) ; « redémarrage du worker » avant
  *   la première étape (tâches perdues, reprises par le balayage `resume`) ; validations par le faux Telegram (« ok n »,
  *   « non n ») et par le site (`decideValidation` via SITE) ; envoi par le scheduler ; rapports du Grand Chef et Ads ;
  *   le soir, fiches des posts, horaires, un test A/B lancé, une recommandation appliquée par le Grand Chef ;
@@ -25,7 +25,6 @@ import {
   createFakeVideoProvider,
   decideValidation,
   FAKE_ODDS_ANCHOR,
-  fallbackPng,
   fromParis,
   handleAdminText,
   overviewLines,
@@ -39,8 +38,6 @@ import {
   storeLibraryMedia,
   undoRecommendation,
   type AgentStepJob,
-  type CaptureRequest,
-  type CaptureResult,
   type EngineDeps,
   type FrameExtractor,
   type VideoProvider,
@@ -73,24 +70,11 @@ const fakeVideo = createFakeVideoProvider({ loadAsset });
 /** Même faux fournisseur, mais chaque vidéo est estimée à 50 c : sert à atteindre le plafond le jour 3. */
 const pricedVideo: VideoProvider = { ...fakeVideo, estimateCents: () => 50 };
 const odds = createFakeOddsProvider({ now: () => now });
-const screenshot = {
-  name: "fake",
-  async capture(req: CaptureRequest): Promise<CaptureResult> {
-    return { ok: true, png: fallbackPng(320, 200), readOdds: req.expectedOdds, pageUrl: "https://www.sportaza.example/match" };
-  },
-  async testConnection(): Promise<CaptureResult> {
-    return { ok: true, png: fallbackPng(10, 10), readOdds: 0, pageUrl: "https://www.sportaza.example" };
-  },
-  async renderTemplate(): Promise<Uint8Array> {
-    return fallbackPng(1080, 1080);
-  },
-};
 const providers: NonNullable<EngineDeps["providers"]> = {
   llm: createFakeLlm(),
   video: fakeVideo,
   image: createFakeImageProvider({ loadAsset }),
   odds,
-  screenshot,
 };
 const deps: EngineDeps = {
   prisma,

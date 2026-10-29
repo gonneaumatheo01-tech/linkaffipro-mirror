@@ -21,8 +21,6 @@ import { inventedFigures } from "../../rules/figures";
 import { loadPlan } from "../data";
 import { agentEvent } from "../../admin/journal";
 import { sportsControl } from "../../sports/steps";
-import { referenceShinglesForChannel } from "../../inspiration/style";
-import { COPY_PROBLEM, copiedSequence } from "../../inspiration/copy-check";
 import { heldTeamControl, withGlobalQa } from "../../qa-gates/posts";
 import { decideVerdict, JUDGE_SYSTEM, mediaProblem, parseJudgement, type Judgement } from "./verdict";
 
@@ -67,9 +65,8 @@ export const agent: AgentDefinition = {
 /** Contrôle qualité de l'équipe (phases 19 à 27), avant le QA Global. */
 async function teamControl(mission: Mission, ctx: AgentContext): Promise<AgentResult> {
   {
-    // Équipe Paris sportifs (phase 23) : cote re-vérifiée, coup d'envoi, doublons, image, validations imposées ; puis
-    // contrôle « jamais de copie » (phase 27) sur le texte qui partira (texte remis à la cote, ou corrigé par l'admin).
-    if (mission.teamKey === "sports") return withSportsCopyCheck(mission, ctx, await sportsControl(mission, ctx));
+    // Équipe Paris sportifs (phase 23) : cote re-vérifiée, coup d'envoi, doublons, image, validations imposées.
+    if (mission.teamKey === "sports") return sportsControl(mission, ctx);
     const p = mission.payload;
     const text = p.text ?? "";
     const problems: string[] = [];
@@ -78,10 +75,6 @@ async function teamControl(mission: Mission, ctx: AgentContext): Promise<AgentRe
     const recent = await recentChannelTexts(ctx.prisma, mission.channelId, mission.id);
     const dup = findDuplicate(text, recent, ctx.settings.similarityThreshold);
     if (dup) problems.push(`trop proche d'un post récent du canal (${Math.round(dup.score * 100)} %)`);
-    // Phase 27 : jamais 8 mots consécutifs repris d'un post d'un canal d'inspiration lié à ce canal.
-    const copied = copiedSequence(text, await referenceShinglesForChannel(ctx, mission.channelId));
-    // Jamais les mots eux-mêmes dans le motif (repris dans `AgentRun` et le journal, au-delà des 30 jours du texte).
-    if (copied) problems.push(COPY_REFUSAL);
     if (p.mediaAssetId) {
       const asset = await ctx.prisma.mediaAsset.findUnique({
         where: { id: p.mediaAssetId },
@@ -198,29 +191,6 @@ async function teamControl(mission: Mission, ctx: AgentContext): Promise<AgentRe
       };
     return { ok: true, output: { verdict: "publish", reasons: [] }, costCents, summary: `bon pour publication${judged}` };
   }
-}
-
-/** Motif de refus d'un texte qui reprend 8 mots d'un post de référence (sans les mots). */
-export const COPY_REFUSAL = `${COPY_PROBLEM} : inspire-toi de la méthode, ne recopie jamais`;
-
-/**
- * Paris sportifs (phase 27) : le texte écrit par le code, remis à la cote vérifiée ou corrigé par l'admin, ne reprend
- * jamais 8 mots d'un post de référence lié au canal. Texte fautif : jamais publié, même déjà validé (« approved ») ;
- * il part en validation pour être réécrit (le texte des paris ne se « refait » pas, comme les autres règles).
- */
-export async function withSportsCopyCheck(mission: Mission, ctx: AgentContext, res: AgentResult): Promise<AgentResult> {
-  if (!res.ok || res.skipped || res.goTo || res.wait) return res;
-  const out = (res.output ?? {}) as Record<string, unknown>;
-  if (out.betSkipped === true) return res;
-  const text = typeof out.text === "string" ? out.text : (mission.payload.text ?? "");
-  if (!text || !copiedSequence(text, await referenceShinglesForChannel(ctx, mission.channelId))) return res;
-  const reasons = [...(Array.isArray(out.reasons) ? (out.reasons as unknown[]).filter((r): r is string => typeof r === "string" && r !== "") : []), COPY_REFUSAL];
-  return {
-    ...res,
-    output: { ...out, verdict: "validate", approved: false, reasons },
-    needsValidation: { reason: `à corriger : ${reasons.join(" ; ")}` },
-    summary: `validation demandée : ${COPY_REFUSAL}`,
-  };
 }
 
 /** Image du doute envoyée à l'admin juste avant l'aperçu de validation (qui, lui, porte la vidéo ou la photo). */

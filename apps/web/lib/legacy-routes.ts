@@ -15,6 +15,15 @@ export const LEGACY_PREFIXES: ReadonlyArray<readonly [from: string, to: string]>
 ];
 
 /**
+ * Rubriques retirées (28 octobre 2026 : canal d'inspiration et lecture des sites des bookmakers) : l'ancienne adresse
+ * et tout ce qui est dessous vont vers une page qui existe (paramètres abandonnés).
+ */
+export const REMOVED_PREFIXES: ReadonlyArray<readonly [from: string, to: string]> = [
+  ["/agents/inspiration", "/agents"],
+  ["/agents/bookmakers", "/agents/sports"],
+];
+
+/**
  * Paramètres de l'ancien tableau de bord (qui vivait à « / ») : onglet, période, comparaison, filtres, dimension
  * du parcours, tri des pubs. L'accueil n'en utilise aucun : leur présence sur « / » signale une ancienne adresse.
  */
@@ -98,6 +107,7 @@ function safeDecode(segment: string): string {
 /**
  * Nouvelle adresse (chemin et paramètres) pour une ancienne adresse, ou `null` si l'adresse est à jour.
  * - `/broadcasts…`, `/automations…`, `/bots…`, `/journal…`, `/links…` → sous Membres, Réglages ou Campagnes ;
+ * - `/agents/inspiration…` → `/agents`, `/agents/bookmakers…` → `/agents/sports` (rubriques retirées) ;
  * - `/` avec des paramètres de l'ancien tableau de bord (`?tab=ads`, `?range=30d`…) → la page des statistiques de
  *   l'onglet (`/stats/ads`…, « Vue d'ensemble » = `/stats`), autres paramètres gardés ;
  * - `/stats?tab=ads|funnel|cohorts|channels` → `/stats/ads`… (`overview` ou inconnu : `/stats`) ;
@@ -115,6 +125,9 @@ export function legacyRedirect(
     if (pathname === from || pathname.startsWith(`${from}/`)) {
       return withQuery(to + pathname.slice(from.length), toParams(searchParams));
     }
+  }
+  for (const [from, to] of REMOVED_PREFIXES) {
+    if (pathname === from || pathname.startsWith(`${from}/`)) return to;
   }
 
   if (pathname === "/") {
