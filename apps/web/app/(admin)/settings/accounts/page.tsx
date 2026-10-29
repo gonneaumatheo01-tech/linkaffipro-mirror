@@ -49,7 +49,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/setting
       orderBy: { createdAt: "asc" },
       include: { persona: { select: { name: true, isActive: true } } },
     }),
-    // Rencontres seulement : une persona Casino / Paris ne parle jamais depuis un vrai compte (refusé aussi par l'action).
+    // Rencontres et Paris sportifs : une persona Casino ne parle jamais depuis un vrai compte (refusé aussi par l'action).
     prisma.persona.findMany({
       where: accountPersonaWhere,
       orderBy: { name: "asc" },
@@ -201,7 +201,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/setting
                         </option>
                       ))}
                     </NativeSelect>
-                    <p className="text-note text-muted-foreground">Personas Rencontres seulement.</p>
+                    <p className="text-note text-muted-foreground">Personas Rencontres et Paris sportifs.</p>
                   </div>
                   <Button type="submit" variant="outline" className="max-md:h-10">
                     Enregistrer
