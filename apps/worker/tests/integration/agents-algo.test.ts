@@ -53,10 +53,10 @@ describe("équipe Algorithme : fiches, horaires, test A/B, réglage, rapport (ba
     await prisma.channel.update({ where: { id: channelId }, data: { vertical: "DATING" } });
     const persona = await prisma.persona.create({ data: { name: "Persona test" } });
     await prisma.channelAgentPlan.create({
-      data: { channelId, teamKey: "dating", enabled: true, postsPerDay: 3, windowStart: "09:00", windowEnd: "22:00", minSpacingMinutes: 60, mix: { video: 1, photo: 2, text: 1 }, personaId: persona.id },
+      data: { channelId, teamKey: "dating", enabled: true, postsPerDay: 3, windowStart: "09:00", windowEnd: "22:00", minSpacingMinutes: 60, mix: { video: 0, photo: 2, text: 2 }, personaId: persona.id },
     });
-    const video = await prisma.mediaAsset.create({
-      data: { filename: "v.mp4", mimeType: "video/mp4", size: 3, sha256: randomUUID(), bytes: Buffer.from("abc") },
+    const photo = await prisma.mediaAsset.create({
+      data: { filename: "p.jpg", mimeType: "image/jpeg", size: 3, sha256: randomUUID(), bytes: Buffer.from("abc") },
     });
     const exp = await prisma.experiment.create({
       data: {
@@ -73,13 +73,13 @@ describe("équipe Algorithme : fiches, horaires, test A/B, réglage, rapport (ba
       },
     });
     experimentId = exp.id;
-    // 48 posts sur 30 jours : vidéos à 19 h (Paris) qui font cliquer, textes à 12 h qui cliquent peu ; la moitié
+    // 48 posts sur 30 jours : photos à 19 h (Paris) qui font cliquer, textes à 12 h qui cliquent peu ; la moitié
     // dans le test A/B (A clique 2,5 fois plus que B).
     const base = Date.now() - 30 * DAY;
     for (let i = 0; i < 48; i++) {
-      const isVideo = i % 2 === 0;
+      const isPhoto = i % 2 === 0;
       const day = new Date(base + Math.floor(i / 2) * DAY);
-      const sentAt = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), isVideo ? 17 : 10, 0, 0));
+      const sentAt = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), isPhoto ? 17 : 10, 0, 0));
       const inTest = i < 40;
       const variant = inTest ? (Math.floor(i / 2) % 2 === 0 ? "A" : "B") : null;
       const post = await prisma.post.create({
@@ -89,14 +89,14 @@ describe("équipe Algorithme : fiches, horaires, test A/B, réglage, rapport (ba
           botId,
           status: "SENT",
           sentAt,
-          text: isVideo ? "Ce soir 🔥 tu viens ?" : "Un texte un peu plus long pour le canal, sans emoji.",
-          mediaAssetIds: isVideo ? [video.id] : [],
+          text: isPhoto ? "Ce soir 🔥 tu viens ?" : "Un texte un peu plus long pour le canal, sans emoji.",
+          mediaAssetIds: isPhoto ? [photo.id] : [],
           abGroupId: inTest ? `exp_${experimentId}` : null,
           abVariant: variant,
         },
       });
-      const offerClicks = variant === "A" ? 25 : variant === "B" ? 10 : isVideo ? 30 : 5;
-      await prisma.postStats.create({ data: { postId: post.id, views: 500, offerClicks, clicks: offerClicks, uniqueClickers: offerClicks, registrations: isVideo ? 2 : 0 } });
+      const offerClicks = variant === "A" ? 25 : variant === "B" ? 10 : isPhoto ? 30 : 5;
+      await prisma.postStats.create({ data: { postId: post.id, views: 500, offerClicks, clicks: offerClicks, uniqueClickers: offerClicks, registrations: isPhoto ? 2 : 0 } });
       await prisma.postViewSample.createMany({
         data: [
           { postId: post.id, at: new Date(sentAt.getTime() + HOUR), views: 60 },
@@ -114,12 +114,12 @@ describe("équipe Algorithme : fiches, horaires, test A/B, réglage, rapport (ba
     expect(nightly.posts?.computed).toBe(48);
     const insights = await prisma.postInsight.findMany({ where: { channelId } });
     expect(insights).toHaveLength(48);
-    const v = insights.find((x) => x.format === "VIDEO")!;
+    const v = insights.find((x) => x.format === "PHOTO")!;
     expect(v).toMatchObject({ views1h: 60, views2h: 90, views24h: 196, viewsFinal: 500, hasButtons: false, emojiCount: 1, hourParis: expect.any(Number) });
     expect(insights.filter((x) => x.experimentId === experimentId)).toHaveLength(40);
     expect(insights.find((x) => x.format === "TEXT")!.personaId).toBeTruthy();
     const ranking = nightly.posts!.channels.find((c) => c.id === channelId)!;
-    expect(ranking.dimensions.format.works).toEqual(["VIDEO"]);
+    expect(ranking.dimensions.format.works).toEqual(["PHOTO"]);
     const best = await prisma.setting.findUniqueOrThrow({ where: { key: `besthours.${channelId}` } });
     const value = best.value as { source?: string; channelId: string; categories: Record<string, unknown>; windows?: unknown[] };
     expect(value.source).toBe("algo");
@@ -171,8 +171,9 @@ describe("équipe Algorithme : fiches, horaires, test A/B, réglage, rapport (ba
     const before = (await prisma.channelAgentPlan.findUniqueOrThrow({ where: { channelId } })).mix;
     const a = await applyRecommendation(deps, rec.id, { userId: null, via: "SITE" });
     expect(a).toMatchObject({ ok: true });
-    const after = (await prisma.channelAgentPlan.findUniqueOrThrow({ where: { channelId } })).mix as { video: number };
-    expect(after.video).toBeGreaterThan(25);
+    const after = (await prisma.channelAgentPlan.findUniqueOrThrow({ where: { channelId } })).mix as { video: number; photo: number };
+    expect(after.photo).toBeGreaterThan(50);
+    expect(after.video).toBe(0);
     expect((await prisma.recommendation.findUniqueOrThrow({ where: { id: rec.id } })).status).toBe("APPLIED");
     expect(await prisma.auditLog.count({ where: { action: "agents.algo.recommendation_applied", entityId: rec.id } })).toBe(1);
     const u = await undoRecommendation(deps, rec.id, { userId: null, via: "SITE" });
