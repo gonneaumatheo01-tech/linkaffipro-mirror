@@ -1121,3 +1121,7 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
 - Stockage dans `Setting boss.routines` (pas de migration : 30 envois au plus, une ligne). Tâche `routines-tick` toutes les 5 min : un envoi par jour de Paris et par envoi programmé, repère posé avant l'envoi (jamais deux fois), rattrapage le jour même, rien le jour de la création si l'heure est passée. Échec → l'admin est prévenu une fois jusqu'au prochain envoi réussi.
 - Création et arrêt réservés à l'admin (`BOSS_ADMIN_ONLY_KEYS`). Correctif au passage : la proposition de Kevin quand il ne peut pas disait « je peux les prochains canaux… » ; un début en article devient « te montrer les … ».
 
+## Comptes Telegram : personas Paris sportifs autorisées (29 octobre 2026)
+
+- Demande du client : Mehdi (VIP_MANAGER, univers sports) doit pouvoir être relié à un vrai compte Telegram, comme Léa (GIRL, univers dating). La restriction précédente (univers dating uniquement) est assouplie : dating ET sports sont acceptés. Seul l'univers casino reste interdit sur un vrai compte.
+- `apps/web/lib/accounts/persona-choice.ts` : `ACCOUNT_PERSONA_UNIVERSES = ["dating", "sports"]`, filtre Prisma `{ universe: { in: [...] } }`.

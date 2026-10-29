@@ -1,16 +1,16 @@
 /**
- * Persona d'un vrai compte Telegram (Réglages → Comptes, phase 18) : seulement une persona Rencontres
- * (`Persona.universe = "dating"`). Les personas Casino et Paris sportifs parlent sous l'identité imposée de l'équipe
- * (phase 25), jamais depuis un compte personnel. Règle unique de la liste proposée et du refus côté serveur.
+ * Personas autorisées sur un vrai compte Telegram (Réglages → Comptes) :
+ * Rencontres et Paris sportifs. Seules les personas Casino parlent
+ * exclusivement sous l'identité de l'équipe via un bot.
  */
-export const ACCOUNT_PERSONA_UNIVERSE = "dating";
+export const ACCOUNT_PERSONA_UNIVERSES = ["dating", "sports"] as const;
 
 /** Filtre Prisma des personas proposées pour un compte. */
-export const accountPersonaWhere = { universe: ACCOUNT_PERSONA_UNIVERSE } as const;
+export const accountPersonaWhere = { universe: { in: [...ACCOUNT_PERSONA_UNIVERSES] } } as const;
 
 export function isAccountPersonaAllowed(p: { universe: string | null | undefined } | null | undefined): boolean {
-  return !!p && p.universe === ACCOUNT_PERSONA_UNIVERSE;
+  return !!p && typeof p.universe === "string" && (ACCOUNT_PERSONA_UNIVERSES as readonly string[]).includes(p.universe);
 }
 
 export const ACCOUNT_PERSONA_REFUSED =
-  "Un compte Telegram ne peut porter qu'une persona Rencontres : les personas Casino et Paris sportifs parlent au nom de l'équipe.";
+  "Un compte Telegram ne peut porter qu'une persona Rencontres ou Paris sportifs : les personas Casino parlent au nom de l'équipe.";

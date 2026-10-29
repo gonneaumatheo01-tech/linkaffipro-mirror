@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Réglages → Comptes : la persona d'un vrai compte Telegram est une persona Rencontres, jamais Casino ni Paris
-// sportifs (refus côté serveur, en plus de la liste affichée).
+// Réglages → Comptes : la persona d'un vrai compte Telegram est une persona Rencontres ou Paris sportifs,
+// jamais Casino (refus côté serveur, en plus de la liste affichée).
 const m = vi.hoisted(() => ({
   persona: null as { universe: string } | null,
   setPersona: vi.fn(async (..._a: unknown[]) => ({})),
@@ -28,7 +28,7 @@ vi.mock("@linkaffipro/userbot", () => ({
 }));
 
 import { setAccountPersonaAction } from "./actions";
-import { accountPersonaWhere, isAccountPersonaAllowed } from "@/lib/accounts/persona-choice";
+import { accountPersonaWhere, isAccountPersonaAllowed, ACCOUNT_PERSONA_UNIVERSES } from "@/lib/accounts/persona-choice";
 
 const fd = (o: Record<string, string>) => {
   const f = new FormData();
@@ -50,10 +50,11 @@ beforeEach(() => {
 });
 
 describe("persona d'un compte Telegram", () => {
-  it("règle : Rencontres seulement ; la liste ne propose que les personas Rencontres", () => {
-    expect(accountPersonaWhere).toEqual({ universe: "dating" });
+  it("règle : Rencontres et Paris sportifs ; la liste ne propose que ces univers", () => {
+    expect(accountPersonaWhere).toEqual({ universe: { in: [...ACCOUNT_PERSONA_UNIVERSES] } });
     expect(isAccountPersonaAllowed({ universe: "dating" })).toBe(true);
-    for (const u of ["casino", "sports", "", null]) expect(isAccountPersonaAllowed({ universe: u })).toBe(false);
+    expect(isAccountPersonaAllowed({ universe: "sports" })).toBe(true);
+    for (const u of ["casino", "", null]) expect(isAccountPersonaAllowed({ universe: u })).toBe(false);
     expect(isAccountPersonaAllowed(null)).toBe(false);
   });
 
@@ -64,11 +65,16 @@ describe("persona d'un compte Telegram", () => {
     expect(url).toContain("ok=");
   });
 
-  it("persona Casino ou Paris sportifs, ou inconnue : refusée, rien n'est changé", async () => {
-    for (const universe of ["casino", "sports"]) {
-      m.findUnique.mockResolvedValue({ universe });
-      expect(await redirectOf(setAccountPersonaAction(fd({ accountId: "a1", personaId: "p2" })))).toContain("Rencontres");
-    }
+  it("persona Sports : enregistrée", async () => {
+    m.findUnique.mockResolvedValue({ universe: "sports" });
+    const url = await redirectOf(setAccountPersonaAction(fd({ accountId: "a1", personaId: "p3" })));
+    expect(m.setPersona).toHaveBeenCalledWith("a1", "p3");
+    expect(url).toContain("ok=");
+  });
+
+  it("persona Casino ou inconnue : refusée, rien n'est changé", async () => {
+    m.findUnique.mockResolvedValue({ universe: "casino" });
+    expect(await redirectOf(setAccountPersonaAction(fd({ accountId: "a1", personaId: "p2" })))).toContain("error=");
     m.findUnique.mockResolvedValue(null);
     expect(await redirectOf(setAccountPersonaAction(fd({ accountId: "a1", personaId: "zz" })))).toContain("error=");
     expect(m.setPersona).not.toHaveBeenCalled();

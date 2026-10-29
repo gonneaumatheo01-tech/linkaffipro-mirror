@@ -88,7 +88,7 @@ export async function toggleAccountAction(formData: FormData): Promise<void> {
   back(backParams(r));
 }
 
-/** Persona d'un compte : Rencontres seulement (refus côté serveur, quelle que soit la liste affichée). */
+/** Persona d'un compte : Rencontres ou Paris sportifs (refus côté serveur, quelle que soit la liste affichée). */
 export async function setAccountPersonaAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
   const r = await accountSetPersona(
