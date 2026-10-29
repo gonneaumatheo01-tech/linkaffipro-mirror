@@ -108,7 +108,7 @@ export const accountToggle: CoreRun = async (input, actor, opts = {}) => {
   return ok("Mis a jour. Redemarrez le userbot pour appliquer.", { accountId: found.id });
 };
 
-/** Persona d'un compte : Rencontres seulement (refus côté serveur, quelle que soit la liste affichée). */
+/** Persona d'un compte : Rencontres ou Paris sportifs (refus côté serveur, quelle que soit la liste affichée). */
 export const accountSetPersona: CoreRun = async (input, actor, opts = {}) => {
   const denied = adminOnly(actor);
   if (denied) return denied;
