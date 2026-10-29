@@ -58,8 +58,6 @@ import { clarifyIsFor, clearClarify, readClarify } from "./resolve";
 import { explainAgainText, isBareNumber, isWhyFollowUp, pickOption, readKevinList } from "./choices";
 import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
-import { montageFastPath } from "./catalog-montage";
-import { videoIaFastPath } from "./catalog-video-ia";
 import { analystsFastPath } from "./catalog-analysts";
 import { orderQuickCancel } from "../orders/recap";
 import { pick, varyAgainst, voiceTemplate, voiceVariants, type VoiceTable } from "./voice";
@@ -347,7 +345,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     }
   }
 
-  // Réponses rapides sans IA, admin seulement : « annule » d'un ordre, numéros de l'analyse du marché, montage.
+  // Réponses rapides sans IA, admin seulement : « annule » d'un ordre, numéros de l'analyse du marché.
   {
     const clarifyNow = await readClarify(deps);
     const listNow = await readKevinList(deps, { speaker: input.speaker ?? null, chatId: input.chat?.chatId ?? null });
@@ -366,12 +364,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     const quick =
       (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt })) ??
       // Phase 29 : numéros en réponse au dernier choix de l'analyse du marché.
-      (word === null ? await analystsFastPath(deps, input, { otherQuestionAt, run }) : null) ??
-      // Personne remplacée par une persona dans la vidéo reçue (« mets Léa à la place de la personne ») : avant le
-      // montage, dont les consignes (« 15 secondes ») prendraient la phrase.
-      (word === null ? await videoIaFastPath(deps, input, { run }) : null) ??
-      // Phase 28 : réponses au montage vidéo (plan, aperçus, modifications, destination) et demandes claires, sans IA.
-      (word !== "cancel" ? await montageFastPath(deps, input, { otherQuestionAt, run }) : null);
+      (word === null ? await analystsFastPath(deps, input, { otherQuestionAt, run }) : null);
     if (quick) {
       await remember(deps, input, quick.reply, { actionKey: quick.actionKey, status: "done" });
       return { handled: true, ...quick.reply };

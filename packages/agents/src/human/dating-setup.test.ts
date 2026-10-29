@@ -2,18 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestKit, journalText } from "./test-kit";
 import { handleAdminText } from "../admin/handle";
 import { storeLibraryMedia } from "../library/store";
-import { DATING_SETUP_SETTING, datingPersonas, ensureDatingSetupQuestions, estimateBenchCents } from "./dating-setup";
+import { DATING_SETUP_SETTING, datingPersonas, ensureDatingSetupQuestions } from "./dating-setup";
 
 const lifecycle = vi.hoisted(() => ({
   continueMission: vi.fn(async () => undefined),
   cancelMission: vi.fn(async () => undefined),
 }));
 vi.mock("../missions/lifecycle", () => lifecycle);
-const bench = vi.hoisted(() => ({ startBench: vi.fn(async () => ({ ok: true, message: "Banc d'essai lancé 🎬" })) }));
-vi.mock("../orchestrator/bench", () => bench);
 beforeEach(() => {
   lifecycle.continueMission.mockClear();
-  bench.startBench.mockClear();
 });
 
 async function setup() {
@@ -52,30 +49,26 @@ describe("questions de mise en route Dating", () => {
 
   it("ordre des questions, une seule fois", async () => {
     const { kit, lea } = await setup();
-    expect(await ensureDatingSetupQuestions(kit.deps)).toEqual({ queued: 7 });
+    expect(await ensureDatingSetupQuestions(kit.deps)).toEqual({ queued: 4 });
     expect(kit.tables("humanRequest").map((r) => `${r.kind} ${r.key}`)).toEqual([
       "SECRET providers.fal.apiKey",
       `TEXT persona.${lea.id}.loraUrl`,
       `TEXT persona.${lea.id}.loraTrigger`,
       `MEDIA persona.${lea.id}.referenceImages`,
-      `MEDIA persona.${lea.id}.sourceVideos`,
-      "CHOICE agents.team.dating.videoBudget",
-      `CONFIRM persona.${lea.id}.bench`,
     ]);
     expect(kit.tables("humanRequest")[3]!.expected).toMatchObject({ count: 1, tags: ["dating", "reference", "lea"] });
-    expect(kit.tables("humanRequest")[4]!.expected).toMatchObject({ count: 5, tags: ["dating", "source", "lea"] });
     // Une seule question envoyée à la fois : la première.
     expect(kit.sent).toHaveLength(1);
     expect(kit.sent[0]!.html).toContain("https://fal.ai/dashboard/keys");
     expect(kit.tables("setting").some((s) => s.key === DATING_SETUP_SETTING)).toBe(true);
     // Idempotent.
     expect(await ensureDatingSetupQuestions(kit.deps)).toEqual({ queued: 0 });
-    expect(kit.tables("humanRequest")).toHaveLength(7);
+    expect(kit.tables("humanRequest")).toHaveLength(4);
     // Questions courtes (5 lignes au plus).
     for (const r of kit.tables("humanRequest")) expect(String(r.question).split("\n").length).toBeLessThanOrEqual(5);
   });
 
-  it("réponses : clé, LoRA, déclencheur, photo de référence, vidéos passées, plafond « plus tard » = 100 €, banc lancé", async () => {
+  it("réponses : clé, LoRA, déclencheur, photo de référence ; plus de question sur les vidéos", async () => {
     const { kit, lea } = await setup();
     await ensureDatingSetupQuestions(kit.deps);
     const key = await answer(kit, "fal_key_abcdef123456");
@@ -92,26 +85,19 @@ describe("questions de mise en route Dating", () => {
     expect(kit.tables("humanRequest")[3]!.status).toBe("ANSWERED");
     expect(kit.tables("persona").find((x) => x.id === lea.id)!.referenceImageIds).toHaveLength(1);
 
-    expect(kit.sent.at(-1)!.html).toContain("vidéos sources");
-    await answer(kit, "plus tard");
-    expect(kit.sent.at(-1)!.html).toContain("Plafond des vidéos IA");
-    const budget = await answer(kit, "plus tard");
-    expect(budget.reply).toContain("100 € par mois");
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ teamKey: "dating", monthlyBudgetCents: { video: 10_000 } });
-
-    expect(kit.sent.at(-1)!.html).toContain("je lance le banc d'essai (3 vidéos, environ 4 €)");
-    const go = await answer(kit, "oui");
-    expect(go.reply).toContain("Banc d'essai lancé");
-    expect(bench.startBench).toHaveBeenCalledWith(kit.deps, { personaId: lea.id, count: 3, byUserId: null });
+    expect(kit.tables("humanRequest").every((r) => r.status !== "QUEUED" && r.status !== "PENDING")).toBe(true);
+    expect(kit.sent.map((m) => m.html).join("\n")).not.toMatch(/vidéos sources|Plafond des vidéos|banc d'essai/);
   });
 
-  it("plafond : numéro ou montant libre", async () => {
-    const { kit } = await setup();
-    await kit.prisma.setting.create({ data: { key: "agents.secret.providers.fal.apiKey", value: { enc: "x", last4: "abcd" } } });
-    await kit.prisma.persona.updateMany({ where: {}, data: { isActive: false } });
-    expect(await ensureDatingSetupQuestions(kit.deps)).toEqual({ queued: 1 });
-    expect((await answer(kit, "75 euros")).reply).toContain("75 € par mois");
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 7_500 } });
+
+  it("anciennes questions du plafond vidéo et du banc d'essai encore ouvertes : réponse claire, rien n'est réglé", async () => {
+    const { kit, lea } = await setup();
+    await kit.prisma.setting.create({ data: { key: DATING_SETUP_SETTING, value: { askedAt: "x" } } });
+    await kit.prisma.humanRequest.create({ data: { teamKey: "dating", kind: "CHOICE", key: "agents.team.dating.videoBudget", question: "Plafond des vidéos IA ?", options: ["50 €", "100 €", "200 €"], status: "PENDING", onAnswer: { action: "dating-video-budget", resume: false } } as never });
+    await kit.prisma.humanRequest.create({ data: { teamKey: "dating", kind: "CONFIRM", key: `persona.${lea.id}.bench`, question: "Banc d'essai ?", status: "QUEUED", onAnswer: { action: "dating-bench", personaId: lea.id, resume: false } } as never });
+    const r = await handleAdminText(kit.deps, { text: "2", messageId: 1 });
+    expect(r.reply).toContain("Les vidéos IA ne sont plus produites");
+    expect(kit.tables("agentTeamConfig")).toHaveLength(0);
   });
 
   it("adresse LoRA refusée (http), acceptée avec doute (hôte inconnu)", async () => {
@@ -124,19 +110,7 @@ describe("questions de mise en route Dating", () => {
     expect(ok.reply).toContain("vérifie");
   });
 
-  it("banc refusé : rien n'est lancé", async () => {
-    const { kit } = await setup();
-    await ensureDatingSetupQuestions(kit.deps);
-    for (let i = 0; i < 6; i++) await answer(kit, "plus tard");
-    const r = await answer(kit, "non");
-    expect(r.reply).toContain("pas de banc d'essai");
-    expect(bench.startBench).not.toHaveBeenCalled();
-  });
 
-  it("estimation : 3 vidéos de 10 s en 580p et 720p", () => {
-    expect(estimateBenchCents([])).toBe(399);
-    expect(estimateBenchCents([5, 5, 5])).toBe(200);
-  });
 });
 
 describe("photos de référence", () => {

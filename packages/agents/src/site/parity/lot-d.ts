@@ -23,7 +23,6 @@ export const LOT_D_PARITY: Record<string, SiteParityEntry> = {
   [A("agents/[equipe]/actions.ts", "saveTeamSettingsAction")]: { op: "agents.equipe_reglages" },
   [A("agents/[equipe]/actions.ts", "saveChannelPlanAction")]: { op: "agents.plan_canal" },
   [A("agents/[equipe]/actions.ts", "createTestPostAction")]: { op: "agents.post_test_rencontres" },
-  [A("agents/[equipe]/actions.ts", "startBenchAction")]: { op: "agents.banc_essai" },
   // Paris sportifs
   [A("agents/[equipe]/sports-actions.ts", "saveBetCategoryAction")]: { op: "univers.categorie_paris_regler" },
   [A("agents/[equipe]/sports-actions.ts", "createTestBetAction")]: { op: "agents.pari_test" },

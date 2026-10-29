@@ -54,7 +54,7 @@ export type ValidatedPlan = {
   fromDay: string | null;
   toDay: string | null;
   status: ValidationStatus;
-  /** Équipe nommée mais absente du registre (« montage »). */
+  /** Équipe nommée mais absente du registre (« poker »). */
   missingTeam: string | null;
 };
 
@@ -324,7 +324,7 @@ export async function validatePlan(deps: BossDeps, input: PlannedOrder | OrderPl
   }
 
   if (missingTeam) {
-    // Ce qui manque vraiment, c'est l'équipe : sa raison passe avant celle de l'IA (« pas encore d'équipe Montage »).
+    // Ce qui manque vraiment, c'est l'équipe : sa raison passe avant celle de l'IA (« l'équipe poker n'existe pas encore »).
     const reason = FUTURE_TEAMS[missingTeam]
       ? `pas encore d'équipe ${FUTURE_TEAMS[missingTeam]!.replace(/^l'équipe /, "")}, elle arrive bientôt`
       : `l'équipe ${missingTeam} n'existe pas encore : pas d'ordres possibles pour le moment`;

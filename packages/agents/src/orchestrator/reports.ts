@@ -32,8 +32,8 @@ export type TeamReportFigures = {
   capCents: number | null;
   simulation: boolean;
   paused: boolean;
-  /** Replis Dating de la veille (vidéo → photo, photo → texte). */
-  fallbacks?: { video: number; photo: number };
+  /** Replis Dating de la veille (photo → texte). */
+  fallbacks?: { photo: number };
   /** Lignes libres ajoutées (replis Casino : « 3 posts texte faute de vidéos : roulette »). */
   notes?: string[];
 };
@@ -48,7 +48,6 @@ export function reportLine(f: TeamReportFigures): string {
     `${f.refused} refusé${f.refused > 1 ? "s" : ""}`,
   ];
   if (f.failed) parts.push(`${f.failed} en échec`);
-  if (f.fallbacks?.video) parts.push(`${f.fallbacks.video} vidéo${f.fallbacks.video > 1 ? "s" : ""} remplacée${f.fallbacks.video > 1 ? "s" : ""} par une photo`);
   if (f.fallbacks?.photo) parts.push(`${f.fallbacks.photo} photo${f.fallbacks.photo > 1 ? "s" : ""} remplacée${f.fallbacks.photo > 1 ? "s" : ""} par un texte`);
   if (f.notes?.length) parts.push(...f.notes);
   const spend = f.capCents ? `${eur(f.spentCents)} / ${eur(f.capCents)} ce mois` : `${eur(f.spentCents)} ce mois`;

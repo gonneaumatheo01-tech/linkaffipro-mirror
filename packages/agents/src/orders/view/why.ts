@@ -5,7 +5,6 @@
  * lever (une question). Lecture seule.
  */
 import { nowOf } from "../../admin/journal";
-import { unusedSourceCount } from "../../agents/mediatheque/stock";
 import { casinoStock } from "../../casino/contracts";
 import { parsePayload, parseSteps } from "../../missions/mission";
 import { monthUsage } from "../../missions/usage";
@@ -111,7 +110,7 @@ export async function whyNothing(deps: AgentsDeps, input: { channelId: string; d
   if (blocked) add("budget", `Bloqué par le plafond du mois : ${failureText(blocked.lastError)}.`, "Tu veux que je monte le plafond ?");
   else if (state) {
     const usage = await monthUsage(deps.prisma, state.teamKey, now);
-    for (const p of ["video", "image", "llm"] as ProviderKey[]) {
+    for (const p of ["image", "llm"] as ProviderKey[]) {
       const cap = state.settings.monthlyBudgetCents[p];
       const spent = usage.find((u) => u.provider === p)?.cents ?? 0;
       if (cap !== undefined && !budgetState(state.teamKey, p, spent, cap).allowed && cap > 0) {
@@ -121,14 +120,7 @@ export async function whyNothing(deps: AgentsDeps, input: { channelId: string; d
     }
   }
   // 8. Stock de médias vide.
-  if (team === "dating" && (ov?.personaId ?? plan?.personaId)) {
-    const personaId = (ov?.personaId ?? plan?.personaId)!;
-    const mix = (plan?.mix ?? {}) as Record<string, unknown>;
-    if (Number(mix.video ?? 0) > 0 && (await unusedSourceCount(deps, personaId)) === 0) {
-      const persona = (await deps.prisma.persona.findUnique({ where: { id: personaId }, select: { name: true } })) as { name: string } | null;
-      add("stock_vide", `Plus aucune vidéo source pas encore utilisée pour ${persona?.name ?? "la persona"} : les vidéos passent en photo ou en texte.`, "Tu m'envoies quelques vidéos ?");
-    }
-  } else if (team === "casino") {
+  if (team === "casino") {
     const rows = await casinoStock(deps.prisma as never, { now, channelId: channel.id });
     if (rows.length && rows.every((r) => r.state === "empty")) add("stock_vide", `Plus aucun média pas encore utilisé dans les thèmes de ${name}.`, `Tu m'envoies des vidéos avec #casino et le thème ?`);
   }

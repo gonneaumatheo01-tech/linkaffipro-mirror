@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestKit } from "../human/test-kit";
-import { BOOKMAKER_CREDENTIALS_REFUSAL, handleAdminText } from "./handle";
+import { BOOKMAKER_CREDENTIALS_REFUSAL, handleAdminText, VIDEO_BUDGET_REMOVED } from "./handle";
 
 const lifecycle = vi.hoisted(() => ({
   continueMission: vi.fn(async () => undefined),
@@ -107,19 +107,12 @@ describe("commandes du dialogue admin", () => {
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")).toMatchObject({ autonomyLevel: 0 });
   });
 
-  it("« budget vidéo N » : une hausse demande OUI, une baisse est immédiate", async () => {
+  it("« budget vidéo N » : vidéos IA retirées, réponse claire, rien n'est changé", async () => {
     const kit = createTestKit();
-    await handleAdminText(kit.deps, { text: "budget vidéo 100", messageId: 1 });
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 10000 } });
-    const up = await handleAdminText(kit.deps, { text: "budget vidéo 500", messageId: 2 });
-    expect(up.pendingId).toBeTruthy();
-    expect(up.reply).toMatch(/plafond vidéo/i);
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 10000 } });
-    await handleAdminText(kit.deps, { text: "oui", messageId: 3 });
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 50000 } });
-    const down = await handleAdminText(kit.deps, { text: "budget vidéo 20", messageId: 4 });
-    expect(down.pendingId).toBeUndefined();
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 2000 } });
+    const r = await handleAdminText(kit.deps, { text: "budget vidéo 100", messageId: 1 });
+    expect(r.reply).toBe(VIDEO_BUDGET_REMOVED);
+    expect(r.pendingId).toBeUndefined();
+    expect(kit.tables("agentTeamConfig")).toHaveLength(0);
   });
 
   it("« vrai » sur une équipe déjà en vrai : rien n'est demandé", async () => {
@@ -129,10 +122,8 @@ describe("commandes du dialogue admin", () => {
     expect(kit.sent).toHaveLength(0);
   });
 
-  it("« budget vidéo 100 » et « bookmaker »", async () => {
+  it("« bookmaker »", async () => {
     const kit = createTestKit();
-    await handleAdminText(kit.deps, { text: "budget vidéo 100", messageId: 1 });
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ teamKey: "dating", monthlyBudgetCents: { video: 10000 } });
     // Sites des bookmakers plus jamais lus (28 octobre 2026) : message effacé, rien n'est gardé.
     const r = await handleAdminText(kit.deps, { text: "bookmaker sportaza moi pass-wd99", messageId: 2 });
     expect(r).toMatchObject({ deleteMessage: true, reply: BOOKMAKER_CREDENTIALS_REFUSAL });

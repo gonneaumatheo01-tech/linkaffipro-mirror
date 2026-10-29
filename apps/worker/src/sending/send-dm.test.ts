@@ -16,10 +16,8 @@ const db = vi.hoisted(() => {
       closedReason: null,
     } as Row | null,
     resetAfter: false,
-    clip: null as Row | null,
   };
   const prisma = {
-    shortClip: { findFirst: vi.fn(async () => state.clip) },
     outboundMessage: {
       findUnique: vi.fn(async () => ({ ...state.om })),
       update: vi.fn(async ({ data }: { data: Row }) => {
@@ -144,7 +142,7 @@ describe("sendDm avec média", () => {
     expect(db.state.outcomes).toEqual(["SENT"]);
   });
 
-  it("short du montage pas encore validé : rien ne part, pas même le texte seul", async () => {
+  it("vidéo du montage retiré : rien ne part, pas même le texte seul", async () => {
     db.state.om.mediaAssetId = "a1";
     db.state.asset = {
       id: "a1",
@@ -155,10 +153,9 @@ describe("sendDm avec média", () => {
       bytes: Buffer.alloc(0),
       telegramFiles: [{ telegramFileId: "KNOWN" }],
     };
-    db.state.clip = null;
     const r = await sendDm("om1");
     expect(r.status).toBe("FAILED");
-    expect(r.error).toMatch(/pas encore validé/);
+    expect(r.error).toMatch(/montage retiré/);
     expect(db.api.sendVideo).not.toHaveBeenCalled();
     expect(db.api.sendMessage).not.toHaveBeenCalled();
     expect(db.state.updates.at(-1)).toMatchObject({ status: "FAILED" });

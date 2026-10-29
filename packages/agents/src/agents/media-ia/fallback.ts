@@ -1,5 +1,5 @@
 /**
- * Repli d'un post Dating (vidéo → photo → texte) : journalisé (`Event` `agents.dating.fallback`), gardé dans
+ * Repli d'un post Dating (photo → texte) : journalisé (`Event` `agents.dating.fallback`), gardé dans
  * `payload.fallbacks` et compté dans le rapport du matin.
  */
 import { agentEvent } from "../../admin/journal";
@@ -30,7 +30,6 @@ export async function applyFallback(
       format: to,
       fallbacks: [...fallbacksOf(mission.payload), entry],
       ...(to === "text" ? { mediaAssetId: null } : {}),
-      ...(from === "video" ? { mediaJob: null } : {}),
     },
   };
 }

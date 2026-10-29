@@ -31,7 +31,7 @@ export function parseQuietHours(v: unknown): { start: string; end: string }[] {
 }
 
 /** Plafonds par défaut de l'équipe Dating (phase 20) : vidéo 100 €, photo 15 € par mois. */
-export const DATING_DEFAULT_BUDGET_CENTS: Readonly<Partial<Record<ProviderKey, number>>> = Object.freeze({ video: 10_000, image: 1_500 });
+export const DATING_DEFAULT_BUDGET_CENTS: Readonly<Partial<Record<ProviderKey, number>>> = Object.freeze({ image: 1_500 });
 
 export function defaultBudgetsFor(teamKey: string): Partial<Record<ProviderKey, number>> {
   return teamKey === "dating" ? { ...DEFAULT_MONTHLY_BUDGET_CENTS, ...DATING_DEFAULT_BUDGET_CENTS } : { ...DEFAULT_MONTHLY_BUDGET_CENTS };

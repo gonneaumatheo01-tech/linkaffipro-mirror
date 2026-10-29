@@ -1,4 +1,4 @@
-/** Chef Dating : Médiathèque → Média IA (phase 20, sauté) → Rédaction → Planification → Contrôle → Publication. */
+/** Chef Dating : Médiathèque → Média IA (photo, phase 20) → Rédaction → Planification → Contrôle → Publication. */
 import type { Chain } from "./chain";
 
 export const datingChain: Chain = {

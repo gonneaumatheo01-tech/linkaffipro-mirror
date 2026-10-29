@@ -43,13 +43,11 @@
     "landing:test-page": "pnpm --filter web landing:test-page",
     "landing:measure": "node --env-file-if-exists=.env.local --import tsx apps/web/scripts/landing-measure.ts",
     "landing:browser-check": "node --env-file-if-exists=.env.local --import tsx apps/web/scripts/landing-browser-check.ts",
-    "agents:bench-video": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/bench-video.ts",
     "agents:upload-lora": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/upload-lora.ts",
     "agents:report-now": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/report-now.ts",
     "boss:unmet": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/boss-unmet.ts",
     "agents:status": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/agents-status.ts",
     "kevin:parity": "node --env-file-if-exists=.env.local --import tsx packages/agents/scripts/kevin-parity.ts",
-    "montage:diag": "node --env-file-if-exists=.env.local --import tsx packages/agents/scripts/montage-diag.ts",
     "qa:diag": "node --env-file-if-exists=.env.local --import tsx packages/agents/scripts/qa-diag.ts",
     "agents:migrate-bet-categories": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/migrate-bet-categories.ts"
   },

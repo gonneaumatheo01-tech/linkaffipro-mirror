@@ -16,7 +16,7 @@ async function bossAndReport(kit: Kit) {
 async function everything(kit: Kit) {
   await bossAndReport(kit);
   await push(kit, "setting", secret("providers.fal.apiKey"));
-  const persona = (await push(kit, "persona", {
+  await push(kit, "persona", {
     name: "Léa",
     isActive: true,
     identityKind: "GIRL",
@@ -25,9 +25,8 @@ async function everything(kit: Kit) {
     loraUrl: "https://x/lea.safetensors",
     loraTrigger: "lea",
     referenceImageIds: ["m1"],
-  })) as { id: string };
-  for (let i = 0; i < 5; i++) await push(kit, "mediaAsset", { personaId: persona.id, kind: "SOURCE" });
-  await push(kit, "agentTeamConfig", { teamKey: "dating", simulation: true, autonomyLevel: 0, monthlyBudgetCents: { video: 10_000 } });
+  });
+  await push(kit, "agentTeamConfig", { teamKey: "dating", simulation: true, autonomyLevel: 0, monthlyBudgetCents: { image: 1_500 } });
   await push(kit, "channelAgentPlan", { teamKey: "dating", enabled: true, channelId: "c1" });
   await push(kit, "setting", secret("providers.odds.apiKey"));
   await push(kit, "betCategory", { name: "Tirs cadrés", active: true, updatedById: "u1", sortOrder: 0 });
@@ -47,7 +46,6 @@ describe("Kevin : étapes de mise en route calculées depuis les données", () =
       "dailyReport",
       "dating.falKey",
       "dating.persona",
-      "dating.videoBudget",
       "dating.plan",
       "sports.oddsKey",
       "sports.categories",
@@ -58,13 +56,13 @@ describe("Kevin : étapes de mise en route calculées depuis les données", () =
     ]);
     expect(steps.every((s) => !s.done)).toBe(true);
     expect(steps.find((s) => s.key === "real")?.optional).toBe(true);
-    expect(bossSetupProgress(steps).label).toBe("0/11");
+    expect(bossSetupProgress(steps).label).toBe("0/10");
     expect(firstMissingBossStep(steps)?.key).toBe("boss");
     expect(steps[0]!.howTo).toContain("@BotFather");
     expect(steps[0]!.howTo).toContain("« Kevin »");
   });
 
-  it("une persona Rencontres et un canal casino : une étape par persona, deux étapes casino, 3/13", async () => {
+  it("une persona Rencontres et un canal casino : une étape par persona, deux étapes casino, 3/12", async () => {
     const kit = createTestKit();
     await bossAndReport(kit);
     await push(kit, "setting", secret("providers.fal.apiKey"));
@@ -76,8 +74,8 @@ describe("Kevin : étapes de mise en route calculées depuis les données", () =
     expect(keys(steps)).not.toContain("dating.persona");
     const persona = steps.find((s) => s.key.startsWith("persona."))!;
     expect(persona.label).toBe("les médias de Léa");
-    expect(persona.asks?.map((a) => a.key.split(".").pop())).toEqual(["loraUrl", "loraTrigger", "referenceImages", "sourceVideos"]);
-    expect(bossSetupProgress(steps).label).toBe("3/13");
+    expect(persona.asks?.map((a) => a.key.split(".").pop())).toEqual(["loraUrl", "loraTrigger", "referenceImages"]);
+    expect(bossSetupProgress(steps).label).toBe("3/12");
     expect(firstMissingBossStep(steps)?.key).toBe(persona.key);
   });
 
@@ -111,7 +109,7 @@ describe("Kevin : « commencer »", () => {
     await bossAndReport(kit);
     const r = await bossStartReply(kit.deps);
     expect(r.reply).toContain("Tout est encore en test");
-    expect(r.reply).toMatch(/2\/11/);
+    expect(r.reply).toMatch(/2\/10/);
     expect(r.reply).toMatch(/(On commence par|On s'attaque à) la clé fal\.ai \?/);
     expect(kit.sent).toHaveLength(0);
     await r.followUp!();
@@ -163,7 +161,7 @@ describe("Kevin : « commencer »", () => {
     const r = await bossStartReply(kit.deps);
     expect(r.reply).toMatch(/(On commence par|On s'attaque à) une persona Rencontres \?/);
     expect(r.reply).toContain("Conversations → Personas");
-    expect(r.reply).toMatch(/(En attendant, on peut régler|Pendant ce temps, voyons) le plafond vidéo du mois\./);
+    expect(r.reply).toMatch(/(En attendant, on peut régler|Pendant ce temps, voyons) la clé des cotes\./);
   });
 
   it("tout est fait : « Tout est prêt 👍 » et la suite (passer une équipe en vrai)", async () => {
@@ -172,7 +170,7 @@ describe("Kevin : « commencer »", () => {
     const steps = await bossSetupSteps(kit.deps);
     expect(steps.filter((s) => !s.done).map((s) => s.key)).toEqual(["real"]);
     const r = await bossStartReply(kit.deps);
-    expect(r.reply).toMatch(/\(11\/11\) ✅/);
+    expect(r.reply).toMatch(/\(10\/10\) ✅/);
     expect(r.reply).toContain("passe le casino en vrai");
     expect(r.followUp).toBeUndefined();
   });

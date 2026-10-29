@@ -1,5 +1,5 @@
 import type { Job } from "bullmq";
-import { bossDailyNudge, resumeMissions, runBench, runCycle, sendDailyReport, sweepHumanRequests, sweepValidations, tickOrders } from "@linkaffipro/agents";
+import { bossDailyNudge, resumeMissions, runCycle, sendDailyReport, sweepHumanRequests, sweepValidations, tickOrders } from "@linkaffipro/agents";
 import type { AgentsOrchestratorJob } from "@linkaffipro/queue";
 import type { Repeatable } from "./index";
 import { processAdminVoice } from "../agents/admin-voice";
@@ -16,7 +16,6 @@ import { logger } from "../logger";
  *   puis la relance quotidienne du Boss (phase 26, une par jour au plus, seulement si quelque chose bloque) ;
  * - `validations` : validations sans réponse (24 h : reportée + rappel ; 72 h : annulée) ;
  * - `report` : rapport du jour (forcé depuis le site) ;
- * - `bench` (phase 20) : banc d'essai vidéo, un passage court qui se ré-enfile toutes les 30 s (jamais d'attente ici) ;
  * - `admin-voice` (phase 20) : vocal de l'admin transcrit puis traité comme un message écrit ;
  * - `boss-text` (phase 26) : message de l'admin au Boss qui demande l'interprète IA (`../agents/boss-text.ts`) ;
  */
@@ -39,8 +38,6 @@ export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>)
       return sweepValidations(deps);
     case "report":
       return sendDailyReport(deps, { force: data.force === true });
-    case "bench":
-      return runBench(deps, data);
     case "admin-voice":
       return processAdminVoice(data);
     case "boss-text": {

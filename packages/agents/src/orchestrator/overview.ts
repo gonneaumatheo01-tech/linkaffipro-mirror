@@ -24,8 +24,7 @@ const WAITING = ["WAITING_VALIDATION", "WAITING_HUMAN"] as const;
 /** Fournisseurs suivis par la santé : clé rangée, agents qui les appellent (dernier appel réussi, erreurs 24 h). */
 export const OVERVIEW_PROVIDERS = [
   { key: "llm", label: "IA texte (Claude)", agents: ["redaction", "controle"], setting: AI_CONFIG_KEY },
-  { key: "fal", label: "Vidéos et photos (fal.ai)", agents: ["media-ia"], setting: secretSettingKey("providers.fal.apiKey") },
-  { key: "magichour", label: "Vidéos de secours (Magic Hour)", agents: ["media-ia"], setting: secretSettingKey("providers.magichour.apiKey") },
+  { key: "fal", label: "Photos (fal.ai)", agents: ["media-ia"], setting: secretSettingKey("providers.fal.apiKey") },
   { key: "odds", label: "Cotes (SportsGameOdds)", agents: ["cotes"], setting: secretSettingKey("providers.odds.apiKey") },
   { key: "apifootball", label: "Statistiques des matchs", agents: ["cotes"], setting: secretSettingKey("providers.apifootball.apiKey") },
 ] as const;
@@ -91,7 +90,7 @@ async function targetLabels(prisma: Db, recs: { target: string; targetId: string
 async function providersHealth(prisma: Db, now: Date): Promise<AgentsOverview["health"]["providers"]> {
   const since24h = new Date(now.getTime() - DAY);
   const agentKeys = [...new Set(OVERVIEW_PROVIDERS.flatMap((p) => p.agents as readonly string[]))];
-  const [settings, errors, lastOk, lastMagic] = await Promise.all([
+  const [settings, errors, lastOk] = await Promise.all([
     prisma.setting.findMany({ where: { key: { in: OVERVIEW_PROVIDERS.map((p) => p.setting) } } }),
     prisma.agentRun.findMany({
       where: { agentKey: { in: agentKeys }, status: "ERROR", startedAt: { gte: since24h } },
@@ -103,26 +102,16 @@ async function providersHealth(prisma: Db, now: Date): Promise<AgentsOverview["h
         prisma.agentRun.findFirst({ where: { agentKey, status: "OK" }, orderBy: { startedAt: "desc" }, select: { startedAt: true, endedAt: true } }),
       ),
     ),
-    prisma.agentRun.findFirst({
-      where: { agentKey: "media-ia", status: "OK", outputSummary: { contains: "magichour" } },
-      orderBy: { startedAt: "desc" },
-      select: { startedAt: true, endedAt: true },
-    }),
   ]);
   const settingBy = new Map((settings as { key: string; value: unknown }[]).map((s) => [s.key, s.value]));
   const okBy = new Map(agentKeys.map((k, i) => [k, lastOk[i] as { startedAt: Date; endedAt: Date | null } | null]));
-  const isMagic = (e: { error: string | null; outputSummary: string | null }) => /magic ?hour/i.test(`${e.error ?? ""} ${e.outputSummary ?? ""}`);
   return OVERVIEW_PROVIDERS.map((p) => {
     const agents = p.agents as readonly string[];
     const runs = (errors as { agentKey: string; error: string | null; outputSummary: string | null }[]).filter((e) => agents.includes(e.agentKey));
-    const errors24h = p.key === "magichour" ? runs.filter(isMagic).length : p.key === "fal" ? runs.filter((e) => !isMagic(e)).length : runs.length;
-    const ok =
-      p.key === "magichour"
-        ? (lastMagic as { startedAt: Date; endedAt: Date | null } | null)
-        : agents.map((a) => okBy.get(a) ?? null).reduce<{ startedAt: Date; endedAt: Date | null } | null>(
-            (best, r) => (r && (!best || r.startedAt > best.startedAt) ? r : best),
-            null,
-          );
+    const errors24h = runs.length;
+    const ok = agents
+      .map((a) => okBy.get(a) ?? null)
+      .reduce<{ startedAt: Date; endedAt: Date | null } | null>((best, r) => (r && (!best || r.startedAt > best.startedAt) ? r : best), null);
     return {
       key: p.key,
       label: p.label,

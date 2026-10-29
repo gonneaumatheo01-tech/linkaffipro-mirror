@@ -31,7 +31,7 @@ export async function loadPersonaMedia(personaId: string): Promise<PersonaMediaV
         select: { id: true, filename: true, mimeType: true },
       })
     : [];
-  // Ordre de la persona (la première sert aux vidéos) ; une image supprimée entre-temps disparaît de la liste.
+  // Ordre de la persona (la première sert de modèle) ; une image supprimée entre-temps disparaît de la liste.
   const references = ids.flatMap((id) => assets.filter((a) => a.id === id));
   return {
     referenceImageIds: references.map((r) => r.id),

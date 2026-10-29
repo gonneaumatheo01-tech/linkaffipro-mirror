@@ -143,7 +143,7 @@ export const CATALOG_ORDERS_VARIANTS = {
     `Je ne connais pas l'équipe « ${p.team} ». Équipes : ${p.teams} et Pubs.`,
     `L'équipe « ${p.team} », je ne vois pas. J'ai ${p.teams} et Pubs.`,
   ]),
-  askFuture: voiceTemplate<{ team: string }>([{ team: "l'équipe Montage" }], (p) => [
+  askFuture: voiceTemplate<{ team: string }>([{ team: "l'équipe Prospection" }], (p) => [
     `${p.team.charAt(0).toUpperCase()}${p.team.slice(1)} n'est pas encore là, elle arrive bientôt. Tu veux l'état des autres équipes ?`,
     `Pas encore de ${p.team.replace(/^l'/, "")} : elle arrive bientôt. Je te donne l'état général à la place ?`,
   ]),
@@ -158,7 +158,7 @@ export const CATALOG_ORDERS_VARIANTS = {
   askEmpty: ["Je n'ai rien trouvé là-dessus pour le moment.", "Rien dans les données sur ce point pour l'instant."],
   impossibleHead: ["Ce qu'on m'a demandé et que je ne sais pas encore faire :", "Ce qui m'a été demandé sans que je puisse le faire :"],
   impossibleNone: ["Personne ne m'a encore demandé quelque chose d'impossible.", "Rien de bloqué dans ce qu'on m'a demandé jusqu'ici."],
-  futureTeams: voiceTemplate<{ teams: string }>([{ teams: "Montage, Analystes" }], (p) => [
+  futureTeams: voiceTemplate<{ teams: string }>([{ teams: "Analystes, Prospection" }], (p) => [
     `Pas encore d'équipe ${p.teams} : elles arrivent bientôt.`,
     `Les équipes ${p.teams} arrivent bientôt.`,
   ]),
@@ -551,7 +551,7 @@ export const demanderEquipe = defineAction<AskParams>({
     const team = orderTeamOf(p.equipe);
     if (!team)
       return { reply: esc(pick(V.askUnknownTeam({ team: p.equipe, teams: Object.values(TEAM_LABELS).join(", ") }), "orders.ask.unknown", chat)) };
-    // Équipe annoncée mais déjà branchée au registre (Montage, Analystes) : on lui pose la question.
+    // Équipe annoncée mais déjà branchée au registre (Analystes, Prospection) : on lui pose la question.
     if (FUTURE_TEAMS[team] && !listCapabilities().some((c) => c.teamKey === team))
       return { reply: esc(pick(V.askFuture({ team: FUTURE_TEAMS[team] }), "orders.ask.future", chat)) };
     // Kevin pose la question ; le Grand Chef la lit et la confie au Chef de l'équipe (`orders/ask.ts`, lecture seule).

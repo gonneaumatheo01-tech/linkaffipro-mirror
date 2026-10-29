@@ -155,7 +155,7 @@ const fakeLlm = createFakeBossLlm([
   ["crée une campagne pour Celsius en France avec un CPA de 120", site("campagnes", "campagnes.creer", { name: "Celsius FR", country: "FR", cpa: 120 })],
   ["donne-moi un lien de suivi pour TikTok sur Zone Interdite", site("campagnes", "campagnes.lien_suivi", { channel: "Zone Interdite", platform: "TIKTOK" })],
   ["passe le casino en vrai", { name: "simulation", input: { equipe: "casino", mode: "vrai" } }],
-  ["monte le budget vidéo à 80 € ce mois-ci", site("agents", "agents.budget_fournisseur", { poste: "video", equipe: "dating", euros: 80 })],
+  ["monte le budget photo à 20 € ce mois-ci", site("agents", "agents.budget_fournisseur", { poste: "image", equipe: "dating", euros: 20 })],
   ["crée la persona Inès, 24 ans, Lyon, étudiante", site("univers", "univers.persona_enregistrer", { name: "Inès", age: 24, personality: "Lyonnaise, étudiante", universe: "dating" })],
   ["voici les photos d'Inès", site("univers", "univers.persona_medias", { persona: "Inès" })],
   [
@@ -455,15 +455,15 @@ describe("phase 34 : les 12 exemples du prompt, de bout en bout", () => {
     await prisma.agentTeamConfig.update({ where: { teamKey: "casino" }, data: { simulation: true } });
   });
 
-  it("5. « monte le budget vidéo à 80 € ce mois-ci » + OUI : plafond vidéo Rencontres à 80 €", async () => {
-    const ask = await say("monte le budget vidéo à 80 € ce mois-ci");
-    expect(ask.text).toMatch(/80/);
+  it("5. « monte le budget photo à 20 € ce mois-ci » + OUI : plafond photo Rencontres à 20 €", async () => {
+    const ask = await say("monte le budget photo à 20 € ce mois-ci");
+    expect(ask.text).toMatch(/20/);
     const before = await prisma.agentTeamConfig.findUnique({ where: { teamKey: "dating" } });
-    expect((before?.monthlyBudgetCents as Record<string, number> | undefined)?.video ?? null).not.toBe(8000);
+    expect((before?.monthlyBudgetCents as Record<string, number> | undefined)?.image ?? null).not.toBe(2000);
     const done = await pressYes(ask.sent);
     expectVoice(done.text);
     const cfg = await prisma.agentTeamConfig.findUniqueOrThrow({ where: { teamKey: "dating" } });
-    expect((cfg.monthlyBudgetCents as Record<string, number>).video).toBe(8000);
+    expect((cfg.monthlyBudgetCents as Record<string, number>).image).toBe(2000);
   });
 
   it("6. « crée la persona Inès, 24 ans, Lyon, étudiante » puis les photos transférées : persona et images de référence", async () => {

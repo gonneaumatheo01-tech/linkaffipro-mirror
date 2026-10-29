@@ -8,7 +8,6 @@ import {
   runCreateTestPost,
   runSaveChannelPlan,
   runSaveTeamSettings,
-  runStartBench,
 } from "@/lib/site-ops/ops/lot-d/teams";
 import { requireUser } from "@/lib/session";
 
@@ -18,8 +17,8 @@ import { requireUser } from "@/lib/session";
  */
 
 /**
- * Réglages d'une équipe : consignes, mots interdits, longueur, heures calmes (ADMIN et MANAGER) ; plafonds et, pour
- * Rencontres, fournisseur et résolution des vidéos (ADMIN seulement : ignorés pour un responsable).
+ * Réglages d'une équipe : consignes, mots interdits, longueur, heures calmes (ADMIN et MANAGER) ; plafonds (ADMIN
+ * seulement : ignorés pour un responsable).
  */
 export async function saveTeamSettingsAction(formData: FormData): Promise<void> {
   const user = await requireUser();
@@ -58,11 +57,3 @@ export async function createTestPostAction(formData: FormData): Promise<void> {
   backTo(DATING, r.ok ? { ok: r.message } : { error: r.error }, "#production");
 }
 
-/** « Banc d'essai » d'une persona (ADMIN) : rien ne part sans clé fal.ai ou Magic Hour (message clair). */
-export async function startBenchAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
-  const r = await runStartBench(formData, siteActor(user));
-  if (!r.ok) backTo(DATING, { error: r.error }, "#production");
-  revalidatePath(DATING);
-  backTo(DATING, { ok: r.message }, "#production");
-}

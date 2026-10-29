@@ -222,16 +222,14 @@ describe("5. question numérotée : seulement la personne qui l'a reçue, dans s
   });
 });
 
-describe("6. « budget vidéo N » par le chemin rapide : hausse confirmée par OUI", () => {
-  it("boutons OUI / NON, puis OUI", async () => {
+describe("6. « budget vidéo N » par le chemin rapide : vidéos IA retirées (29 octobre 2026)", () => {
+  it("réponse claire, rien n'est demandé ni changé", async () => {
     const kit = await createBossKit();
     await kit.prisma.agentTeamConfig.create({ data: { teamKey: "dating", monthlyBudgetCents: { video: 10000 } } as never });
     const r = await bossFastPath(kit.deps, kit.input("budget vidéo 500", { chat: ADMIN_CHAT }));
-    expect(r.handled && r.pendingId).toBeTruthy();
-    expect(r.handled && r.buttons).toBeTruthy();
+    expect(r.handled && r.pendingId).toBeFalsy();
+    expect(reply(r)).toContain("Les vidéos IA ne sont plus produites");
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 10000 } });
-    await bossFastPath(kit.deps, kit.input("oui", { chat: ADMIN_CHAT }));
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 50000 } });
   });
 });
 

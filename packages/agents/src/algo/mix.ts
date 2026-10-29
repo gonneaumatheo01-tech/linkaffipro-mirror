@@ -1,10 +1,11 @@
 /**
  * Mélange EFFECTIF d'un canal pour l'équipe Algorithme (règle pure) : celui que le Chef de l'équipe applique vraiment.
  * La base garde `{ video: 0, photo: 0, text: 1 }` pour un plan jamais réglé : pour le Casino c'est « non réglé »
- * (2 vidéos / 1 image / 1 texte, `casinoMix`), pour les Rencontres un mélange vide vaut 1 / 2 / 1.
+ * (2 vidéos / 1 image / 1 texte, `casinoMix`), pour les Rencontres sans vidéo (`datingMix` : 3 photos pour 1 texte
+ * par défaut).
  */
 import { casinoMix } from "../casino/format";
-import { DATING_DEFAULT_MIX } from "../chiefs/dating-format";
+import { datingMix } from "../chiefs/dating-format";
 import type { Mix } from "../agents/mediatheque/pick";
 
 /** Une proposition (ou un test A/B) ne déplace jamais le mélange de plus de 10 points d'un coup. */
@@ -20,6 +21,6 @@ function parse(v: unknown): Mix | null {
 export function effectiveMix(teamKey: string, raw: unknown): Mix {
   const m = parse(raw);
   if (teamKey === "casino") return { ...casinoMix(m) };
-  if (teamKey === "dating") return m ?? { ...DATING_DEFAULT_MIX };
+  if (teamKey === "dating") return { ...datingMix(m) };
   return m ?? { video: 0, photo: 0, text: 1 };
 }

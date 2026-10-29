@@ -10,7 +10,7 @@ const m = vi.hoisted(() => ({
   validations: [] as unknown[],
   requests: [] as unknown[],
   datingPersonas: [] as unknown[],
-  keys: { fal: false, magichour: false },
+  keys: { fal: false },
   algoEmpty: false,
   adsConnectorsMissing: true,
   adsFailing: false,
@@ -45,7 +45,6 @@ vi.mock("./[equipe]/actions", () => ({
   saveTeamSettingsAction: vi.fn(),
   saveChannelPlanAction: vi.fn(),
   createTestPostAction: vi.fn(),
-  startBenchAction: vi.fn(),
 }));
 vi.mock("./[equipe]/casino-actions", () => ({
   classifyCasinoMediaAction: vi.fn(),
@@ -156,7 +155,6 @@ vi.mock("@/lib/agents/sports-queries", async () => {
 });
 vi.mock("@/lib/agents/dating-queries", () => ({
   loadDatingPersonas: vi.fn(async () => m.datingPersonas),
-  loadDatingSettings: vi.fn(async () => ({ videoProvider: "fal", videoResolution: "580p" })),
   loadMediaKeys: vi.fn(async () => m.keys),
 }));
 vi.mock("./[equipe]/algo-actions", () => ({
@@ -493,7 +491,7 @@ beforeEach(() => {
   m.pausedAll = false;
   m.validations = [];
   m.requests = [];
-  m.keys = { fal: false, magichour: false };
+  m.keys = { fal: false };
   m.algoEmpty = false;
   m.datingPersonas = [
     {
@@ -502,12 +500,9 @@ beforeEach(() => {
       isActive: true,
       references: 1,
       hasCharacterFile: false,
-      sourcesUnused: 2,
-      sourcesTotal: 5,
-      videosMonth: 3,
       photosMonth: 4,
       latest: [
-        { id: "a1", mimeType: "video/mp4", createdAt: new Date("2026-10-23T08:00:00Z"), providerName: "fal", resolution: "580p" },
+        { id: "a1", mimeType: "image/jpeg", createdAt: new Date("2026-10-23T08:00:00Z"), providerName: "fal", resolution: null },
         { id: "a2", mimeType: "image/png", createdAt: new Date("2026-10-22T08:00:00Z"), providerName: "fake", resolution: null },
       ],
     },
@@ -598,50 +593,45 @@ describe("rubrique Agents", () => {
     expect(text).toContain("Attend votre validation");
   });
 
-  it("fiche Rencontres : stock, productions, dépenses, post de test, banc d'essai, dépôt, conversation", async () => {
+  it("fiche Rencontres : photos, productions, dépenses, post de test, conversation ; plus de vidéos IA", async () => {
     const html = await render(TeamPage({ params: Promise.resolve({ equipe: "dating" }), searchParams: sp() } as never));
     const text = checks(html);
     for (const t of [
-      "Vidéos et photos des personas",
+      "Photos des personas",
       "Produire un post de test",
       "Léa",
-      "2 sur 5",
-      "Moins de 3 vidéos sources neuves",
+      "Photos produites ce mois",
       "Dernières productions",
-      "Banc d'essai",
-      "Collez d'abord la clé fal.ai",
-      "Déposer des vidéos sources",
-      "Fournisseur des vidéos",
-      "Résolution des vidéos",
+      "Coller une clé",
       "Persona du canal (obligatoire)",
       "Conversation",
       "Ouvrir Conversations",
     ])
       expect(text, t).toContain(t);
+    for (const t of ["Banc d'essai", "Vidéos IA", "vidéos sources", "Fournisseur des vidéos", "Résolution des vidéos"])
+      expect(text, t).not.toContain(t);
     expect(html).toContain('src="/api/agents/media/a1"');
-    expect(html).toContain("<video");
+    expect(html).not.toContain("<video");
     expect(html).toContain('href="/conversations"');
-    // Plafonds par défaut de l'équipe : 100 € de vidéos, 15 € de photos.
-    expect(html).toMatch(/name="budget_video"[^>]*value="100"|value="100"[^>]*name="budget_video"/);
+    // Plafond par défaut de l'équipe : 15 € de photos ; plus de plafond vidéo ni de part de vidéos.
+    expect(html).toMatch(/name="budget_image"[^>]*value="15"|value="15"[^>]*name="budget_image"/);
+    expect(html).not.toContain('name="budget_video"');
+    expect(html).not.toContain('name="mix_video"');
     expect(text).not.toContain("Créer une mission de test");
     expect(text).not.toMatch(/\bLoRA\b/);
-    // Une clé : le banc d'essai est proposé.
-    m.keys = { fal: true, magichour: false };
+    m.keys = { fal: true };
     const withKey = visibleText(
       await render(TeamPage({ params: Promise.resolve({ equipe: "dating" }), searchParams: sp() } as never)),
     );
-    expect(withKey).toContain("chez chaque fournisseur disponible");
+    expect(withKey).toContain("faites avec le fichier du personnage");
   });
 
-  it("fiche Rencontres pour un manager : post de test et dépôt, ni banc d'essai ni fournisseur ni plafonds", async () => {
+  it("fiche Rencontres pour un manager : post de test, plafonds en lecture seule", async () => {
     m.user = { id: "u2", role: "MANAGER" };
     const html = await render(TeamPage({ params: Promise.resolve({ equipe: "dating" }), searchParams: sp() } as never));
     const text = checks(html);
     expect(text).toContain("Produire un post de test");
-    expect(text).toContain("Déposer des vidéos sources");
-    expect(text).not.toContain("Banc d'essai");
-    expect(html).not.toContain('name="videoProvider"');
-    expect(html).toMatch(/name="budget_video"[^>]*disabled|disabled[^>]*name="budget_video"/);
+    expect(html).toMatch(/name="budget_image"[^>]*disabled|disabled[^>]*name="budget_image"/);
   });
 
   it("fiche d'équipe pour un manager : ni vrais canaux ni niveau 2", async () => {

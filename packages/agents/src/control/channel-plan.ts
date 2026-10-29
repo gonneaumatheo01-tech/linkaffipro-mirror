@@ -64,6 +64,10 @@ export async function saveChannelPlanFor(
     return { ok: false, error: "Persona introuvable : rechargez la page." };
   if (input.campaignId && !(await deps.prisma.campaign.findUnique({ where: { id: input.campaignId }, select: { id: true } })))
     return { ok: false, error: "Campagne introuvable : rechargez la page." };
+  // Rencontres : plus de vidéos IA depuis le 29 octobre 2026 (part de vidéos ramenée à 0).
+  const mix = team === "dating" ? { ...input.mix, video: 0 } : input.mix;
+  if (team === "dating" && mix.photo + mix.text <= 0)
+    return { ok: false, error: "Mélange : donnez une part aux photos ou aux textes (l'équipe Rencontres ne fait plus de vidéos)." };
   const data = {
     teamKey: team,
     enabled: input.enabled,
@@ -71,7 +75,7 @@ export async function saveChannelPlanFor(
     windowStart: input.windowStart,
     windowEnd: input.windowEnd,
     minSpacingMinutes: input.minSpacingMinutes,
-    mix: json(input.mix),
+    mix: json(mix),
     personaId: input.personaId,
     campaignId: input.campaignId,
     themes: json(input.themes),

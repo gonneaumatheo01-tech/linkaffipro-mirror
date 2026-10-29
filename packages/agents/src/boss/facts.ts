@@ -7,7 +7,6 @@
  */
 import { agentsOverview } from "../orchestrator/overview-contract";
 import { PROVIDER_LABELS } from "../orchestrator/budgets";
-import { unusedSourceCount } from "../agents/mediatheque/stock";
 import { casinoStock } from "../casino/contracts";
 import { betSummary } from "../sports/contracts";
 import { parisDay, parisDayStart } from "../rules/time";
@@ -239,16 +238,13 @@ export async function stockFacts(deps: BossDeps, team?: TeamKey | null): Promise
     }[];
     const rows = [];
     for (const p of personas.slice(0, 10)) {
-      const [videos, photos] = await Promise.all([
-        unusedSourceCount(deps, p.id),
-        deps.prisma.mediaAsset.count({ where: { personaId: p.id, mimeType: { startsWith: "image/" } } }),
-      ]);
-      rows.push({ persona: p.name, videosSourcesNonUtilisees: videos, photos });
+      const photos = await deps.prisma.mediaAsset.count({ where: { personaId: p.id, mimeType: { startsWith: "image/" } } });
+      rows.push({ persona: p.name, photos });
     }
     out.rencontres = rows;
     ls.push(
       rows.length
-        ? `Rencontres : ${rows.map((r) => `${r.persona} ${plural(r.videosSourcesNonUtilisees, "vidéo source", "vidéos sources")} non utilisée${r.videosSourcesNonUtilisees > 1 ? "s" : ""}, ${plural(r.photos, "photo")}`).join(" · ")}`
+        ? `Rencontres : ${rows.map((r) => `${r.persona} ${plural(r.photos, "photo")}`).join(" · ")}`
         : "Rencontres : aucune persona active.",
     );
   }

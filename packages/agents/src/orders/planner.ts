@@ -138,7 +138,7 @@ export type PlannerInput = {
 };
 
 export type PlannedOrder = OrderPlan & {
-  /** Équipe nommée par le planificateur hors registre (« montage »). */
+  /** Équipe nommée par le planificateur hors registre (« poker »). */
   requestedTeam?: string | null;
 };
 

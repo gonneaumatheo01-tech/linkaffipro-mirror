@@ -213,13 +213,6 @@ const KEVIN_SHARED_FILES = [
   "orchestrator/overview-results.ts",
   "admin/report-command.ts",
   "human/requests.ts",
-  // Phase 28 : Kevin et le montage vidéo (réception, plan, aperçus, retours, crochets, vues).
-  "montage/reception.ts",
-  "montage/plan-message.ts",
-  "montage/preview.ts",
-  "montage/feedback.ts",
-  "montage/hooks.ts",
-  "montage/kevin-view.ts",
 ].map((f) => join(SRC_DIR, f));
 
 /** Modules de Kevin : tout `boss/`, ses ordres et ses textes partagés. */

@@ -6,7 +6,6 @@
 import type { ForwardedMediaIngest, SiteOpsClient } from "./site/contract";
 import type { Db } from "@linkaffipro/db";
 import type { ImageProvider } from "./providers/image";
-import type { VideoProvider } from "./providers/video";
 import type { OddsProvider } from "./providers/odds";
 import type { OddsCache } from "./providers/odds-cache";
 
@@ -188,8 +187,6 @@ export type AgentsOrchestratorJob =
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }
   | { type: "validations" }
-  /** Banc d'essai vidéo (phase 20) : lancement (`personaId`, `count`) puis relectures (`benchId`). */
-  | { type: "bench"; personaId?: string; count?: number; benchId?: string }
   /** Vocal de l'admin (phase 20, chantier B) : téléchargé, transcrit et traité comme un texte par le worker. */
   | { type: "admin-voice"; botId: string; fileId: string; messageId: number; chatId: number; replyToMessageId?: number | null; mimeType?: string | null }
   /**
@@ -246,15 +243,6 @@ export type AdminMessenger = {
   ): Promise<{ messageId: number } | null>;
   /** Phase 26 : suppression d'un message dans une autre conversation (secret collé dans le groupe). */
   deleteIn?(chatId: bigint, messageId: number): Promise<boolean>;
-  /**
-   * Phase 28 : vidéo déjà gardée dans Telegram (short du montage) envoyée par le même bot par son identifiant de fichier
-   * (`MediaAssetTelegramFile` de ce bot, sinon `fileId` s'il vient de lui), sans ré-envoyer le fichier. Null si le bot
-   * n'a pas d'identifiant pour ce média.
-   */
-  sendStoredVideo?(
-    chatId: bigint,
-    req: { assetId: string; fileId?: string | null; caption: string; buttons?: AdminButton[][] },
-  ): Promise<{ messageId: number } | null>;
 };
 
 export type Logger = {
@@ -291,14 +279,11 @@ export type LlmResponse = { text: string; costCents: number };
 export type LlmProvider = { complete(req: LlmRequest): Promise<LlmResponse> };
 
 /**
- * Fournisseurs externes. `video` / `image` (phase 20) : imposés par les tests ; sinon choisis par
- * `providers/registry.ts` selon les clés (fal.ai, Magic Hour, faux fournisseur en simulation sans clé).
+ * Fournisseurs externes. `image` (phase 20) : imposé par les tests ; sinon choisi par `providers/registry.ts` selon
+ * la clé (fal.ai, faux fournisseur en simulation sans clé).
  */
 export type Providers = {
   llm: LlmProvider | null;
-  video?: VideoProvider | null;
-  /** Repli vidéo (Magic Hour) imposé par les tests. */
-  videoFallback?: VideoProvider | null;
   image?: ImageProvider | null;
   /** Cotes (phase 23) : imposées par les tests, sinon choisies par `providers/odds-registry.ts`. */
   odds?: OddsProvider | null;
@@ -309,8 +294,6 @@ export type Providers = {
 export type AgentContext = AgentsDeps & {
   now: () => Date;
   providers: Providers;
-  /** Extraction d'images d'une vidéo (worker : ffmpeg) ; absente ailleurs. */
-  frames?: FrameExtractor;
   /** `fetch` des fournisseurs de médias (tests : réponses enregistrées). */
   fetch?: typeof fetch;
   /** Cache des cotes (phase 23 : Redis dans le worker, mémoire ailleurs). */
@@ -353,7 +336,7 @@ export type AgentResult = {
   wait?: { delayMs: number };
   /** Rien à faire pour ce format (post texte, par exemple) : l'étape est marquée « sautée ». */
   skipped?: boolean;
-  /** Poste de dépense du coût de l'étape quand l'agent en a plusieurs (`media-ia` : video ou image). */
+  /** Poste de dépense du coût de l'étape quand l'agent en a plusieurs (`media-ia` : image). */
   costProvider?: ProviderKey;
 };
 
@@ -361,12 +344,6 @@ export type AgentDefinition = {
   key: AgentKey;
   run(mission: Mission, ctx: AgentContext): Promise<AgentResult>;
 };
-
-/** Extraction d'images d'une vidéo (phase 20, `ffmpeg` dans le worker) : début, milieu, fin, en JPEG. */
-export type FrameExtractor = (
-  video: { bytes: Uint8Array; mimeType: string },
-  count: number,
-) => Promise<{ frames: Uint8Array[]; durationSec: number | null; width?: number | null; height?: number | null } | null>;
 
 /** Transcription d'un vocal (phase 20, vocaux de l'admin ; même fournisseur que les comptes réels de la phase 18). */
 export type Transcriber = (audio: { bytes: Uint8Array; mimeType: string }) => Promise<string | null>;

@@ -90,8 +90,8 @@ describe("registre des capacités", () => {
   });
 
   it("équipe absente → null ; une équipe future se branche par registerCapabilities", () => {
-    // Phase 31 : Montage et Prospection sont branchées ; une équipe encore absente se branche de la même façon.
-    expect(isOrderableTeam("montage")).toBe(true);
+    // Phase 31 : Prospection est branchée ; Montage, retirée le 28 octobre 2026, ne l'est plus.
+    expect(isOrderableTeam("montage")).toBe(false);
     expect(isOrderableTeam("prospection")).toBe(true);
     expect(capability("futur", "chercher_affilies")).toBeNull();
     expect(isOrderableTeam("futur")).toBe(false);

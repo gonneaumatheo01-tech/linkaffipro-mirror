@@ -21,8 +21,8 @@
  */
 import type { AgentsDeps, TeamKey } from "../types";
 
-/** Équipes « ordonnables » (les phases 28 à 32 en ajoutent : montage (phase 28), analystes, qa, prospection). */
-export type OrderTeamKey = TeamKey | "ads" | "transverse" | "montage" | "analystes" | "qa" | "prospection";
+/** Équipes « ordonnables » (les phases 29 à 32 en ajoutent : analystes, qa, prospection). */
+export type OrderTeamKey = TeamKey | "ads" | "transverse" | "analystes" | "qa" | "prospection";
 
 export type OrderKind = "PROGRAM" | "ONE_SHOT" | "ADJUST" | "ASK" | "WHAT_IF";
 export type OrderMode = "simulation" | "real";

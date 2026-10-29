@@ -79,15 +79,15 @@ describe("annuaire des agents", () => {
   });
 
   it("plusieurs candidats → liste ; inconnu → noms connus ; emplacements réservés", () => {
-    const amb = findAgent("l'agent des vidéos");
+    const amb = findAgent("l'agent des photos");
     expect(amb.status).toBe("ambiguous");
     if (amb.status === "ambiguous") expect(amb.candidates.map((c) => c.key).sort()).toEqual(["media-ia", "mediatheque"]);
     const unk = findAgent("le boulanger");
     expect(unk.status).toBe("unknown");
     if (unk.status === "unknown") expect(unk.known).toContain("Rédaction");
-    // Phase 28 : le Monteur est là ; phase 29 : les Analystes aussi ; phase 30 : le QA Global aussi.
+    // Montage retiré le 28 octobre 2026 : plus de Monteur ; phase 29 : les Analystes ; phase 30 : le QA Global.
     const m = findAgent("le monteur");
-    expect(m.status === "found" && m.agent.available && m.agent.key === "montage-monteur").toBe(true);
+    expect(m.status === "found" && m.agent.key.startsWith("montage")).toBe(false);
     const a = findAgent("les analystes");
     expect(a.status === "found" && a.agent.available && a.agent.key === "chef-analystes").toBe(true);
     const q = findAgent("le qa global");
@@ -333,7 +333,14 @@ describe("pourquoi rien n'est sorti", () => {
       },
       /monte le plafond/,
     ],
-    ["stock_vide", async (k) => ({ channelId: k.ids.chLea }), /Tu m'envoies quelques vidéos \?/],
+    [
+      "stock_vide",
+      async (k) => {
+        await k.prisma.channelAgentPlan.update({ where: { channelId: k.ids.casino }, data: { themes: [{ theme: "roulette", weight: 1 }] } as never });
+        return { channelId: k.ids.casino };
+      },
+      /Tu m'envoies des vidéos avec #casino et le thème \?/,
+    ],
     [
       "aucune_cote",
       async (k) => {

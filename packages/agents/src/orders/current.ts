@@ -59,9 +59,8 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   FAILED: "en échec",
 };
 
-/** Équipes futures (phases 28 à 32) : nommées, pas encore « ordonnables ». */
+/** Équipes futures (phases 29 à 32) : nommées, pas encore « ordonnables ». */
 export const FUTURE_TEAMS: Record<string, string> = {
-  montage: "l'équipe Montage",
   analystes: "l'équipe Analystes",
   qa: "l'équipe Contrôle global",
   prospection: "l'équipe Prospection",

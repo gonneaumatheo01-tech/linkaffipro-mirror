@@ -4,7 +4,7 @@
  *   derniers refus, état (en marche, en pause faute de modèle, coupé) ;
  * - `qa_history` (« montre-moi les refus de cette semaine », « combien de refus cette semaine ? ») : compte, motifs
  *   les plus fréquents et liste numérotée (5 au plus) ;
- * - `qa_detail` (« pourquoi le post 42 a été refusé ? », « pourquoi le short 3 a été bloqué ? », « pourquoi le 2 ? »)
+ * - `qa_detail` (« pourquoi le post 42 a été refusé ? », « pourquoi le 2 ? »)
  *   : dernier contrôle du contenu, motifs, corrections demandées, tentative.
  * Tout est en LECTURE (aucune IA, aucune écriture hors le relevé numéroté de la conversation) : permis à tout membre
  * présenté. Jamais le contenu vérifié ni un secret : seulement les motifs, masqués (`qa/kevin-view.ts`).
@@ -26,7 +26,7 @@ async function chatKeyOf(deps: BossDeps): Promise<string | null> {
   return (await adminTelegramId(deps))?.toString() ?? null;
 }
 
-const typeSpec = oneOf("Type de contenu cité : post, short, rapport, reponse (une réponse de Kevin), recommandation, alerte, regle (règle publicitaire)", QA_TYPE_PARAM, true);
+const typeSpec = oneOf("Type de contenu cité : post, rapport, reponse (une réponse de Kevin), recommandation, alerte, regle (règle publicitaire)", QA_TYPE_PARAM, true);
 
 type Empty = Record<string, never>;
 
@@ -45,17 +45,17 @@ type HistoryP = { jours?: number; type?: QaTypeParam; equipe?: string };
 
 export const qaHistory = defineAction<HistoryP>({
   key: "qa_history",
-  description: "Les refus du contrôle qualité sur une période (« montre-moi les refus de cette semaine », « combien de refus cette semaine ? », « les shorts refusés aujourd'hui ») : nombre, motifs, liste numérotée",
+  description: "Les refus du contrôle qualité sur une période (« montre-moi les refus de cette semaine », « combien de refus cette semaine ? », « les posts refusés aujourd'hui ») : nombre, motifs, liste numérotée",
   theme: "etat",
   cls: "immediate",
   spec: {
     jours: int("Nombre de jours (1 = aujourd'hui, 7 = cette semaine, par défaut 7)", 1, 30, true),
     type: typeSpec,
-    equipe: str("Équipe citée, telle que dite (« casino », « montage »)", { optional: true, maxLength: 40 }),
+    equipe: str("Équipe citée, telle que dite (« casino », « analystes »)", { optional: true, maxLength: 40 }),
   },
   async execute(deps, p) {
     const raw = p.equipe?.trim().toLowerCase() ?? "";
-    const team = raw ? (/montage|short/.test(raw) ? "montage" : /analyst|march/.test(raw) ? "analystes" : /^ads?$|pub/.test(raw) ? "ads" : teamOf(raw)) : null;
+    const team = raw ? (/analyst|march/.test(raw) ? "analystes" : /^ads?$|pub/.test(raw) ? "ads" : teamOf(raw)) : null;
     const reply = await qaHistoryReply(deps, await chatKeyOf(deps), {
       ...(p.jours ? { days: p.jours } : {}),
       contentType: p.type ? QA_TYPE_OF_PARAM[p.type] : null,
@@ -69,12 +69,12 @@ type DetailP = { type?: QaTypeParam; numero?: number; rang?: number };
 
 export const qaDetail = defineAction<DetailP>({
   key: "qa_detail",
-  description: "Pourquoi un contenu a été refusé ou bloqué par le contrôle qualité (« pourquoi le post 42 a été refusé ? », « pourquoi le short 3 a été bloqué ? », « pourquoi le 2 ? » après la liste des refus) : motifs, corrections demandées, tentative",
+  description: "Pourquoi un contenu a été refusé ou bloqué par le contrôle qualité (« pourquoi le post 42 a été refusé ? », « pourquoi le 2 ? » après la liste des refus) : motifs, corrections demandées, tentative",
   theme: "etat",
   cls: "immediate",
   spec: {
     type: typeSpec,
-    numero: int("Numéro du contenu cité (« le post 42 », « le short 3 »)", 1, 1_000_000, true),
+    numero: int("Numéro du contenu cité (« le post 42 »)", 1, 1_000_000, true),
     rang: int("Numéro dans la dernière liste des refus (« pourquoi le 2 ? »)", 1, 20, true),
   },
   async execute(deps, p) {

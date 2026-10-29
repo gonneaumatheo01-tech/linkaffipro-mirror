@@ -50,42 +50,45 @@ beforeEach(() => {
 });
 
 describe("POST /api/agents/media", () => {
+  const png = (name = "a.png", size = 5) => new File([new Uint8Array(size)], name, { type: "image/png" });
+
   it("sans session : 401", async () => {
     m.user = null;
-    expect((await POST(upload({ purpose: "source", personaId: "p1" }, [video()]))).status).toBe(401);
+    expect((await POST(upload({ purpose: "reference", personaId: "p1" }, [png()]))).status).toBe(401);
   });
 
-  it("type de dépôt ou persona inconnus : refus clair", async () => {
-    expect((await POST(upload({ purpose: "autre", personaId: "p1" }, [video()]))).status).toBe(400);
-    expect((await POST(upload({ purpose: "source", personaId: "" }, [video()]))).status).toBe(400);
+  it("type de dépôt ou persona inconnus : refus clair ; plus de vidéos sources (vidéos IA retirées)", async () => {
+    expect((await POST(upload({ purpose: "autre", personaId: "p1" }, [png()]))).status).toBe(400);
+    expect((await POST(upload({ purpose: "source", personaId: "p1" }, [video()]))).status).toBe(400);
+    expect((await POST(upload({ purpose: "reference", personaId: "" }, [png()]))).status).toBe(400);
     m.persona = null;
-    const res = await POST(upload({ purpose: "source", personaId: "p9" }, [video()]));
+    const res = await POST(upload({ purpose: "reference", personaId: "p9" }, [png()]));
     expect(res.status).toBe(404);
+    expect(m.create).not.toHaveBeenCalled();
   });
 
-  it("vidéo source d'un responsable : rangée pour la persona, journalisée", async () => {
-    const res = await POST(upload({ purpose: "source", personaId: "p1" }, [video()]));
+  it("image de référence d'un responsable : rangée pour la persona, journalisée", async () => {
+    const res = await POST(upload({ purpose: "reference", personaId: "p1" }, [png()]));
     const body = (await res.json()) as { files: Array<{ id: string; error?: string }> };
     expect(body.files).toEqual([expect.objectContaining({ id: "new1" })]);
     const data = (m.create.mock.calls[0]![0] as { data: Record<string, unknown> }).data;
-    expect(data).toMatchObject({ personaId: "p1", kind: "SOURCE", origin: "HUMAN", teamKey: "dating", createdById: "u1" });
+    expect(data).toMatchObject({ personaId: "p1", kind: "REFERENCE", origin: "HUMAN", teamKey: "dating", createdById: "u1" });
     expect(m.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "agents.media_uploaded", entityId: "new1" }));
   });
 
   it("mauvais type : refusé fichier par fichier, rien n'est créé", async () => {
-    const img = new File([new Uint8Array(5)], "a.png", { type: "image/png" });
-    const body = (await (await POST(upload({ purpose: "source", personaId: "p1" }, [img]))).json()) as {
+    const body = (await (await POST(upload({ purpose: "reference", personaId: "p1" }, [video()]))).json()) as {
       files: Array<{ error?: string }>;
     };
-    expect(body.files[0]!.error).toContain("MP4, MOV ou WebM");
+    expect(body.files[0]!.error).toContain("JPEG, PNG ou WebP");
     expect(m.create).not.toHaveBeenCalled();
   });
 
   it("même fichier déjà en base : rangé à son tour, ou refusé s'il est à une autre persona", async () => {
     m.existing = { id: "old1", personaId: null, kind: null };
-    let body = (await (await POST(upload({ purpose: "reference", personaId: "p1" }, [
-      new File([new Uint8Array(5)], "a.png", { type: "image/png" }),
-    ]))).json()) as { files: Array<{ id: string; error?: string }> };
+    let body = (await (await POST(upload({ purpose: "reference", personaId: "p1" }, [png()]))).json()) as {
+      files: Array<{ id: string; error?: string }>;
+    };
     expect(body.files[0]).toMatchObject({ id: "old1" });
     expect(m.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "old1" }, data: expect.objectContaining({ kind: "REFERENCE", personaId: "p1" }) }),
@@ -101,8 +104,8 @@ describe("POST /api/agents/media", () => {
       }),
     });
     m.audit.mockClear();
-    m.existing = { id: "old1", personaId: "p2", kind: "SOURCE" };
-    body = (await (await POST(upload({ purpose: "source", personaId: "p1" }, [video()]))).json()) as typeof body;
+    m.existing = { id: "old1", personaId: "p2", kind: "REFERENCE" };
+    body = (await (await POST(upload({ purpose: "reference", personaId: "p1" }, [png()]))).json()) as typeof body;
     expect(body.files[0]!.error).toContain("autre persona");
     expect(m.audit).not.toHaveBeenCalled();
   });

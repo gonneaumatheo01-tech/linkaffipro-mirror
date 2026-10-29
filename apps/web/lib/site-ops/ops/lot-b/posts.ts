@@ -296,9 +296,9 @@ async function createPost(input: Record<string, unknown>, actor: SiteOpActor, op
   const parsed = postFormSchema.safeParse(prepared.raw);
   if (!parsed.success) return formError(parsed.error);
   const form = parsed.data;
-  // Phase 28 : un short du montage ne part que validé par le client (✅) ; refusé dès la programmation.
-  const unapproved = await unapprovedShorts([...form.mediaAssetIds, ...(form.mediaAssetIdsB ?? [])]);
-  if (unapproved) return fail(unapproved, "invalid", "mediaAssetIds");
+  // Vidéo du montage (retiré le 28 octobre 2026) : refusée dès la programmation, elle ne partirait plus.
+  const retired = await retiredMontageMedia([...form.mediaAssetIds, ...(form.mediaAssetIdsB ?? [])]);
+  if (retired) return fail(retired, "invalid", "mediaAssetIds");
   const userId = actor.userId;
   // Messages déjà créés : retirés si l'enregistrement échoue en cours de route.
   const created: string[] = [];
@@ -971,14 +971,10 @@ export const postMove: CoreRun = async (input, actor, opts = {}) => {
   );
 };
 
-/** Shorts du montage pas encore validés par le client parmi ces médias : phrase d'erreur, sinon null. */
-async function unapprovedShorts(ids: string[]): Promise<string | null> {
+/** Vidéos du montage retiré parmi ces médias (short, vidéo gardée dans Telegram) : phrase d'erreur, sinon null. */
+async function retiredMontageMedia(ids: string[]): Promise<string | null> {
   if (!ids.length) return null;
-  const assets = await prisma.mediaAsset.findMany({ where: { id: { in: ids } }, select: { id: true, kind: true } });
-  const shorts = (assets ?? []).filter((a) => a.kind === "SHORT");
-  if (!shorts.length) return null;
-  const approved = await prisma.shortClip.findMany({ where: { assetId: { in: shorts.map((s) => s.id) }, status: "APPROVED" }, select: { assetId: true } });
-  const ok = new Set(approved.map((c) => c.assetId));
-  const n = shorts.filter((s) => !ok.has(s.id)).length;
-  return n ? `Ce short n'est pas encore validé : validez-le d'abord (bouton ✅ de l'aperçu), rien ne part sans cela.` : null;
+  const assets = await prisma.mediaAsset.findMany({ where: { id: { in: ids } }, select: { id: true, kind: true, storage: true } });
+  const retired = (assets ?? []).some((a) => a.kind === "SHORT" || a.storage === "telegram");
+  return retired ? "Cette vidéo vient du montage, qui n'existe plus : choisissez un autre média." : null;
 }

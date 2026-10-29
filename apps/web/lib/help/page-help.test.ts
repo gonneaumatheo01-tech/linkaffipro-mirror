@@ -49,11 +49,6 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
       "Affiliés sur vos canaux",
     ]);
     expect(pageHelpFor("/campaigns/new").help.label).toBe("Nouvelle campagne");
-    // Phase 28 : équipe Montage (la fiche d'un montage n'est pas une fiche d'équipe).
-    expect(pageHelpFor("/agents/montage").help.label).toBe("Montage");
-    expect(pageHelpFor("/agents/montage?vue=mediatheque").help.sections).toContain("Où retrouver les shorts");
-    expect(pageHelpFor("/agents/montage/j1").help.label).toBe("Fiche d'un montage");
-    expect(pageHelpFor("/agents/montage/j1").help.sections[0]).toBe("Le plan de coupe");
     // Phase 29 : équipe Analystes (la lecture d'un rapport n'est pas une fiche d'équipe).
     expect(pageHelpFor("/agents/analyses?vue=regles").help.label).toBe("Analyses");
     expect(pageHelpFor("/agents/analyses").help.sections).toContain("Les règles publicitaires");

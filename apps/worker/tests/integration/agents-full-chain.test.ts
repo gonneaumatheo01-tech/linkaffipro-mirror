@@ -22,7 +22,6 @@ import {
   createFakeImageProvider,
   createFakeLlm,
   createFakeOddsProvider,
-  createFakeVideoProvider,
   decideValidation,
   FAKE_ODDS_ANCHOR,
   fromParis,
@@ -39,8 +38,7 @@ import {
   undoRecommendation,
   type AgentStepJob,
   type EngineDeps,
-  type FrameExtractor,
-  type VideoProvider,
+  type ImageProvider,
 } from "@linkaffipro/agents";
 import { processScheduler } from "../../src/processors/scheduler";
 import { processTelegramSend } from "../../src/processors/telegram-send";
@@ -65,15 +63,13 @@ const loadAsset = async (id: string) => {
   const a = await prisma.mediaAsset.findUnique({ where: { id }, select: { bytes: true, mimeType: true, filename: true } });
   return a ? { bytes: new Uint8Array(a.bytes), mimeType: a.mimeType, filename: a.filename } : null;
 };
-const frames: FrameExtractor = async () => ({ frames: [new Uint8Array([1]), new Uint8Array([2]), new Uint8Array([3])], durationSec: 8 });
-const fakeVideo = createFakeVideoProvider({ loadAsset });
-/** Même faux fournisseur, mais chaque vidéo est estimée à 50 c : sert à atteindre le plafond le jour 3. */
-const pricedVideo: VideoProvider = { ...fakeVideo, estimateCents: () => 50 };
+const fakeImage = createFakeImageProvider({ loadAsset });
+/** Même faux fournisseur, mais chaque photo est estimée à 50 c : sert à atteindre le plafond le jour 3. */
+const pricedImage: ImageProvider = { ...fakeImage, estimateCents: () => 50 };
 const odds = createFakeOddsProvider({ now: () => now });
 const providers: NonNullable<EngineDeps["providers"]> = {
   llm: createFakeLlm(),
-  video: fakeVideo,
-  image: createFakeImageProvider({ loadAsset }),
+  image: fakeImage,
   odds,
 };
 const deps: EngineDeps = {
@@ -93,7 +89,6 @@ const deps: EngineDeps = {
     },
   },
   providers,
-  frames,
 };
 
 async function drain(limit = Number.POSITIVE_INFINITY): Promise<string[]> {
@@ -208,18 +203,12 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     casinoId = (await mk("Casino VIP", "CASINO", -1001110000002n)).id;
     sportsId = (await mk("Paris VIP", "SPORTS", -1001110000003n)).id;
 
-    // Dating : persona avec photo de référence et 4 vidéos sources ; niveau 0 (tout est validé).
+    // Dating : persona avec photo de référence ; ancien mélange avec une part de vidéos (ignorée) ; niveau 0.
     const ref = await prisma.mediaAsset.create({
       data: { filename: "it-chain-ref.png", mimeType: "image/png", size: PNG.length, sha256: randomBytes(16).toString("hex"), bytes: PNG, kind: "REFERENCE", origin: "HUMAN", teamKey: "dating" },
     });
     const persona = await prisma.persona.create({ data: { name: "Léa Chaîne", referenceImageIds: [ref.id], mediaNotes: "tenue décontractée" } });
     await prisma.mediaAsset.update({ where: { id: ref.id }, data: { personaId: persona.id } });
-    for (let i = 0; i < 4; i++) {
-      const bytes = randomBytes(64);
-      await prisma.mediaAsset.create({
-        data: { filename: `it-chain-src${i}.mp4`, mimeType: "video/mp4", size: bytes.length, sha256: randomBytes(16).toString("hex"), bytes, duration: 8, kind: "SOURCE", origin: "HUMAN", teamKey: "dating", personaId: persona.id },
-      });
-    }
     await prisma.channelAgentPlan.create({
       data: { channelId: datingId, teamKey: "dating", enabled: true, postsPerDay: 3, windowStart: "09:00", windowEnd: "23:00", minSpacingMinutes: 30, mix: { video: 1, photo: 1, text: 1 }, personaId: persona.id },
     });
@@ -280,7 +269,7 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     await markDay();
 
     const dating = await missionsOf("dating", 0);
-    expect(dating.map((m) => (m.payload as { plannedFormat?: string; format?: string }).format).sort()).toEqual(["photo", "text", "video"]);
+    expect(dating.map((m) => (m.payload as { plannedFormat?: string; format?: string }).format).sort()).toEqual(["photo", "photo", "text"]);
     // Le texte du Dating est refusé par « non n » : la mission est annulée.
     const textMission = dating.find((m) => (m.payload as { format?: string }).format === "text")!;
     const decided = await decideAll(new Set([textMission.id]));
@@ -408,15 +397,15 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     await runAlgoNightly(deps);
   });
 
-  it("jour 3 : réglage annulé, plafond vidéo atteint (repli), paris réglés, rapports quotidiens", async () => {
+  it("jour 3 : réglage annulé, plafond photo atteint (repli), paris réglés, rapports quotidiens", async () => {
     now = fromParis(addDays(DAY1, 2), 8 * 60);
     expect((await undoRecommendation(deps, recId, { userId: null, via: "SITE" })).ok).toBe(true);
     expect(await prisma.channelAgentPlan.findUniqueOrThrow({ where: { channelId: datingId } })).toMatchObject({ windowStart: "09:00", windowEnd: "23:00" });
     expect((await prisma.recommendation.findUniqueOrThrow({ where: { id: recId } })).status).toBe("UNDONE");
 
-    // Plafond vidéo de 10 c, vidéo estimée à 50 c : la vidéo du jour devient une photo.
-    await prisma.agentTeamConfig.update({ where: { teamKey: "dating" }, data: { monthlyBudgetCents: { video: 10, image: 1500 } } });
-    providers.video = pricedVideo;
+    // Plafond photo de 10 c, photo estimée à 50 c : les photos du jour deviennent des textes.
+    await prisma.agentTeamConfig.update({ where: { teamKey: "dating" }, data: { monthlyBudgetCents: { image: 10 } } });
+    providers.image = pricedImage;
     now = at10(2);
     const start = now;
     await runCycle(deps);
@@ -427,10 +416,10 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     expect(dating).toHaveLength(3);
     expect(dating.every((m) => m.status === "DONE")).toBe(true);
     const fallbacks = await prisma.event.findMany({ where: { type: "agents.dating.fallback", occurredAt: { gte: start } } });
-    expect(fallbacks.map((e) => (e.payload as { from: string; to: string }).from)).toContain("video");
-    expect(dating.map((m) => (m.payload as { format?: string }).format).sort()).toEqual(["photo", "photo", "text"]);
-    // Aucun centime dépensé au-delà du plafond (aucune vidéo lancée).
-    expect((await prisma.agentUsage.aggregate({ where: { teamKey: "dating", provider: "video" }, _sum: { cents: true } }))._sum.cents ?? 0).toBe(0);
+    expect(fallbacks.map((e) => (e.payload as { from: string; to: string }).from)).toContain("photo");
+    expect(dating.map((m) => (m.payload as { format?: string }).format).sort()).toEqual(["text", "text", "text"]);
+    // Aucun centime dépensé au-delà du plafond (aucune photo lancée).
+    expect((await prisma.agentUsage.aggregate({ where: { teamKey: "dating", provider: "image" }, _sum: { cents: true } }))._sum.cents ?? 0).toBe(0);
     // Fenêtre d'origine remise : la Planification peut reprendre dès 10 h.
     expect(dating.some((m) => parisMinutes(m.scheduledFor!) < 18 * 60)).toBe(true);
     await sendScheduled();
@@ -456,7 +445,7 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     // attente ni en échec, et le repli du jour compté (date de l'événement = horloge simulée).
     expect(dating.today).toMatchObject({ waiting: 0, failed: 0 });
     expect(dating.today.fallbacks).toBeGreaterThanOrEqual(1);
-    expect(dating.spend.find((s) => s.provider === "video")).toMatchObject({ cents: 0, capCents: 10 });
+    expect(dating.spend.find((s) => s.provider === "image")).toMatchObject({ cents: 0, capCents: 10 });
     // Tous les posts sont sur le canal Test : aucun résultat compté dans la supervision (mêmes règles que Statistiques).
     expect(dating.results.d28.posts).toBe(0);
     expect(o.algoAppliedThisWeek).toHaveLength(0);

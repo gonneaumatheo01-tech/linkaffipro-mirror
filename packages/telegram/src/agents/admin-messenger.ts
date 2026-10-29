@@ -29,8 +29,6 @@ export type MessengerPort = {
   adminId(): Promise<bigint | null>;
   api(): Promise<MessengerApi | null>;
   media(id: string): Promise<{ bytes: Uint8Array; mimeType: string; filename: string } | null>;
-  /** Phase 28 : identifiant de fichier de ce média pour le bot du dialogue admin (jamais celui d'un autre bot), ou null. */
-  fileIdFor?(assetId: string, fallbackFileId?: string | null): Promise<string | null>;
 };
 
 function keyboard(buttons?: AdminButton[][]): InlineKeyboardMarkup | undefined {
@@ -93,19 +91,6 @@ export function createAdminMessengerWith(port: MessengerPort): AdminMessenger {
       if (!adminId || !api) return;
       await api.deleteMessage(Number(adminId), messageId);
     },
-    /** Phase 28 : short gardé dans Telegram, renvoyé par son identifiant de fichier (aucun téléchargement). */
-    async sendStoredVideo(chatId, req) {
-      const api = await port.api();
-      const fileId = port.fileIdFor ? await port.fileIdFor(req.assetId, req.fileId ?? null) : null;
-      if (!api || !fileId) return null;
-      const reply_markup = keyboard(req.buttons);
-      const caption = req.caption.slice(0, CAPTION_MAX);
-      const sent = await withHtmlFallback(
-        (text, isHtml) => api.sendVideo(Number(chatId), fileId, { caption: text, ...(isHtml ? { parse_mode: "HTML" as const } : {}), ...(reply_markup ? { reply_markup } : {}) }),
-        caption,
-      );
-      return { messageId: sent.message_id };
-    },
   };
 }
 
@@ -167,17 +152,6 @@ const prismaPort: MessengerPort = {
     // Phase 26 : le Boss s'il existe, sinon le repli (jamais un assistant de conversation ni un bot fantôme).
     const bot = await adminBot();
     return bot ? (new Api(decrypt(bot.tokenEncrypted)) as unknown as MessengerApi) : null;
-  },
-  async fileIdFor(assetId, fallbackFileId) {
-    const bot = await adminBot();
-    if (!bot) return null;
-    const own = await prisma.mediaAssetTelegramFile.findUnique({ where: { assetId_botId: { assetId, botId: bot.id } }, select: { telegramFileId: true } });
-    if (own) return own.telegramFileId;
-    const asset = await prisma.mediaAsset.findUnique({ where: { id: assetId }, select: { telegramRef: true } });
-    const ref = (asset?.telegramRef ?? null) as { botId?: unknown; fileId?: unknown } | null;
-    // Un identifiant de fichier ne vaut que pour le bot qui l'a reçu ou envoyé (`fallbackFileId` vient de la chaîne).
-    if (ref && ref.botId === bot.id && typeof ref.fileId === "string") return ref.fileId;
-    return fallbackFileId && ref?.botId === bot.id ? fallbackFileId : null;
   },
   async media(id) {
     const a = await prisma.mediaAsset.findUnique({
