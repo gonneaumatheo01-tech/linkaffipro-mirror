@@ -7,8 +7,10 @@
 - ✅ Image du worker allégée (polices des sous-titres retirées ; ffmpeg gardé pour les vocaux).
 - ✅ Vérifié en local : typage et lint verts partout ; tests unitaires verts (agents 1 547, site 3 537, Telegram 592, worker 494, cœur 420, chat 595, files 42, userbot 27) ; parité de Kevin : 237 actions, 0 manquante.
 
+- ✅ En ligne le 29 octobre vers 9 h 35 (site puis worker, version `main` avec le bot VIP paris déjà en ligne) : santé OK, `/agents/montage` → `/agents` (308), au démarrage le worker a effacé 2 planifications du montage et vidé 2 files retirées.
+
 ## Reste
-- Mise en ligne (site puis worker) après la vérification GitHub.
+- Rien.
 
 ## Test de 5 minutes (après la mise en ligne)
 1. Ouvrir Agents : l'onglet « Montage » a disparu.
@@ -17,6 +19,7 @@
 
 ## Problèmes et actions humaines
 - Aucune. La clé Magic Hour reste chiffrée en base, sans usage (effaçable sur demande).
+- Mise en ligne : depuis un dossier de travail séparé, `railway up` envoyait le dossier principal (travail en cours d'une autre session) : il faut `railway up "$PWD" --path-as-root --service …`. Le build du site demande maintenant 6 Go de mémoire (`apps/web/Dockerfile`).
 
 ---
 
