@@ -13,7 +13,7 @@ import { LANGUAGE_NAMES_FR } from "./lang-names";
 // Type seulement : aucune dépendance circulaire à l'exécution (prompt.ts appelle ce module).
 import type { SystemPromptContext } from "./prompt";
 import { describeStyle, personaLanguages } from "./style";
-import { assistantRole, fixedText } from "./texts";
+import { assistantRole, fixedText, vipManagerRole } from "./texts";
 import type { PersonaBookmakerInput } from "./turn-types";
 import type { ConversationStage } from "./types";
 import { MAX_MESSAGE_CHARS, MAX_TURN_CHARS } from "./validate";
@@ -50,9 +50,15 @@ const STAGE_GUIDE: Record<ConversationStage, string> = {
   CLOSED: "fermée",
 };
 
-function virtualRoleFr(gender: string | null | undefined): string {
+function virtualRoleFr(gender: string | null | undefined, vipManager = false): string {
+  if (vipManager)
+    return gender === "M" ? "le gérant virtuel du VIP" : "la gérante virtuelle du VIP";
   return gender === "M" ? "l'assistant virtuel" : "l'assistante virtuelle";
 }
+
+/** Rôle du gérant du VIP (Paris sportifs) : remplace la ligne de rôle de l'univers. */
+const VIP_MANAGER_ROLE_LINE =
+  "Ton rôle : gérer l'accès au groupe VIP gratuit du canal. Tu réponds à ses questions sur le VIP, les pronostics et l'inscription, tu proposes les bookmakers partenaires dans l'ordre (voir PARCOURS INSCRIPTION BOOKMAKER), et une fois le dépôt confirmé, le système envoie le lien du canal VIP.";
 
 /** Lignes de la fiche d'informations pour le prompt. */
 export function faqPromptLines(faq: readonly PersonaFaqEntry[] | null | undefined): string[] {
@@ -155,8 +161,9 @@ export function buildUniverseSystemPrompt(
   const p = ctx.persona;
   const universe: AssistantUniverse =
     parsePersonaUniverse(p.universe) === "sports" ? "sports" : "casino";
-  const role = assistantRole("fr", p.gender);
-  const virtualRole = virtualRoleFr(p.gender);
+  const vip = universe === "sports" && p.vipManager === true;
+  const role = vip ? vipManagerRole("fr", p.gender) : assistantRole("fr", p.gender);
+  const virtualRole = virtualRoleFr(p.gender, vip);
   const channel = p.channelTitle?.trim() ? ` « ${p.channelTitle.trim()} »` : "";
   const langs = personaLanguages(p.languages);
   const otherLangs = langs.filter((l) => l !== ctx.lang).map((l) => LANGUAGE_NAMES_FR[l]);
@@ -165,7 +172,7 @@ export function buildUniverseSystemPrompt(
   lines.push(
     `Tu es ${p.name}, ${role} du canal${channel} sur Telegram (univers ${PERSONA_UNIVERSE_LABELS[universe]}). Tu discutes en privé avec une personne qui a écrit au bot d'elle-même.`,
     `Tu es ${virtualRole} du canal (une IA) avec un prénom et une personnalité : jamais une vraie personne.`,
-    ROLE_LINES[universe],
+    vip ? VIP_MANAGER_ROLE_LINE : ROLE_LINES[universe],
     "",
     "PERSONNALITÉ",
     `- Personnalité : ${p.personality.trim() || "accueillante, claire, serviable"}.`,
@@ -242,7 +249,11 @@ export function buildUniverseSystemPrompt(
   );
 
   if (ctx.isFirstAssistantTurn) {
-    const example = fixedText(ctx.lang, "intro", { name: p.name, gender: p.gender });
+    const example = fixedText(ctx.lang, "intro", {
+      name: p.name,
+      gender: p.gender,
+      vipManager: vip,
+    });
     lines.push(
       "",
       "PREMIER MESSAGE",

@@ -25,6 +25,8 @@ export type FixedTextVars = {
   gender?: string | null;
   identity?: string | null;
   illusion?: boolean | null;
+  /** Gérant du VIP (Paris sportifs) : « le gérant du VIP » au lieu de « l'assistant ». */
+  vipManager?: boolean | null;
 };
 
 const ROLES: Record<ChatLang, { F: string; M: string }> = {
@@ -151,6 +153,21 @@ export function chatLangOf(code: string | null | undefined): ChatLang | null {
   return (CHAT_LANGS as readonly string[]).includes(base) ? (base as ChatLang) : null;
 }
 
+const VIP_ROLES: Record<ChatLang, { F: string; M: string }> = {
+  fr: { F: "la gérante du VIP", M: "le gérant du VIP" },
+  en: { F: "the VIP manager", M: "the VIP manager" },
+  es: { F: "la gestora del VIP", M: "el gestor del VIP" },
+  pt: { F: "a gerente do VIP", M: "o gerente do VIP" },
+  de: { F: "die VIP-Managerin", M: "der VIP-Manager" },
+  it: { F: "la gestrice del VIP", M: "il gestore del VIP" },
+};
+
+/** « le gérant du VIP » / « la gérante du VIP » dans la langue voulue (« F » par défaut). */
+export function vipManagerRole(lang: ChatLang, gender: string | null | undefined): string {
+  const roles = VIP_ROLES[lang] ?? VIP_ROLES.fr;
+  return gender === "M" ? roles.M : roles.F;
+}
+
 /** « l'assistante » / « l'assistant » dans la langue voulue (« F » par défaut). */
 export function assistantRole(lang: ChatLang, gender: string | null | undefined): string {
   const roles = ROLES[lang] ?? ROLES.fr;
@@ -173,7 +190,7 @@ export function fixedText(
         : FIXED_TEXTS[l][key];
   const values: Record<string, string> = {
     name: vars.name ?? "",
-    role: assistantRole(l, vars.gender),
+    role: vars.vipManager ? vipManagerRole(l, vars.gender) : assistantRole(l, vars.gender),
   };
   return template.replace(/\{(\w+)\}/g, (_, k: string) => values[k] ?? "").trim();
 }

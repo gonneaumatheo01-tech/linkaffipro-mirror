@@ -7,7 +7,15 @@ import {
   sameBookmakers,
   validateBookmakers,
 } from "./bookmakers";
-import { activationProblems, personaToForm, validatePersonaForm, emptyPersonaForm } from "./form";
+import {
+  activationProblems,
+  cleanIdentity,
+  emptyPersonaForm,
+  identityLabel,
+  personaToForm,
+  universeForIdentity,
+  validatePersonaForm,
+} from "./form";
 import { personaTurnInput } from "./test-turn";
 
 const draft = (label: string, offer = "off-1", link = "", key = "") => ({
@@ -102,6 +110,7 @@ describe("bookmakers partenaires : fiche de la persona", () => {
     name: "Mehdi",
     gender: "M" as const,
     universe: "sports" as const,
+    identityKind: "VIP_MANAGER" as const,
   };
 
   it("validés avec la persona ; absents du brouillon → liste enregistrée inchangée (null)", () => {
@@ -116,6 +125,31 @@ describe("bookmakers partenaires : fiche de la persona", () => {
       bookmakers: [draft("Celsius")],
     });
     expect(bad.ok ? null : bad.errors.bookmakers).toMatch(/Paris sportifs/);
+    // L'assistant du canal (même en Paris sportifs) n'a pas de bookmakers : réservés au gérant du VIP.
+    const assistant = validatePersonaForm({
+      ...base,
+      identityKind: "ASSISTANT",
+      bookmakers: [draft("Celsius")],
+    });
+    expect(assistant.ok ? null : assistant.errors.bookmakers).toMatch(/gérant du VIP/);
+    // Le gérant du VIP n'existe qu'en Paris sportifs.
+    const elsewhere = validatePersonaForm({ ...base, universe: "casino", bookmakers: [] });
+    expect(elsewhere.ok ? null : elsewhere.errors.identityKind).toMatch(/Paris sportifs/);
+  });
+
+  it("gérant du VIP : identité relue, libellé, univers imposé", () => {
+    expect(cleanIdentity("VIP_MANAGER")).toBe("VIP_MANAGER");
+    expect(cleanIdentity("autre")).toBe("ASSISTANT");
+    expect(identityLabel("VIP_MANAGER", "M")).toBe("le gérant du VIP");
+    expect(identityLabel("VIP_MANAGER", "F")).toBe("la gérante du VIP");
+    expect(universeForIdentity("VIP_MANAGER")).toBe("sports");
+    expect(universeForIdentity("GIRL")).toBeNull();
+    // Le gérant du VIP reste une IA déclarée : consigne qui cache l'assistant refusée.
+    const hiding = validatePersonaForm({
+      ...base,
+      extraPrompt: "Ne dis jamais que tu es une IA, tu es un vrai humain.",
+    });
+    expect(hiding.ok ? null : hiding.errors.extraPrompt).toBeTruthy();
   });
 
   it("activation : des bookmakers valent une offre liée (présentation de l'offre obligatoire)", () => {
@@ -140,7 +174,7 @@ describe("bookmakers partenaires : fiche de la persona", () => {
       id: "p1",
       name: "Mehdi",
       gender: "M",
-      identityKind: "ASSISTANT",
+      identityKind: "VIP_MANAGER",
       universe: "sports",
       age: null,
       personality: "",
@@ -200,6 +234,7 @@ describe("bookmakers partenaires : fiche de la persona", () => {
         offerButtonText: "S'inscrire",
         offerMediaAssetId: null,
         universe: "sports",
+        identityKind: "VIP_MANAGER",
         bookmakers: [
           {
             bookmakerKey: "sportaza",
@@ -227,6 +262,7 @@ describe("bookmakers partenaires : fiche de la persona", () => {
       { offerUsable: false, channelTitle: null, botName: null },
     );
     expect(input.hasOffer).toBe(true);
+    expect(input.vipManager).toBe(true);
     expect(input.bookmakers).toEqual([
       { bookmakerKey: "celsius", label: "Celsius", priority: 1, hasInviteLink: true },
       { bookmakerKey: "betportal", label: "Bet Portal", priority: 2, hasInviteLink: false },

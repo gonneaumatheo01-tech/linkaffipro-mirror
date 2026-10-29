@@ -6,6 +6,7 @@
 import { createHash } from "node:crypto";
 import {
   effectiveIdentityKind,
+  isVipManager,
   needsHumanSilencesAssistant,
   parsePersonaFaq,
   parsePersonaUniverse,
@@ -125,6 +126,20 @@ export function usableBookmakers<B extends NonNullable<PersonaRow["bookmakers"]>
 }
 
 /**
+ * Bookmakers proposés par la persona : ceux de `usableBookmakers`, seulement pour un gérant du VIP (Paris sportifs,
+ * `identityKind` VIP_MANAGER). Toute autre persona n'en propose aucun, même si des lignes restent en base.
+ */
+export function vipBookmakers<B extends NonNullable<PersonaRow["bookmakers"]>[number]>(p: {
+  universe?: string | null;
+  identityKind?: string | null;
+  bookmakers?: readonly B[] | null;
+}): B[] {
+  return isVipManager(parsePersonaUniverse(p.universe), p.identityKind)
+    ? usableBookmakers(p.bookmakers)
+    : [];
+}
+
+/**
  * Persona du moteur. `offerUsable` : offre Link Affi liée, active et avec son adresse de suivi ; sinon le moteur ne parle
  * jamais du lien (aucun lien ne pourrait partir).
  */
@@ -132,7 +147,8 @@ export function toPersonaInput(
   p: PersonaRow,
   extras: { offerUsable: boolean; channelTitle: string | null; botName: string | null },
 ): PersonaInput {
-  const books = usableBookmakers(p.bookmakers);
+  const books = vipBookmakers(p);
+  const universe = parsePersonaUniverse(p.universe);
   return {
     name: p.name,
     // Casino / Paris sportifs : assistante imposée, quelle que soit la valeur enregistrée.
@@ -160,8 +176,9 @@ export function toPersonaInput(
     offerMediaAssetId: extras.offerUsable ? p.offerMediaAssetId : null,
     channelTitle: extras.channelTitle,
     botName: extras.botName,
-    universe: parsePersonaUniverse(p.universe),
+    universe,
     faq: parsePersonaFaq(p.faq),
+    vipManager: isVipManager(universe, p.identityKind),
     bookmakers: books.length
       ? books.map((pb) => ({
           bookmakerKey: pb.bookmakerKey,

@@ -71,13 +71,14 @@ export type BookmakersValidation =
   { ok: true; books: PersonaBookmakerData[] } | { ok: false; error: string };
 
 /**
- * Lit la liste du formulaire. Paris sportifs seulement ; chaque bookmaker a un nom et une offre ; le lien du canal VIP
+ * Lit la liste du formulaire. Gérant du VIP en Paris sportifs seulement ; chaque bookmaker a un nom et une offre ; le lien du canal VIP
  * est facultatif (sans lui, le bouton du canal VIP ne part pas). Une clé déjà enregistrée est gardée (les conversations
  * en cours la connaissent), une nouvelle est tirée du nom.
  */
 export function validateBookmakers(
   raw: readonly PersonaBookmakerDraft[],
   universe: string,
+  identityKind: string = "VIP_MANAGER",
 ): BookmakersValidation {
   if (raw.length === 0) return { ok: true, books: [] };
   if (universe !== "sports")
@@ -85,6 +86,12 @@ export function validateBookmakers(
       ok: false,
       error:
         "Les bookmakers partenaires ne servent qu'en Paris sportifs : retirez-les, ou repassez la persona en Paris sportifs.",
+    };
+  if (identityKind !== "VIP_MANAGER")
+    return {
+      ok: false,
+      error:
+        "Les bookmakers partenaires sont réservés au gérant du VIP : choisissez « Gérant du VIP » dans « Qui est-elle ? », ou retirez-les.",
     };
   if (raw.length > MAX_PERSONA_BOOKMAKERS)
     return { ok: false, error: `${MAX_PERSONA_BOOKMAKERS} bookmakers au plus.` };

@@ -320,6 +320,7 @@ async function checkResponse(
     privateTexts: [input.persona.extraPrompt, input.persona.personality, input.persona.tone],
     identity: personaIdentity(input.persona),
     illusion: personaIllusion(input.persona),
+    vipManager: input.persona.vipManager === true && input.persona.universe === "sports",
     botInsists:
       input.kind === "reply" &&
       botQuestionInsists(
@@ -900,6 +901,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
         gender: input.persona.gender,
         identity: personaIdentity(input.persona),
         illusion: personaIllusion(input.persona),
+        vipManager: input.persona.vipManager === true,
       }),
     ];
     events.push({

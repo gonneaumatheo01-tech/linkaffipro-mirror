@@ -15,6 +15,8 @@ import {
 } from "./fake";
 import { buildSystemPrompt } from "./prompt";
 import { checkTurnOutput } from "./schema";
+import { fixedText } from "./texts";
+import { hasIntro } from "./validate";
 import type { PersonaInput, TurnInput } from "./turn-types";
 
 const START = new Date("2026-10-28T12:00:00.000Z");
@@ -40,6 +42,7 @@ const mehdi = (over: Partial<PersonaInput> = {}): PersonaInput =>
     tone: "langage jeune",
     offerPitch: "Le groupe VIP est gratuit pour les joueurs de nos bookmakers partenaires.",
     channelTitle: "Pronos VIP",
+    vipManager: true,
     bookmakers: BOOKS,
     ...over,
   });
@@ -94,6 +97,29 @@ describe("prompt : bookmakers partenaires", () => {
       expect(p).not.toContain("BOOKMAKERS PARTENAIRES");
       expect(p).not.toContain("send_vip_link");
     }
+  });
+
+  it("gérant du VIP : se présente comme « le gérant du VIP », reste une IA déclarée", () => {
+    const p = buildSystemPrompt({ ...ctx, persona: mehdi(), isFirstAssistantTurn: true });
+    expect(p).toContain("Tu es Mehdi, le gérant du VIP du canal « Pronos VIP »");
+    expect(p).toContain("le gérant virtuel du VIP du canal (une IA)");
+    expect(p).toContain("gérer l'accès au groupe VIP gratuit");
+    const plain = buildSystemPrompt({ ...ctx, persona: mehdi({ vipManager: false }) });
+    expect(plain).toContain("Tu es Mehdi, l'assistant du canal");
+    expect(plain).not.toContain("gérant du VIP");
+  });
+
+  it("gérant du VIP : textes fixes et premier message", () => {
+    expect(fixedText("fr", "intro", { name: "Mehdi", gender: "M", vipManager: true })).toBe(
+      "Moi c'est Mehdi, le gérant du VIP du canal 😉 Comment tu vas ?",
+    );
+    expect(
+      fixedText("en", "isAssistant", { name: "Mehdi", gender: "M", vipManager: true }),
+    ).toContain("the VIP manager");
+    expect(hasIntro("yo frero moi c'est Mehdi, le gérant du VIP 😄", "Mehdi", true)).toBe(true);
+    expect(hasIntro("I'm Mehdi, the VIP manager of the channel", "Mehdi", true)).toBe(true);
+    expect(hasIntro("yo frero moi c'est Mehdi, le gérant du VIP 😄", "Mehdi", false)).toBe(false);
+    expect(hasIntro("Moi c'est Mehdi, l'assistant du canal", "Mehdi", true)).toBe(true);
   });
 });
 

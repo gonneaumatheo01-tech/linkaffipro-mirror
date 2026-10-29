@@ -716,7 +716,7 @@ describe("persona et lien d'offre", () => {
     ).toBe(false);
   });
 
-  it("bookmakers (Paris sportifs) : offres actives seulement, triés par priorité, lien VIP repéré", () => {
+  it("bookmakers (gérant du VIP) : offres actives seulement, triés par priorité, lien VIP repéré", () => {
     const extras = { offerUsable: true, channelTitle: null, botName: null };
     const live = { isActive: true, trackingUrlTemplate: "https://linkaffi.me/go/x?sub_id={subid}" };
     const book = (bookmakerKey: string, priority: number, over: object = {}) => ({
@@ -735,6 +735,7 @@ describe("persona et lien d'offre", () => {
         ...persona,
         affiliateCampaignId: null,
         universe: "sports",
+        identityKind: "VIP_MANAGER",
         bookmakers: [
           book("sportaza", 3, { affiliateCampaign: { ...live, isActive: false } }),
           book("betportal", 2),
@@ -747,6 +748,8 @@ describe("persona et lien d'offre", () => {
       extras,
     );
     expect(p.hasOffer).toBe(true);
+    expect(p.vipManager).toBe(true);
+    expect(p.identity).toBe("ASSISTANT");
     expect(p.bookmakers).toEqual([
       { bookmakerKey: "celsius", label: "celsius", priority: 1, hasInviteLink: true },
       { bookmakerKey: "betportal", label: "betportal", priority: 2, hasInviteLink: false },
@@ -761,6 +764,18 @@ describe("persona et lien d'offre", () => {
     );
     expect(none).toMatchObject({ hasOffer: false, bookmakers: undefined });
     expect(toPersonaInput(persona, extras).bookmakers).toBeUndefined();
+    // Assistant du canal (pas gérant du VIP) : ses lignes de bookmakers ne sont jamais proposées.
+    const assistant = toPersonaInput(
+      {
+        ...persona,
+        affiliateCampaignId: null,
+        universe: "sports",
+        identityKind: "ASSISTANT",
+        bookmakers: [book("celsius", 1)],
+      },
+      extras,
+    );
+    expect(assistant).toMatchObject({ hasOffer: false, vipManager: false, bookmakers: undefined });
   });
 
   it("identité : GIRL et âge repris, ASSISTANT par défaut", () => {

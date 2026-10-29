@@ -852,7 +852,10 @@ export const LOT_C_OPS: SiteOpMeta[] = [
       ...PERSONA,
       name: str("Prénom (40 caractères au plus)."),
       gender: en("F = elle, M = il.", ["F", "M"]),
-      identityKind: en("ASSISTANT = assistante déclarée ; GIRL = fille (Rencontres seulement).", ["ASSISTANT", "GIRL"]),
+      identityKind: en(
+        "ASSISTANT = assistante déclarée ; GIRL = fille (Rencontres seulement) ; VIP_MANAGER = gérant du VIP (Paris sportifs seulement : propose les bookmakers partenaires et envoie le lien du canal VIP).",
+        ["ASSISTANT", "GIRL", "VIP_MANAGER"],
+      ),
       universe: en("Univers.", ["dating", "casino", "sports"]),
       age: int("Âge (18 à 99)."),
       personality: str("Personnalité : qui elle est (ville, études, métier, goûts)."),
@@ -872,7 +875,7 @@ export const LOT_C_OPS: SiteOpMeta[] = [
       bookmakers: {
         type: "array",
         description:
-          "Paris sportifs seulement : bookmakers partenaires dans l'ordre de proposition (la liste entière, elle remplace l'ancienne). Lien du canal VIP facultatif.",
+          "Gérant du VIP (identityKind VIP_MANAGER, Paris sportifs) seulement : bookmakers partenaires dans l'ordre de proposition (la liste entière, elle remplace l'ancienne). Lien du canal VIP facultatif.",
         items: {
           type: "object",
           properties: {

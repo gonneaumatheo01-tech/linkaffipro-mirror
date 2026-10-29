@@ -465,13 +465,14 @@ describe("univers et fiche d'informations (phase 25)", () => {
   });
 });
 
-describe("bookmakers partenaires (Paris sportifs, bot VIP)", () => {
+describe("bookmakers partenaires (gérant du VIP)", () => {
   const sports = (over: Partial<PersonaFormState> = {}) =>
     draft({
       id: "p1",
       name: "Mehdi",
       gender: "M",
       universe: "sports",
+      identityKind: "VIP_MANAGER",
       botDescription: "Moi c'est Mehdi, l'assistant du canal : une IA.",
       botShortDescription: "Mehdi, l'assistant du canal",
       offerPitch: "VIP gratuit.",
@@ -485,7 +486,13 @@ describe("bookmakers partenaires (Paris sportifs, bot VIP)", () => {
   });
 
   it("liste réécrite d'un bloc dans l'ordre, journal sans les liens", async () => {
-    m.existing = { ...saved, id: "p1", universe: "sports", bookmakers: [] };
+    m.existing = {
+      ...saved,
+      id: "p1",
+      universe: "sports",
+      identityKind: "VIP_MANAGER",
+      bookmakers: [],
+    };
     m.bookOffers = [
       { id: "c1", isActive: true },
       { id: "c2", isActive: true },
@@ -526,7 +533,13 @@ describe("bookmakers partenaires (Paris sportifs, bot VIP)", () => {
   });
 
   it("offre introuvable ou lien VIP révoqué : refusé, rien n'est écrit", async () => {
-    m.existing = { ...saved, id: "p1", universe: "sports", bookmakers: [] };
+    m.existing = {
+      ...saved,
+      id: "p1",
+      universe: "sports",
+      identityKind: "VIP_MANAGER",
+      bookmakers: [],
+    };
     m.bookOffers = [{ id: "c1", isActive: true }];
     m.vipLinks = [{ id: "l1", isActive: false }];
     const r = await savePersona(sports({ bookmakers: [book("Celsius", "c1", "l1")] }), admin);
@@ -547,6 +560,7 @@ describe("bookmakers partenaires (Paris sportifs, bot VIP)", () => {
       ...saved,
       id: "p1",
       universe: "sports",
+      identityKind: "VIP_MANAGER",
       bookmakers: [
         {
           bookmakerKey: "celsius",

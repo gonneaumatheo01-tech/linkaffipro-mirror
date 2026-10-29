@@ -87,7 +87,7 @@ import {
   summaryPlan,
   toHistoryMessage,
   toPersonaInput,
-  usableBookmakers,
+  vipBookmakers,
   type ConversationPatch,
   type HistoryRow,
   type LiveWrites,
@@ -754,8 +754,8 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
   const cfg = settings.config;
   if (!conv.personaId)
     await prisma.conversation.update({ where: { id: conv.id }, data: { personaId: persona.id } });
-  // Phase 25 bis : une persona VIP (paris sportifs) a une offre utilisable dès qu'un de ses bookmakers en a une.
-  const hasBookmakerOffer = usableBookmakers(persona.bookmakers).length > 0;
+  // Phase 25 bis : un gérant du VIP (paris sportifs) a une offre utilisable dès qu'un de ses bookmakers en a une.
+  const hasBookmakerOffer = vipBookmakers(persona).length > 0;
   const offerUsable = Boolean(
     hasBookmakerOffer ||
     (persona.affiliateCampaign?.isActive && persona.affiliateCampaign.trackingUrlTemplate.trim()),

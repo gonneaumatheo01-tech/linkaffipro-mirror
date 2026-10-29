@@ -192,6 +192,8 @@ async function personaDraft(input: Record<string, unknown>): Promise<unknown | C
       after[k] = Array.isArray(input[k]) ? (input[k] as unknown[]).join(", ") : String(input[k]);
   for (const k of ["gender", "identityKind", "universe"] as const)
     if (typeof input[k] === "string") after[k] = input[k];
+  // Comme le formulaire : choisir le gérant du VIP passe la persona en Paris sportifs.
+  if (after.identityKind === "VIP_MANAGER" && typeof input.universe !== "string") after.universe = "sports";
   if (Array.isArray(input.languages)) after.languages = input.languages.map(String);
   else if (typeof input.languages === "string") after.languages = input.languages.split(/[,\s]+/).filter(Boolean);
   for (const k of ["requireInterest", "isActive"] as const)

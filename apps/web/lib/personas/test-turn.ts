@@ -26,6 +26,7 @@ import {
 } from "@linkaffipro/chat";
 import {
   effectiveIdentityKind,
+  isVipManager,
   offerButtonTextFor,
   parsePersonaFaq,
   parsePersonaUniverse,
@@ -175,8 +176,10 @@ export function personaTurnInput(
   // imposée, jamais d'illusion ; fiche d'informations relue et bornée ; texte du bouton par défaut selon l'univers.
   const universe = parsePersonaUniverse(p.universe);
   const identity = effectiveIdentityKind(universe, p.identityKind);
-  // Même règle que le worker (`usableBookmakers`) : seuls les bookmakers dont l'offre peut partir sont proposés.
-  const books = (p.bookmakers ?? [])
+  const vipManager = isVipManager(universe, p.identityKind);
+  // Même règle que le worker (`vipBookmakers`) : un gérant du VIP seulement, et seuls les bookmakers dont l'offre peut
+  // partir sont proposés.
+  const books = (vipManager ? (p.bookmakers ?? []) : [])
     .filter((b) => b.affiliateCampaign?.isActive && b.affiliateCampaign.trackingUrlTemplate.trim())
     .sort((a, b) => a.priority - b.priority)
     .map((b) => ({
@@ -211,6 +214,7 @@ export function personaTurnInput(
     offerMediaAssetId: offerUsable ? p.offerMediaAssetId : null,
     channelTitle: extras.channelTitle,
     botName: extras.botName,
+    vipManager,
     ...(books.length ? { bookmakers: books } : {}),
   };
 }

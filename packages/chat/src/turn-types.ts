@@ -103,6 +103,11 @@ export type PersonaInput = {
   /** `Persona.faq` (phase 25) : questions courantes et réponses, seule source de ce que l'assistante peut affirmer. */
   faq?: readonly PersonaFaqEntry[] | null;
   /**
+   * Gérant du VIP (Paris sportifs, `Persona.identityKind` VIP_MANAGER) : se présente comme « le gérant du VIP » et suit
+   * le parcours des bookmakers partenaires. Reste une IA déclarée (identité ASSISTANT pour l'honnêteté).
+   */
+  vipManager?: boolean;
+  /**
    * Bookmakers proposés par cette persona VIP (paris sportifs, phase 25 bis) : triés par `priority` croissante.
    * Celsius (1) → Bet Portal (2) → Sportaza (3). Absent ou vide pour les personas dating / casino.
    */

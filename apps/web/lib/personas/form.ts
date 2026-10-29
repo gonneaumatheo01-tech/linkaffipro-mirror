@@ -4,11 +4,13 @@
  * textes proposés pour le profil du bot. Fonctions pures, testées dans form.test.ts ; aucun accès à la base ici (les
  * références — offre, campagne, visuel — sont vérifiées par `save.ts`).
  *
- * Deux identités (phase 18), choisies par « Qui est-elle ? » :
+ * Trois identités (phase 18, puis bot VIP), choisies par « Qui est-elle ? » :
  * - l'assistante du canal (ASSISTANT, défaut) : le cadre de la phase 17, sa description de bot doit dire
  *   « assistant(e) » sans le nier ni laisser croire à une vraie personne ;
  * - une fille (GIRL, sur un compte Telegram réel) : elle ne se démasque jamais, ne dit ni « assistante », ni « IA », ni
- *   « canal ». Son âge est obligatoire, et son texte public ne doit contenir aucun mot de machine.
+ *   « canal ». Son âge est obligatoire, et son texte public ne doit contenir aucun mot de machine ;
+ * - le gérant du VIP (VIP_MANAGER, Paris sportifs seulement) : une assistante déclarée, mêmes règles d'honnêteté, qui
+ *   propose les bookmakers partenaires et envoie le lien du canal VIP après le dépôt.
  *
  * Règles du client (non négociables) tenues ici :
  * - aucune option pour cacher qu'il s'agit d'un assistant : la description du bot doit dire « assistant(e) » sans le
@@ -23,17 +25,19 @@ import {
   CHAT_LANGS,
   assistantRole,
   deniesBeingAssistant,
+  vipManagerRole,
   type ChatLang,
-  type PersonaIdentity,
 } from "@linkaffipro/chat";
 // Honnêteté des textes : règle partagée avec l'équipe Algorithme (réglages de persona appliqués, phase 21).
 import {
+  PERSONA_IDENTITY_KINDS,
   PERSONA_UNIVERSES,
   allowedIdentities,
   hidesAssistant,
   isPersonaUniverse,
   saysAssistant,
   type PersonaFaqEntry,
+  type PersonaIdentityKind,
   type PersonaUniverse,
 } from "@linkaffipro/core";
 import {
@@ -77,7 +81,17 @@ export function girlAllowed(universe: unknown): boolean {
 export const GIRL_NOT_ALLOWED =
   "Sur un bot Casino ou Paris sportifs, la persona est toujours l'assistante du canal : « Une fille » n'est pas possible.";
 
-export type { PersonaIdentity };
+/** Refus serveur d'un gérant du VIP hors Paris sportifs. */
+export const VIP_MANAGER_NOT_ALLOWED =
+  "Le gérant du VIP n'existe qu'en Paris sportifs : choisissez l'univers Paris sportifs, ou une autre identité.";
+
+/** Identité choisie dans « Qui est-elle ? » : l'assistante du canal, une fille ou le gérant du VIP. */
+export type PersonaIdentity = PersonaIdentityKind;
+
+/** Univers imposé par une identité (le gérant du VIP n'existe qu'en Paris sportifs) ; null : tout univers permis. */
+export function universeForIdentity(identity: PersonaIdentity): PersonaUniverse | null {
+  return identity === "VIP_MANAGER" ? "sports" : null;
+}
 
 export type PersonaGender = "F" | "M";
 
@@ -127,14 +141,22 @@ export function personaRole(gender: string | null | undefined): string {
   return assistantRole("fr", gender);
 }
 
-/** Identité effective d'une persona enregistrée (toute valeur autre que « GIRL » est l'assistante). */
+/** Identité d'une persona enregistrée (toute valeur inconnue est l'assistante). */
 export function cleanIdentity(identity: string | null | undefined): PersonaIdentity {
-  return identity === "GIRL" ? "GIRL" : "ASSISTANT";
+  return identity === "GIRL" || identity === "VIP_MANAGER" ? identity : "ASSISTANT";
 }
 
-/** Libellé court de l'identité (« Une fille », « l'assistante »), accordé au genre. */
+/** « le gérant du VIP » / « la gérante du VIP » (en français, pour l'interface). */
+export function vipManagerLabel(gender: string | null | undefined): string {
+  return vipManagerRole("fr", gender);
+}
+
+/** Libellé court de l'identité (« Une fille », « l'assistante », « le gérant du VIP »), accordé au genre. */
 export function identityLabel(identity: string | null | undefined, gender?: string | null): string {
-  return cleanIdentity(identity) === "GIRL" ? "Une fille" : personaRole(gender);
+  const id = cleanIdentity(identity);
+  if (id === "GIRL") return "Une fille";
+  if (id === "VIP_MANAGER") return vipManagerLabel(gender);
+  return personaRole(gender);
 }
 
 // ------------------------------------------------------------------
@@ -146,7 +168,7 @@ export type PersonaFormState = {
   id: string | null;
   name: string;
   gender: PersonaGender;
-  /** « Qui est-elle ? » : l'assistante du canal, ou une fille sur un compte Telegram réel. */
+  /** « Qui est-elle ? » : l'assistante du canal, une fille sur un compte Telegram réel, ou le gérant du VIP. */
   identityKind: PersonaIdentity;
   /** Univers du bot (Rencontres, Casino, Paris sportifs) : hors Rencontres, toujours l'assistante. */
   universe: PersonaUniverse;
@@ -182,7 +204,7 @@ export type PersonaFormState = {
   extraPrompt: string;
   /** Fiche d'informations (questions / réponses, 40 au plus) : modifiable par un administrateur seulement. */
   faq: PersonaFaqEntry[];
-  /** Paris sportifs (bot VIP) : bookmakers partenaires dans l'ordre de proposition, chacun avec son offre et son lien VIP. */
+  /** Gérant du VIP : bookmakers partenaires dans l'ordre de proposition, chacun avec son offre et son lien VIP. */
   bookmakers: PersonaBookmakerDraft[];
   isActive: boolean;
 };
@@ -338,8 +360,11 @@ export function personaToForm(
     id: p.id,
     name: p.name,
     gender: p.gender === "M" ? "M" : "F",
-    // Une ancienne fille hors Rencontres (impossible depuis la phase 25) repasse en assistante dans le formulaire.
-    identityKind: girlAllowed(universe) ? cleanIdentity(p.identityKind) : "ASSISTANT",
+    // Une identité impossible dans l'univers (ancienne fille hors Rencontres, gérant du VIP hors Paris sportifs)
+    // repasse en assistante dans le formulaire.
+    identityKind: allowedIdentities(universe).includes(cleanIdentity(p.identityKind))
+      ? cleanIdentity(p.identityKind)
+      : "ASSISTANT",
     universe,
     age: p.age === null ? "" : String(p.age),
     personality: p.personality,
@@ -509,7 +534,7 @@ const payloadSchema = z.object({
     .catch(null),
   name: text(400),
   gender: z.enum(["F", "M"]).catch("F"),
-  identityKind: z.enum(["ASSISTANT", "GIRL"]).catch("ASSISTANT"),
+  identityKind: z.enum(PERSONA_IDENTITY_KINDS).catch("ASSISTANT"),
   universe: z.enum(PERSONA_UNIVERSES).catch("dating"),
   /** Le formulaire ne l'envoie pas (déduit de l'identité) ; refusé hors Rencontres s'il arrive à true. */
   illusion: z.boolean().optional().catch(undefined),
@@ -607,6 +632,8 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
   // Casino et Paris sportifs : identité assistante imposée (ni « une fille », ni mode illusion).
   if (!girlAllowed(universe) && (identityKind === "GIRL" || f.illusion === true))
     errors.identityKind = GIRL_NOT_ALLOWED;
+  if (identityKind === "VIP_MANAGER" && universe !== "sports")
+    errors.identityKind = VIP_MANAGER_NOT_ALLOWED;
   let faq: PersonaFaqEntry[] | null = null;
   if (Array.isArray(f.faq)) {
     const fv = validateFaq(f.faq);
@@ -699,9 +726,9 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
   const extraPrompt = f.extraPrompt.trim();
   if (extraPrompt.length > L.extraPrompt) errors.extraPrompt = tooLong(L.extraPrompt);
 
-  // Aucune option pour cacher qu'il s'agit d'un assistant (règle 2 du client). Sans objet pour une fille : elle est
-  // censée nier être une machine, donc « ne dis jamais que tu es une IA » est une consigne juste.
-  if (identityKind === "ASSISTANT") {
+  // Aucune option pour cacher qu'il s'agit d'un assistant (règle 2 du client), gérant du VIP compris. Sans objet pour une
+  // fille : elle est censée nier être une machine, donc « ne dis jamais que tu es une IA » est une consigne juste.
+  if (identityKind !== "GIRL") {
     for (const [field, value] of [
       ["personality", personality],
       ["tone", tone],
@@ -717,7 +744,7 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
 
   let bookmakers: PersonaBookmakerData[] | null = null;
   if (Array.isArray(f.bookmakers)) {
-    const bv = validateBookmakers(f.bookmakers, universe);
+    const bv = validateBookmakers(f.bookmakers, universe, identityKind);
     if (bv.ok) bookmakers = bv.books;
     else errors.bookmakers = bv.error;
   }
