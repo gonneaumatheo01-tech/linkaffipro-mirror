@@ -21,7 +21,7 @@ vi.mock("@linkaffipro/db", () => ({
   },
 }));
 
-import { saveChannelPlan, saveDatingMediaSettings, saveTeamSettings } from "./save";
+import { saveChannelPlan, saveTeamSettings } from "./save";
 
 const plan = {
   channelId: "c1",
@@ -59,25 +59,15 @@ describe("plan d'un canal Rencontres", () => {
   });
 });
 
-describe("réglages vidéo et plafonds", () => {
-  it("fournisseur et résolution fusionnés, journalisés ; rien si rien ne change", async () => {
-    await saveDatingMediaSettings({ videoProvider: "magichour", videoResolution: "720p" }, "u1");
-    const arg = m.configUpsert.mock.calls[0]![0] as { update: { settings: unknown } };
-    expect(arg.update.settings).toEqual({ similarityThreshold: 0.8, videoProvider: "magichour", videoResolution: "720p" });
-    expect(m.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "agents.video_settings_saved" }));
-    m.configUpsert.mockClear();
-    m.config = { settings: { videoProvider: "fal", videoResolution: "580p" } };
-    await saveDatingMediaSettings({ videoProvider: "fal", videoResolution: "580p" }, "u1");
-    expect(m.configUpsert).not.toHaveBeenCalled();
-  });
+describe("plafonds", () => {
 
   it("plafonds `null` (responsable) : la colonne des plafonds n'est pas écrite", async () => {
     const base = { styleGuidelines: "", forbiddenWords: [], maxTextLength: 900, quietHours: [] };
     await saveTeamSettings("dating", { ...base, budgets: null }, "u2");
     const arg = m.configUpsert.mock.calls[0]![0] as { update: Record<string, unknown> };
     expect(arg.update).not.toHaveProperty("monthlyBudgetCents");
-    await saveTeamSettings("dating", { ...base, budgets: { video: 5000 } }, "u1");
+    await saveTeamSettings("dating", { ...base, budgets: { image: 500 } }, "u1");
     const arg2 = m.configUpsert.mock.calls[1]![0] as { update: Record<string, unknown> };
-    expect(arg2.update.monthlyBudgetCents).toEqual({ video: 5000 });
+    expect(arg2.update.monthlyBudgetCents).toEqual({ image: 500 });
   });
 });

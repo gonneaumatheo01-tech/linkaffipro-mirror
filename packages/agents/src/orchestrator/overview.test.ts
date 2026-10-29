@@ -132,7 +132,7 @@ describe("supervision des agents", () => {
     const fal = o.health.providers.find((p) => p.key === "fal")!;
     expect(fal).toMatchObject({ keyPresent: true, errors24h: 1, lastOkAt: new Date(NOW.getTime() - 3 * H).toISOString() });
     expect(o.health.providers.find((p) => p.key === "odds")).toMatchObject({ keyPresent: false, errors24h: 0, lastOkAt: null });
-    expect(o.health.providers.find((p) => p.key === "magichour")).toMatchObject({ errors24h: 0, lastOkAt: null });
+    expect(o.health.providers.find((p) => p.key === "magichour")).toBeUndefined();
 
     const lines = overviewLines(o);
     expect(lines.length).toBeLessThanOrEqual(8);

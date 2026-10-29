@@ -98,7 +98,7 @@ const SINGLE_WORD_COMMANDS = new Set(["agents", "agent", "demandes", "demande", 
 const INTRO_VALUE = /^(?:c'est|c’est|voici|voila|voilà|tiens|la voici|le voici|la voila|le voila)\s*:?\s+(\S+)$/iu;
 /** « mot de passe / mdp / password / pass / identifiant / login » puis la valeur (mots de liaison sautés). */
 const HINT_HEAD = /(?<![\p{L}\p{N}])(?:mots?\s+de\s+passe|mdp|passwords?|pass|identifiants?|logins?)(?![\p{L}\p{N}])/giu;
-const HINT_FILLERS = new Set(["c'est", "c’est", "cest", "est", "ce", "sera", "du", "de", "des", "d'", "pour", "le", "la", "les", "mon", "ma", "ton", "ta", "sur", "chez", "fal", "cotes", "odds", "magichour", "sportaza", "bookmaker", "bookmakers", "=", ":", "->", "→", "-", "–", "est-ce"]);
+const HINT_FILLERS = new Set(["c'est", "c’est", "cest", "est", "ce", "sera", "du", "de", "des", "d'", "pour", "le", "la", "les", "mon", "ma", "ton", "ta", "sur", "chez", "fal", "cotes", "odds", "sportaza", "bookmaker", "bookmakers", "=", ":", "->", "→", "-", "–", "est-ce"]);
 
 /**
  * Valeur d'un secret écrit en phrase (pur) : « le mot de passe c'est Sportaza2024! » → « Sportaza2024! », « mdp :

@@ -19,8 +19,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /**
- * Dépôt des médias des agents (phase 20, ADMIN et MANAGER) : images de référence d'une persona (`purpose=reference`)
- * et vidéos sources de l'équipe Rencontres (`purpose=source`). Multipart : `purpose`, `personaId`, un ou plusieurs
+ * Dépôt des médias des agents (phase 20, ADMIN et MANAGER) : images de référence d'une persona (`purpose=reference` ;
+ * vidéos sources retirées avec les vidéos IA le 29 octobre 2026). Multipart : `purpose`, `personaId`, un ou plusieurs
  * `files`. Chaque fichier devient un `MediaAsset` rangé (persona, nature, origine humaine, équipe Rencontres) ; même
  * empreinte qu'un fichier existant : il est rangé à son tour, sauf s'il l'est déjà pour une autre persona.
  * Réponse : `{ files: [{ id, filename, mimeType, size, error? }] }`. Journal `agents.media_uploaded` (nouveau

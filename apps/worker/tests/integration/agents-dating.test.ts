@@ -1,8 +1,9 @@
 /**
- * Phase 20 : trois missions de l'équipe Dating (vidéo, photo, texte) pour une persona de test sur le canal Test, en
- * simulation, avec le faux fournisseur de médias, sur base réelle : médias rangés, validations « 3 premières vidéos /
- * photos » déclenchées puis acceptées (`decideValidation`, comme le bouton ✅), posts programmés puis envoyés par le
- * scheduler existant (bot de test simulé), coûts à 0.
+ * Phase 20 : missions de l'équipe Dating (photo, texte, et une ancienne mission « vidéo » devenue photo depuis le
+ * retrait des vidéos IA le 29 octobre 2026) pour une persona de test sur le canal Test, en simulation, avec le faux
+ * fournisseur de photos, sur base réelle : photos rangées, validations « 3 premières photos » / « nouveau canal »
+ * déclenchées puis acceptées (`decideValidation`, comme le bouton ✅), posts programmés puis envoyés par le scheduler
+ * existant (bot de test simulé), coûts à 0, aucune vidéo source utilisée.
  */
 import { randomBytes } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -10,13 +11,11 @@ import { prisma } from "@linkaffipro/db";
 import {
   createFakeImageProvider,
   createFakeLlm,
-  createFakeVideoProvider,
   createMission,
   decideValidation,
   runNextStep,
   type AgentStepJob,
   type EngineDeps,
-  type FrameExtractor,
 } from "@linkaffipro/agents";
 import { processScheduler } from "../../src/processors/scheduler";
 import { processTelegramSend } from "../../src/processors/telegram-send";
@@ -30,7 +29,6 @@ const loadAsset = async (id: string) => {
   const a = await prisma.mediaAsset.findUnique({ where: { id }, select: { bytes: true, mimeType: true, filename: true } });
   return a ? { bytes: new Uint8Array(a.bytes), mimeType: a.mimeType, filename: a.filename } : null;
 };
-const frames: FrameExtractor = async () => ({ frames: [new Uint8Array([1]), new Uint8Array([2]), new Uint8Array([3])], durationSec: 8 });
 const deps: EngineDeps = {
   prisma,
   enqueue: {
@@ -45,8 +43,7 @@ const deps: EngineDeps = {
       return { messageId: nextMsg++ };
     },
   },
-  providers: { llm: createFakeLlm(), video: createFakeVideoProvider({ loadAsset }), image: createFakeImageProvider({ loadAsset }) },
-  frames,
+  providers: { llm: createFakeLlm(), image: createFakeImageProvider({ loadAsset }) },
 };
 
 async function drain(): Promise<string[]> {
@@ -60,7 +57,7 @@ async function drain(): Promise<string[]> {
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR4nGN4VmFDEmIY1TCqYfhqAACh3JoQLIL4OAAAAABJRU5ErkJggg==", "base64");
 
-describe("agents Dating : vidéo, photo et texte en simulation (base réelle)", () => {
+describe("agents Dating : photo et texte en simulation (base réelle)", () => {
   let testChannelId = "";
   let botId = "";
   let calls: TelegramCall[] = [];
@@ -101,22 +98,22 @@ describe("agents Dating : vidéo, photo et texte en simulation (base réelle)", 
     }
   });
 
-  it("chaque mission produit son média puis attend la validation (3 premières vidéos / photos)", async () => {
+  it("chaque mission produit son média puis attend la validation (3 premières photos, nouveau canal)", async () => {
     const out = await drain();
     expect(out.filter((o) => o === "validation")).toHaveLength(3);
-    expect(out).toContain("waiting");
+    // Ancienne mission « vidéo » : produite en photo, sans vidéo source.
     const v = await prisma.agentMission.findUniqueOrThrow({ where: { id: missions.video } });
     const vp = v.payload as Record<string, unknown>;
     expect(v.status).toBe("WAITING_VALIDATION");
-    const generated = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: vp.mediaAssetId as string } });
-    expect(generated).toMatchObject({ kind: "GENERATED", origin: "AI", providerName: "fake", resolution: "580p", sourceAssetId: vp.sourceAssetId });
-    expect(generated.tags).toContain("simulation");
+    expect(vp).toMatchObject({ format: "photo", sourceAssetId: null });
+    const fromVideo = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: vp.mediaAssetId as string } });
+    expect(fromVideo).toMatchObject({ kind: "PHOTO", origin: "AI", providerName: "fake" });
+    expect(fromVideo.tags).toContain("simulation");
     const p = await prisma.agentMission.findUniqueOrThrow({ where: { id: missions.photo } });
     const photo = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: (p.payload as Record<string, unknown>).mediaAssetId as string } });
     expect(photo).toMatchObject({ kind: "PHOTO", origin: "AI" });
     const validations = await prisma.agentValidation.findMany({ orderBy: { number: "asc" } });
-    expect(validations.find((x) => x.missionId === missions.video)!.reason).toMatch(/3 premières vidéos de Léa Test/);
-    expect(validations.find((x) => x.missionId === missions.photo)!.reason).toMatch(/3 premières photos/);
+    expect(validations.find((x) => x.missionId === missions.photo)!.reason).toMatch(/3 premières photos de Léa Test/);
     expect(adminSent.filter((h) => h.includes("À valider"))).toHaveLength(3);
   });
 
@@ -136,18 +133,18 @@ describe("agents Dating : vidéo, photo et texte en simulation (base réelle)", 
     expect(byMission[missions.text]!.mediaAssetIds).toEqual([]);
     const usage = await prisma.agentUsage.findMany({ where: { teamKey: "dating", provider: { in: ["video", "image"] } } });
     expect(usage.reduce((s, u) => s + u.cents, 0)).toBe(0);
-    // La vidéo source est comptée sur le canal visé (jamais réutilisée là avant 30 jours).
-    const vp = (await prisma.agentMission.findUniqueOrThrow({ where: { id: missions.video } })).payload as Record<string, unknown>;
-    expect(await prisma.mediaUsage.count({ where: { assetId: vp.sourceAssetId as string } })).toBe(1);
+    // Aucune vidéo source n'est utilisée (vidéos IA retirées).
+    const sources = await prisma.mediaAsset.findMany({ where: { kind: "SOURCE", teamKey: "dating" }, select: { id: true } });
+    expect(await prisma.mediaUsage.count({ where: { assetId: { in: sources.map((x) => x.id) } } })).toBe(0);
   });
 
-  it("le scheduler existant envoie la vidéo, la photo et le texte (bot de test simulé)", async () => {
+  it("le scheduler existant envoie les photos et le texte (bot de test simulé)", async () => {
     const posts = await prisma.post.findMany({ where: { agentMissionId: { in: Object.values(missions) } } });
     await prisma.post.updateMany({ where: { id: { in: posts.map((p) => p.id) } }, data: { scheduledAt: new Date(Date.now() - 1000) } });
     expect(await processScheduler(fakeJob({ type: "tick" as const }))).toMatchObject({ claimed: 3 });
     for (const p of posts) await processTelegramSend(fakeJob({ type: "post" as const, postId: p.id }));
     const methods = calls.map((c) => c.method);
-    expect(methods).toContain("sendVideo");
+    expect(methods).not.toContain("sendVideo");
     expect(methods).toContain("sendPhoto");
     expect(methods).toContain("sendMessage");
     const after = await prisma.post.findMany({ where: { id: { in: posts.map((p) => p.id) } } });

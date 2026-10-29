@@ -60,14 +60,14 @@ describe("catalogue « voir »", () => {
   it("validation en attente : boutons existants ; agent ambigu : question numérotée ; long : « Tu veux le détail ? »", async () => {
     const kit = await createBossKit([
       ["qu'est-ce qui attend ma validation ?", call("qu_attend_ma_validation", {})],
-      ["l'agent des vidéos il fait quoi", call("fiche_agent", { agent: "l'agent des vidéos" })],
+      ["l'agent des photos il fait quoi", call("fiche_agent", { agent: "l'agent des photos" })],
       ["le plan de la semaine", call("voir_plan", { jours: 7 })],
     ]);
     const m = await kit.prisma.agentMission.create({ data: { teamKey: "casino", channelId: kit.ids.casino, planDay: "2026-10-23", status: "WAITING_VALIDATION" } as never });
     await kit.prisma.agentValidation.create({ data: { missionId: m.id, teamKey: "casino", previewText: "x", reason: "nouveau thème" } as never });
     const v = await bossAiTurn(kit.deps, kit.input("qu'est-ce qui attend ma validation ?"));
     expect(v.buttons?.[0]?.map((b) => b.callbackData.split(":")[2])).toEqual(["ok", "edit", "no"]);
-    const amb = await bossAiTurn(kit.deps, kit.input("l'agent des vidéos il fait quoi"));
+    const amb = await bossAiTurn(kit.deps, kit.input("l'agent des photos il fait quoi"));
     expect(amb.reply).toMatch(/1\. Médiathèque\n2\. Média IA\nRéponds par le numéro\./);
     const week = await bossAiTurn(kit.deps, kit.input("le plan de la semaine"));
     const ls = (week.reply ?? "").split("\n");

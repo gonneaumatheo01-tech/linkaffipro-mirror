@@ -74,6 +74,8 @@ describe("rubriques retirées (28 octobre 2026)", () => {
     expect(legacyRedirect("/agents/inspiration/ref1", "x=1")).toBe("/agents");
     expect(legacyRedirect("/agents/bookmakers")).toBe("/agents/sports");
     expect(legacyRedirect("/agents/bookmakers", "site=celsius")).toBe("/agents/sports");
+    expect(legacyRedirect("/agents/montage")).toBe("/agents");
+    expect(legacyRedirect("/agents/montage/j1")).toBe("/agents");
     expect(legacyRedirect("/agents/sports")).toBeNull();
     expect(legacyRedirect("/agents/inspirations")).toBeNull();
   });

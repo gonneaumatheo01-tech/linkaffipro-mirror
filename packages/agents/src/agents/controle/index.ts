@@ -44,7 +44,6 @@ async function autonomyFacts(mission: Mission, ctx: AgentContext) {
   const ofPersona = (personaDone ?? []).map((m) => parsePayload(m.payload)).filter((x) => x.personaId === p.personaId);
   return {
     firstPostOfChannel: channelDone === 0,
-    personaVideosDone: ofPersona.filter((x) => x.format === "video").length,
     personaPhotosDone: ofPersona.filter((x) => x.format === "photo").length,
     newPersona: personaDone ? ofPersona.length === 0 : false,
     newTheme: themeDone ? !themeDone.some((m) => parsePayload(m.payload).theme === p.theme) : false,
@@ -111,7 +110,7 @@ async function teamControl(mission: Mission, ctx: AgentContext): Promise<AgentRe
     let judgementReason: string | null = null;
     let costCents = 0;
 
-    // Média produit par l'IA : regard sur 3 images de la vidéo (ou sur la photo).
+    // Photo produite par l'IA : regardée avant la publication.
     let mediaDoubt: string | null = null;
     let doubtFrame: { bytes: Uint8Array; mime: string } | null = null;
     if (!problems.length && !p.approved) {
@@ -151,7 +150,6 @@ async function teamControl(mission: Mission, ctx: AgentContext): Promise<AgentRe
       teamKey: mission.teamKey,
       format: p.format,
       personaName: persona?.name ?? null,
-      personaVideosDone: facts.personaVideosDone,
       personaPhotosDone: facts.personaPhotosDone,
       firstPostOfChannel: facts.firstPostOfChannel,
       mediaDoubt,
@@ -224,7 +222,7 @@ async function refuseCasinoMedia(mission: Mission, ctx: AgentContext, reason: st
 /** Échecs techniques tolérés avant d'abandonner la mission (chaque fois : repli vers le format suivant). */
 const MAX_TECHNICAL_FAILURES = 2;
 
-/** Média illisible ou hors bornes : jamais publié ; repli (vidéo → photo → texte) et reprise de la production. */
+/** Média illisible : jamais publié ; repli (photo → texte) et reprise de la production. */
 async function technicalFailure(mission: Mission, ctx: AgentContext, reason: string): Promise<AgentResult> {
   const p = mission.payload;
   const count = (typeof p.technicalFailures === "number" ? p.technicalFailures : 0) + 1;

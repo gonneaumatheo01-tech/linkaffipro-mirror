@@ -20,7 +20,6 @@ const m = vi.hoisted(() => {
     engine: {
       createTestMission: fn(async () => ({ ok: true, missionId: "mi1" })),
       createTestPostMission: fn(async () => ({ ok: true, missionId: "mi2" })),
-      startBench: fn(async () => ({ ok: true, message: "Banc lancé." })),
       saveSecret: fn(async () => ({ last4: "3456" })),
       verifySecret: fn(async () => ({ ok: true, message: "clé acceptée" })),
       deleteSecret: fn(async () => undefined),
@@ -39,7 +38,6 @@ const m = vi.hoisted(() => {
     },
     writers: {
       saveTeamSettings: fn(async () => undefined),
-      saveDatingMediaSettings: fn(async () => undefined),
       saveChannelPlan: fn(async () => ({ ok: true })),
       saveTeamBudgets: fn(async () => undefined),
       saveAgentsGeneralSettings: fn(async () => ({ ok: true })),
@@ -99,7 +97,6 @@ vi.mock("@linkaffipro/chat", async (orig) => ({
 vi.mock("@/lib/agents/deps", () => ({ buildAgentsDeps: () => ({}) }));
 vi.mock("@/lib/agents/save", () => ({
   saveTeamSettings: m.writers.saveTeamSettings,
-  saveDatingMediaSettings: m.writers.saveDatingMediaSettings,
   saveChannelPlan: m.writers.saveChannelPlan,
   saveTeamBudgets: m.writers.saveTeamBudgets,
   saveAgentsGeneralSettings: m.writers.saveAgentsGeneralSettings,
@@ -121,8 +118,7 @@ vi.mock("@/lib/agents/algo/save", () => ({ saveAlgoSettings: m.writers.saveAlgoS
 vi.mock("@/lib/agents/ads/save", () => ({ saveAdsThresholds: m.writers.saveAdsThresholds, saveAdsAlertSettings: m.writers.saveAdsAlertSettings }));
 vi.mock("@/lib/agents/boss-save", () => ({ saveBossBudget: m.writers.saveBossBudget, saveBossName: m.writers.saveBossName }));
 vi.mock("@/lib/agents/dating-queries", () => ({
-  loadMediaKeys: async () => ({ fal: true, magichour: false }),
-  loadDatingSettings: async () => ({ videoProvider: "fal", videoResolution: "580p" }),
+  loadMediaKeys: async () => ({ fal: true }),
 }));
 vi.mock("@/lib/agents/casino-queries", () => ({
   loadThemeMediaCounts: async (keys: string[]) => Object.fromEntries(keys.map((k) => [k, 0])),
@@ -167,7 +163,7 @@ vi.mock("@/lib/assistant/config", () => ({
   saveAssistantConfig: m.writers.saveAssistantConfig,
 }));
 
-import { runCreateTestMission, runCreateTestPost, runSaveChannelPlan, runSaveTeamSettings, runStartBench } from "./teams";
+import { runCreateTestMission, runCreateTestPost, runSaveChannelPlan, runSaveTeamSettings } from "./teams";
 import { runDeleteSecret, runSaveBudgets, runSaveGeneralSettings, runSaveSecret, runVerifySecret } from "./settings";
 import { runCreateTestBet, runSaveBetCategory } from "./sports";
 import { runAddCasinoTheme, runClassifyCasinoMedia, runCreateCasinoTestPost, runRemoveCasinoTheme, runRenameCasinoTheme } from "./casino";
@@ -240,12 +236,11 @@ const CASES: Array<{ name: string; core: Core; form: Record<string, string | str
   { name: "réglages d'une équipe", core: runSaveTeamSettings, form: { team: "casino", casinoLowStock: "3", casinoRotationDays: "30" }, admin: false },
   { name: "plan d'un canal", core: runSaveChannelPlan, form: PLAN, admin: false },
   { name: "post de test Rencontres", core: runCreateTestPost, form: { format: "text" }, admin: false },
-  { name: "banc d'essai", core: runStartBench, form: { personaId: "p1" }, admin: true },
   { name: "clé d'un fournisseur", core: runSaveSecret, form: { key: "providers.fal.apiKey", value: "fal_cle_secrete_123456" }, admin: true },
   { name: "vérifier une clé", core: runVerifySecret, form: { key: "providers.fal.apiKey" }, admin: true },
   { name: "retirer une clé", core: runDeleteSecret, form: { key: "providers.fal.apiKey" }, admin: true },
   { name: "modèles et médiathèque", core: runSaveGeneralSettings, form: { modelFast: "claude-haiku-5-5", modelStrong: "claude-sonnet-5-5" }, admin: true },
-  { name: "plafonds du mois", core: runSaveBudgets, form: { "dating.budget_video": "80" }, admin: true },
+  { name: "plafonds du mois", core: runSaveBudgets, form: { "dating.budget_image": "80" }, admin: true },
   { name: "répondre à une demande", core: runAnswerHumanRequest, form: { requestId: "req1", answer: "oui" }, admin: false },
   { name: "passer une demande", core: runSkipHumanRequest, form: { requestId: "req1" }, admin: false },
   { name: "relancer une demande", core: runRelaunchHumanRequest, form: { requestId: "req1" }, admin: false },
@@ -322,15 +317,13 @@ describe("droits : un responsable ne fait pas ce qui est réservé aux administr
     expect(await runSaveSecret(fd({}), MANAGER)).toMatchObject({ error: "Action réservée aux administrateurs" });
     expect(await runSaveBetCategory(fd(CATEGORY), MANAGER)).toMatchObject({ error: "Les catégories de paris : réservé aux administrateurs." });
     expect(await runAddCasinoTheme(fd({ label: "Poker" }), MANAGER)).toMatchObject({ error: "Les thèmes de l'équipe sont réservés aux administrateurs." });
-    expect(await runStartBench(fd({ personaId: "p1" }), MANAGER)).toMatchObject({ error: "Le banc d'essai est réservé aux administrateurs." });
     expect(await runStopOrder(fd({ orderId: "o1" }), MANAGER)).toMatchObject({ error: "Arrêter un ordre est réservé aux administrateurs." });
   });
 
-  it("un responsable règle son équipe sans toucher aux plafonds ni au fournisseur des vidéos", async () => {
-    const r = await runSaveTeamSettings(fd({ team: "dating", budget_video: "999", videoProvider: "magichour", videoResolution: "720p" }), MANAGER);
+  it("un responsable règle son équipe sans toucher aux plafonds", async () => {
+    const r = await runSaveTeamSettings(fd({ team: "dating", budget_image: "999" }), MANAGER);
     expect(r.ok).toBe(true);
     expect(m.writers.saveTeamSettings.mock.calls[0]![1]).toMatchObject({ budgets: null });
-    expect(m.writers.saveDatingMediaSettings).not.toHaveBeenCalled();
   });
 });
 
@@ -338,11 +331,11 @@ describe("mêmes refus que le site", () => {
   const cases: Array<[string, Core, Record<string, string | string[]>, string]> = [
     ["équipe inconnue", runCreateTestMission, { team: "sports" }, "Équipe inconnue."],
     ["fenêtre à l'envers", runSaveChannelPlan, { ...PLAN, windowStart: "22:00", windowEnd: "09:00" }, "Fenêtre horaire : la fin doit être après le début (même journée)."],
-    ["photo sans persona", runCreateTestPost, { format: "photo" }, "Choisissez la persona : une vidéo ou une photo est faite pour un personnage."],
-    ["banc sans persona", runStartBench, {}, "Choisissez la persona."],
+    ["photo sans persona", runCreateTestPost, { format: "photo" }, "Choisissez la persona : une photo est faite pour un personnage."],
+    ["post vidéo (vidéos IA retirées)", runCreateTestPost, { format: "video", personaId: "p1" }, "Choisissez le type de post : photo ou texte."],
     ["clé vide", runSaveSecret, { key: "providers.fal.apiKey" }, "Collez d'abord la clé dans le champ."],
     ["clé inconnue", runSaveSecret, { key: "providers.autre", value: "abcdefghijk" }, "Clé inconnue : rechargez la page."],
-    ["plafond négatif", runSaveBudgets, { "dating.budget_video": "-3" }, "Plafond « Vidéos IA » : saisissez un montant en euros (0 ou plus)."],
+    ["plafond négatif", runSaveBudgets, { "dating.budget_image": "-3" }, "Plafond « Photos IA » : saisissez un montant en euros (0 ou plus)."],
     ["cotes à l'envers", runSaveBetCategory, { ...CATEGORY, minOdds: "3", maxOdds: "2" }, "La cote minimale doit être plus petite que la cote maximale."],
     ["aucun thème coché", runClassifyCasinoMedia, { assetId: "a1" }, "Cochez au moins un thème pour ranger ce média."],
     ["thème en double", runAddCasinoTheme, { label: "Roulette" }, "Le thème « Roulette » existe déjà."],
@@ -450,20 +443,26 @@ describe("opérations de Kevin (LOT_D_IMPL)", () => {
     for (const k of keys) expect(SITE_OPS.some((o) => o.key === k), k).toBe(true);
   });
 
-  it("« monte le budget vidéo à 80 € ce mois-ci » : Rencontres, les autres plafonds gardés, OUI demandé avant", async () => {
-    m.budgets = { dating: { llm: 1500, video: 5000, image: 1000 }, sports: { odds: 2000 } };
-    const dry = await impl("agents.budget_fournisseur").run({ poste: "video", euros: 80 }, KEVIN, { dryRun: true });
+  it("« monte le budget photo à 20 € ce mois-ci » : Rencontres, les autres plafonds gardés, OUI demandé avant", async () => {
+    m.budgets = { dating: { llm: 1500, image: 1000 }, sports: { odds: 2000 } };
+    const dry = await impl("agents.budget_fournisseur").run({ poste: "image", euros: 20 }, KEVIN, { dryRun: true });
     expect(dry).toMatchObject({ ok: true });
-    expect(dry.ok && dry.preview?.summary).toContain("Rencontres, Vidéos IA : 50 € → 80 €");
+    expect(dry.ok && dry.preview?.summary).toContain("Rencontres, Photos IA : 10 € → 20 €");
     expect(m.writers.saveTeamBudgets).not.toHaveBeenCalled();
-    const r = await impl("agents.budget_fournisseur").run({ poste: "video", euros: 80 }, KEVIN, {});
+    const r = await impl("agents.budget_fournisseur").run({ poste: "image", euros: 20 }, KEVIN, {});
     expect(r.ok).toBe(true);
     expect(m.writers.saveTeamBudgets).toHaveBeenCalledTimes(1);
-    expect(m.writers.saveTeamBudgets).toHaveBeenCalledWith("dating", { llm: 1500, video: 8000, image: 1000 }, "u1", "TELEGRAM");
+    expect(m.writers.saveTeamBudgets).toHaveBeenCalledWith("dating", { llm: 1500, image: 2000 }, "u1", "TELEGRAM");
+  });
+
+  it("plafond vidéo : refusé clairement (vidéos IA retirées)", async () => {
+    const r = await impl("agents.budget_fournisseur").run({ poste: "video", euros: 80 }, KEVIN, {});
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining("Les vidéos IA ne sont plus produites") });
+    expect(m.writers.saveTeamBudgets).not.toHaveBeenCalled();
   });
 
   it("un responsable ne change pas un plafond par Kevin", async () => {
-    const r = await impl("agents.budget_fournisseur").run({ poste: "video", euros: 80 }, KEVIN_MANAGER, {});
+    const r = await impl("agents.budget_fournisseur").run({ poste: "image", euros: 20 }, KEVIN_MANAGER, {});
     expect(r).toMatchObject({ ok: false, code: "forbidden" });
     expect(m.writers.saveTeamBudgets).not.toHaveBeenCalled();
   });

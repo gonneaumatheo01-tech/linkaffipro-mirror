@@ -266,7 +266,7 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
 
         <FormSection
           title="Pas encore possible"
-          description="Les mêmes demandes regroupées par équipe et par ce qu'il faudrait apprendre à Kevin : la liste de travail du développeur. Une demande qui vise une équipe à venir (Montage, Prospection…) y est rangée."
+          description="Les mêmes demandes regroupées par équipe et par ce qu'il faudrait apprendre à Kevin : la liste de travail du développeur. Une demande qui vise une équipe absente y est rangée."
         >
           <DataTable
             label="Pas encore possible, par équipe"

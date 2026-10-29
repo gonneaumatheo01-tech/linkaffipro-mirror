@@ -24,19 +24,13 @@ import { StatusPill } from "@/components/admin/status-pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { createTestMissionAction } from "../actions";
 import { saveTeamSettingsAction } from "./actions";
 import { AlgoView } from "./algo-view";
 import { centsToEurField, quietHoursText } from "@/lib/agents/config";
-import {
-  DATING_DEFAULT_BUDGETS,
-  VIDEO_PROVIDERS,
-  VIDEO_RESOLUTIONS,
-  parseDatingSettings,
-} from "@/lib/agents/dating";
-import { loadDatingPersonas, loadDatingSettings, loadMediaKeys } from "@/lib/agents/dating-queries";
+import { DATING_DEFAULT_BUDGETS } from "@/lib/agents/dating";
+import { loadDatingPersonas, loadMediaKeys } from "@/lib/agents/dating-queries";
 import { parseCasinoSettings } from "@/lib/agents/casino";
 import {
   loadCasinoRecentUsages,
@@ -112,9 +106,9 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
   const spent = usage[team] ?? {};
   const isAdmin = user.role === "ADMIN";
   const isDating = team === "dating";
-  const [datingPersonas, datingSettings, mediaKeys] = isDating
-    ? await Promise.all([loadDatingPersonas(now), loadDatingSettings(), loadMediaKeys()])
-    : [[], parseDatingSettings(null), { fal: false, magichour: false }];
+  const [datingPersonas, mediaKeys] = isDating
+    ? await Promise.all([loadDatingPersonas(now), loadMediaKeys()])
+    : [[], { fal: false }];
   // Équipe Casino (phase 22) : thèmes, stock, médias à classer, demandes, dernières publications.
   const isCasino = team === "casino";
   const casinoSettings = isCasino ? await loadCasinoSettings() : parseCasinoSettings(null);
@@ -154,7 +148,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
   const channelTitles = Object.fromEntries(plans.map((c) => [c.id, c.title]));
   // Plafonds affichés : ceux de l'équipe, sinon (Rencontres) les valeurs par défaut du moteur.
   const shownBudgets: Partial<Record<string, number>> = isDating
-    ? { video: DATING_DEFAULT_BUDGETS.video, image: DATING_DEFAULT_BUDGETS.image, ...config.budgets }
+    ? { image: DATING_DEFAULT_BUDGETS.image, ...config.budgets }
     : config.budgets;
 
   return (
@@ -250,57 +244,6 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
               </div>
             </div>
           </FormSection>
-          {isDating ? (
-            <FormSection
-              title="Vidéos"
-              description="Qui fabrique les vidéos et en quelle qualité. Le prix d'une vidéo dépend de sa durée et de sa résolution."
-            >
-              {isAdmin ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="videoProvider">Fournisseur des vidéos</Label>
-                    <NativeSelect
-                      id="videoProvider"
-                      name="videoProvider"
-                      defaultValue={datingSettings.videoProvider}
-                      wrapperClassName="w-full"
-                      aria-describedby="videoProvider-aide"
-                    >
-                      {VIDEO_PROVIDERS.map((v) => (
-                        <option key={v.value} value={v.value}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                    <p id="videoProvider-aide" className="text-note text-muted-foreground">
-                      Magic Hour sert aussi de secours si fal.ai échoue deux fois de suite.
-                    </p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="videoResolution">Résolution des vidéos</Label>
-                    <NativeSelect
-                      id="videoResolution"
-                      name="videoResolution"
-                      defaultValue={datingSettings.videoResolution}
-                      wrapperClassName="w-full"
-                    >
-                      {VIDEO_RESOLUTIONS.map((v) => (
-                        <option key={v.value} value={v.value}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-body text-foreground">
-                  {VIDEO_PROVIDERS.find((v) => v.value === datingSettings.videoProvider)?.label},{" "}
-                  {datingSettings.videoResolution}.{" "}
-                  <span className="text-note text-muted-foreground">Réservé aux administrateurs.</span>
-                </p>
-              )}
-            </FormSection>
-          ) : null}
           {isCasino ? (
             <FormSection
               title="Stock et rotation"
@@ -390,8 +333,8 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
         {isDating ? (
           <DatingProduction
             personas={datingPersonas}
-            spent={{ video: spent.video ?? 0, image: spent.image ?? 0 }}
-            budgets={{ video: shownBudgets.video, image: shownBudgets.image }}
+            spent={{ image: spent.image ?? 0 }}
+            budgets={{ image: shownBudgets.image }}
             keys={mediaKeys}
             isAdmin={isAdmin}
             simulation={config.simulation}

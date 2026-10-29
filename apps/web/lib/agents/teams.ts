@@ -52,7 +52,7 @@ export const TEAM_CHAINS: Record<TeamKey, readonly AgentKey[]> = {
 
 /** Fournisseurs payants utilisés par chaque équipe (plafonds mensuels affichés). */
 export const TEAM_PROVIDERS: Record<TeamKey, readonly ProviderKey[]> = {
-  dating: ["llm", "video", "image"],
+  dating: ["llm", "image"],
   casino: ["llm"],
   sports: ["llm", "odds"],
   algo: ["llm"],

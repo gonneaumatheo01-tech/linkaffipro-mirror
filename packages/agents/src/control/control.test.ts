@@ -16,11 +16,13 @@ describe("plan d'un canal (une seule logique pour le site et Kevin)", () => {
     expect(kit.tables("auditLog").filter((a) => a.action === "agents.channel_plan_saved")).toHaveLength(1);
   });
 
-  it("modification partielle : le reste du plan est gardé ; quota d'une équipe", async () => {
+  it("modification partielle : le reste du plan est gardé (Rencontres sans vidéo) ; quota d'une équipe", async () => {
     const kit = await createBossKit();
     const r = await updateChannelPlan(kit.deps, kit.ids.chLea, { mix: { video: 2, photo: 1, text: 1 } }, actor);
     expect(r.ok).toBe(true);
-    expect(kit.tables("channelAgentPlan").find((p) => p.channelId === kit.ids.chLea)).toMatchObject({ postsPerDay: 3, personaId: kit.ids.lea, enabled: true, mix: { video: 2, photo: 1, text: 1 } });
+    expect(kit.tables("channelAgentPlan").find((p) => p.channelId === kit.ids.chLea)).toMatchObject({ postsPerDay: 3, personaId: kit.ids.lea, enabled: true, mix: { video: 0, photo: 1, text: 1 } });
+    // Rencontres : part de vidéos ramenée à 0 (vidéos IA retirées le 29 octobre 2026) ; rien d'autre → refus clair.
+    expect(await updateChannelPlan(kit.deps, kit.ids.chLea, { mix: { video: 3, photo: 0, text: 0 } }, actor)).toMatchObject({ ok: false, error: expect.stringContaining("ne fait plus de vidéos") });
     expect(await setTeamPostsPerDay(kit.deps, "dating", 4, actor)).toEqual({ ok: true, changed: 1 });
     expect(await setTeamPostsPerDay(kit.deps, "sports", 4, actor)).toMatchObject({ ok: false });
   });

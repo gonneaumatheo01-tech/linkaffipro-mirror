@@ -553,8 +553,8 @@ describe("validation par le code (plans simulés)", () => {
       impossible: [{ part: "programmer des shorts", reason: "l'équipe Montage arrive bientôt, pas encore d'ordres possibles", suggestedCapability: "programmer des shorts", alternatives: [] }],
     }));
     const r = await bossAiTurn(kit.deps, kit.input("programme des shorts tous les jours"));
-    // La raison du code (équipe absente du registre) passe avant celle de l'IA.
-    expect(reply(r)).toContain("pas encore d'équipe Montage, elle arrive bientôt");
+    // La raison du code (équipe absente du registre, ici le Montage retiré) passe avant celle de l'IA.
+    expect(reply(r)).toContain("l'équipe montage n'existe pas encore");
     expectVoice(r);
     const u = kit.tables("bossUnmet")[0]!;
     expect(u.teamKey).toBe("montage");
@@ -629,7 +629,7 @@ describe("bilan hebdomadaire des demandes impossibles", () => {
       await kit.prisma.bossUnmet.create({ data: { key: text, text, count, firstAt: now, lastAt: now, suggestedCapability: cap, teamKey: team } as never });
     const lines = await weeklyUnmetLines(kit.deps);
     expect(lines.length).toBeLessThanOrEqual(5);
-    expect(lines[1]).toBe("3 fois : programmer des shorts → l'équipe Montage, à venir");
+    expect(lines[1]).toBe("3 fois : programmer des shorts → l'équipe montage");
     expect(lines[2]).toContain("Prospection");
   });
 });

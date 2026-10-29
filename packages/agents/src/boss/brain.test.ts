@@ -31,7 +31,7 @@ describe("catalogue fermé", () => {
       expect(typeof a.execute, a.key).toBe("function");
       if (a.cls === "confirm") expect(typeof a.summarize, a.key).toBe("function");
     }
-    for (const k of ["etat_general", "etat_equipe", "etat_canal", "rapport_du_jour", "depenses_du_mois", "resultats", "demandes_ouvertes", "repondre_demande", "plus_tard", "valider_post", "refuser_post", "corriger_post", "pause", "reprise", "niveau", "simulation", "plafond", "quota_posts", "plan_canal", "persona_canal", "personas", "stock_medias", "banc_essai", "themes_casino", "offre_canal", "categories_paris", "categorie_paris", "paris_du_jour", "bilan_paris", "reglages_semaine", "appliquer_reglage", "annuler_reglage", "tests_en_cours", "recommandations_ads", "ads_fait", "ads_refuser", "seuils_ads", "post_test", "pari_test", "aide", "commencer", "annule"])
+    for (const k of ["etat_general", "etat_equipe", "etat_canal", "rapport_du_jour", "depenses_du_mois", "resultats", "demandes_ouvertes", "repondre_demande", "plus_tard", "valider_post", "refuser_post", "corriger_post", "pause", "reprise", "niveau", "simulation", "plafond", "quota_posts", "plan_canal", "persona_canal", "personas", "stock_medias", "themes_casino", "offre_canal", "categories_paris", "categorie_paris", "paris_du_jour", "bilan_paris", "reglages_semaine", "appliquer_reglage", "annuler_reglage", "tests_en_cours", "recommandations_ads", "ads_fait", "ads_refuser", "seuils_ads", "post_test", "pari_test", "aide", "commencer", "annule"])
       expect(keys.has(k), k).toBe(true);
   });
 
@@ -46,9 +46,9 @@ describe("catalogue fermé", () => {
     expect(await by("quota_posts").classify!(kit.deps, { cible: "Léa", posts_par_jour: 4 })).toBe("confirm");
     expect(await by("plan_canal").classify!(kit.deps, { canal: "emma", actif: true })).toBe("confirm");
     expect(await by("categorie_paris").classify!(kit.deps, { categorie: "corners", active: false })).toBe("immediate");
-    await kit.prisma.agentTeamConfig.upsert({ where: { teamKey: "dating" }, create: { teamKey: "dating", monthlyBudgetCents: { video: 5000 } }, update: { monthlyBudgetCents: { video: 5000 } } } as never);
-    expect(await by("plafond").classify!(kit.deps, { equipe: "dating", poste: "video", euros: 20 })).toBe("immediate");
-    expect(await by("plafond").classify!(kit.deps, { equipe: "dating", poste: "video", euros: 80 })).toBe("confirm");
+    await kit.prisma.agentTeamConfig.upsert({ where: { teamKey: "dating" }, create: { teamKey: "dating", monthlyBudgetCents: { image: 5000 } }, update: { monthlyBudgetCents: { image: 5000 } } } as never);
+    expect(await by("plafond").classify!(kit.deps, { equipe: "dating", poste: "image", euros: 20 })).toBe("immediate");
+    expect(await by("plafond").classify!(kit.deps, { equipe: "dating", poste: "image", euros: 80 })).toBe("confirm");
   });
 
   it("droits : l'admin peut tout ; un membre lit, mais ne passe rien en vrai (détail : team/team.test.ts)", () => {

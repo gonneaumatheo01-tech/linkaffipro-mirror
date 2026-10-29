@@ -7,7 +7,6 @@
 import { audit, prisma, type Prisma } from "@linkaffipro/db";
 import { saveChannelPlanFor, type AgentsDeps, type ProviderKey, type TeamKey } from "@linkaffipro/agents";
 import type { AgentsSettingsInput, ChannelPlanInput, TeamSettingsInput } from "./forms";
-import { mergeDatingSettings, parseDatingSettings, type DatingMediaSettings } from "./dating";
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
@@ -51,30 +50,6 @@ export async function saveTeamSettings(
       budgetsCents: input.budgets ?? "inchangés",
       ...viaMeta(via),
     },
-  });
-}
-
-/**
- * Fournisseur et résolution des vidéos de l'équipe Rencontres (ADMIN, vérifié par l'action), rangés dans
- * `AgentTeamConfig.settings` sans toucher aux autres clés du moteur.
- */
-export async function saveDatingMediaSettings(input: DatingMediaSettings, userId: string, via?: Via): Promise<void> {
-  const row = await prisma.agentTeamConfig.findUnique({ where: { teamKey: "dating" }, select: { settings: true } });
-  const before = parseDatingSettings(row?.settings);
-  if (row && before.videoProvider === input.videoProvider && before.videoResolution === input.videoResolution)
-    return;
-  const settings = json(mergeDatingSettings(row?.settings, input));
-  await prisma.agentTeamConfig.upsert({
-    where: { teamKey: "dating" },
-    create: { teamKey: "dating", settings, updatedById: userId },
-    update: { settings, updatedById: userId },
-  });
-  await audit({
-    userId,
-    action: "agents.video_settings_saved",
-    entityType: "AgentTeamConfig",
-    entityId: "dating",
-    metadata: { from: before, to: input, ...viaMeta(via) },
   });
 }
 

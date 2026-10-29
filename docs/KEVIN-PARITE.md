@@ -2,7 +2,7 @@
 
 Généré par `pnpm kevin:parity -- --write` (ne pas modifier à la main). Chaque action du site se fait aussi en parlant à Kevin sur Telegram, sauf les exclusions listées avec leur remplacement.
 
-État du 28 octobre 2026 : 242 actions du site, 232 faisables par Kevin, 10 exclues (avec remplacement), 0 manquantes.
+État du 29 octobre 2026 : 237 actions du site, 227 faisables par Kevin, 10 exclues (avec remplacement), 0 manquantes.
 
 ## /
 
@@ -38,10 +38,10 @@ Exclusions (impossible dans Telegram) :
 | catalogue niveau | catalogue niveau | `setAutonomyLevelAction` |
 | catalogue simulation | catalogue simulation | `setSimulationAction` |
 | catalogue pause | catalogue pause | `setTeamPausedAction` |
-| Retirer la clé d'un fournisseur des agents | « retire la clé Magic Hour » | `deleteSecretAction` |
-| Changer le plafond du mois d'une équipe pour un poste de dépense (vidéo, photo, IA d'écriture, cotes, captures), en euros | « monte le budget vidéo à 80 € ce mois-ci » | `saveAllBudgetsAction` |
+| Retirer la clé d'un fournisseur des agents | « retire la clé des cotes » | `deleteSecretAction` |
+| Changer le plafond du mois d'une équipe pour un poste de dépense (photo, IA d'écriture, cotes, captures), en euros | « monte le budget photo à 20 € ce mois-ci » | `saveAllBudgetsAction` |
 | Choisir les modèles d'IA des agents (rapide et d'écriture) et le canal Médiathèque | « les agents écrivent avec Opus » | `saveGeneralSettingsAction` |
-| Enregistrer la clé d'un fournisseur des agents (fal.ai, Magic Hour, cotes sportives), chiffrée | « voici la clé fal » | `saveSecretAction` |
+| Enregistrer la clé d'un fournisseur des agents (fal.ai, cotes sportives), chiffrée | « voici la clé fal » | `saveSecretAction` |
 | catalogue pause | catalogue pause | `setPausedAllAction` |
 | Vérifier la clé enregistrée d'un fournisseur (appel gratuit) | « vérifie la clé fal » | `verifySecretAction` |
 
@@ -49,10 +49,9 @@ Exclusions (impossible dans Telegram) :
 
 | Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
 |---|---|---|
-| Produire un post de test Rencontres (vidéo, photo ou texte) en simulation sur le canal Test | « fais un post de test vidéo avec Léa » | `createTestPostAction` |
+| Produire un post de test Rencontres (photo ou texte) en simulation sur le canal Test | « fais un post de test photo avec Léa » | `createTestPostAction` |
 | Régler le plan d'un canal pour les agents : activé ou non, posts par jour, fenêtre horaire, espacement, mélange vidéo / photo / texte, persona, campagne de l'offre, thèmes (avec leur poids pour un canal Casino) | « mets 4 posts par jour sur Zone Interdite entre 10 h et 22 h » | `saveChannelPlanAction` |
 | Régler une équipe : consignes de style, mots interdits, longueur maximale, heures calmes ; pour un administrateur aussi les plafonds du mois, le fournisseur et la résolution des vidéos (Rencontres), le seuil de manque et la rotation (Casino), les heures de passage, l'écart de cote, le délai avant match et le plafond d'appels (Paris sportifs) | « ajoute « gratuit » aux mots interdits du casino » | `saveTeamSettingsAction` |
-| Lancer le banc d'essai vidéo d'une persona (compare les réglages, dépense quelques euros) | « lance le banc d'essai de Léa » | `startBenchAction` |
 | Appliquer, annuler ou refuser une proposition de l'équipe Algorithme (persona et quotas : administrateurs) | « applique la proposition du mélange de Zone Interdite » | `recommendationAction` |
 | Recalculer et envoyer maintenant le rapport de l'équipe Algorithme | « envoie-moi le rapport algorithme maintenant » | `runAlgoReportNowAction` |
 | Régler l'équipe Algorithme : seuils de données (posts, vues, conversations), points de mélange par semaine, posts par jour au plus, heures autorisées, fréquence | « l'algorithme ne propose pas plus de 5 posts par jour » | `saveAlgoSettingsAction` |
@@ -91,15 +90,6 @@ Exclusions (impossible dans Telegram) :
 |---|---|---|
 | Changer le plafond mensuel de l'IA de Kevin (500 € au plus ; 0 = commandes exactes seulement) | « monte ton plafond à 50 € par mois » | `saveBossBudgetAction` |
 | Changer le prénom affiché du Boss | « appelle-toi Max » | `saveBossNameAction` |
-
-## /agents/montage/[id]
-
-| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
-|---|---|---|
-| Valider un short du montage (il est prêt dans la médiathèque ; rien n'est publié sans un ordre) | « valide le short 3 » | `approveShortAction` |
-| Annuler un montage en cours (shorts pas encore faits abandonnés, shorts validés gardés) | « annule le montage en cours » | `cancelMontageAction` |
-| Faire refaire un short avec une modification (durée, caméra, texte, sous-titres) ; un nouvel aperçu suit | « le short 5, raccourcis de 2 secondes » | `modifyShortAction` |
-| Refuser un short (archivé, pas supprimé) | « refuse le short 4 » | `rejectShortAction` |
 
 ## /agents/orders/[id]
 
@@ -237,10 +227,10 @@ Exclusions (impossible dans Telegram) :
 
 | Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
 |---|---|---|
-| Retirer la clé d'un fournisseur des agents | « retire la clé Magic Hour » | `deleteSecretAction` |
-| Changer le plafond du mois d'une équipe pour un poste de dépense (vidéo, photo, IA d'écriture, cotes, captures), en euros | « monte le budget vidéo à 80 € ce mois-ci » | `saveAllBudgetsAction` |
+| Retirer la clé d'un fournisseur des agents | « retire la clé des cotes » | `deleteSecretAction` |
+| Changer le plafond du mois d'une équipe pour un poste de dépense (photo, IA d'écriture, cotes, captures), en euros | « monte le budget photo à 20 € ce mois-ci » | `saveAllBudgetsAction` |
 | Choisir les modèles d'IA des agents (rapide et d'écriture) et le canal Médiathèque | « les agents écrivent avec Opus » | `saveGeneralSettingsAction` |
-| Enregistrer la clé d'un fournisseur des agents (fal.ai, Magic Hour, cotes sportives), chiffrée | « voici la clé fal » | `saveSecretAction` |
+| Enregistrer la clé d'un fournisseur des agents (fal.ai, cotes sportives), chiffrée | « voici la clé fal » | `saveSecretAction` |
 | catalogue pause | catalogue pause | `setPausedAllAction` |
 | Vérifier la clé enregistrée d'un fournisseur (appel gratuit) | « vérifie la clé fal » | `verifySecretAction` |
 

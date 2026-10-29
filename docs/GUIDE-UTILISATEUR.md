@@ -18,7 +18,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Messages](#messages)
 - [Membres](#membres) : liste, [Écrire à un groupe](#ecrire-a-un-groupe), [Relances automatiques](#relances-automatiques)
 - [Conversations](#conversations) : [Boîte de réception](#boite-de-reception), [Personas](#personas), [Chiffres](#chiffres)
-- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Lancer une équipe pour de vrai en 3 clics](#lancer-une-equipe-pour-de-vrai-en-3-clics), [Fiche d'une équipe](#fiche-d-une-equipe), [Montage vidéo](#montage-video), [Analyse de marché](#analyse-de-marche), [Contrôle qualité global](#controle-qualite-global), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
+- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Lancer une équipe pour de vrai en 3 clics](#lancer-une-equipe-pour-de-vrai-en-3-clics), [Fiche d'une équipe](#fiche-d-une-equipe), [Analyse de marché](#analyse-de-marche), [Contrôle qualité global](#controle-qualite-global), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
 - [Statistiques](#statistiques)
 - [Réglages](#reglages)
 - [Comptes Telegram](#comptes-telegram)
@@ -862,15 +862,15 @@ Cliquez sur **Créer la persona** (ou **Enregistrer**). Quand un bot l'utilise d
 
 Plus bas sur la fiche, **Ce que l'assistante reçoit comme consignes** (replié) montre le texte exact envoyé à l'IA pour un premier message.
 
-**Médias du personnage** (sous le formulaire, enregistrés à part avec **Enregistrer les médias**) : ce qui sert à l'équipe Rencontres des [agents](#equipe-rencontres-videos-photos-et-banc-d-essai) pour fabriquer les vidéos et les photos du personnage, surtout pour une persona « Une fille ».
+**Médias du personnage** (sous le formulaire, enregistrés à part avec **Enregistrer les médias**) : ce qui sert à l'équipe Rencontres des [agents](#equipe-rencontres-photos-des-personas) pour fabriquer les photos du personnage, surtout pour une persona « Une fille ».
 
-- **Images de référence** : 1 à 3 photos nettes du personnage, de face et en pied (JPEG, PNG ou WebP, 10 Mo au plus). Cliquez sur **Ajouter une image** ; les flèches changent l'ordre. **La première sert à remplacer la personne dans les vidéos** : mettez la meilleure en premier.
+- **Images de référence** : 1 à 3 photos nettes du personnage, de face et en pied (JPEG, PNG ou WebP, 10 Mo au plus). Cliquez sur **Ajouter une image** ; les flèches changent l'ordre. Mettez la meilleure en premier.
 - **Adresse du fichier du personnage** (expliqué au survol et dans le [Petit lexique](#petit-lexique) : un petit fichier qui apprend au générateur de photos le visage et le corps du personnage) : collez l'adresse complète qui commence par https://. Facultatif : sans lui, les photos restent celles de la persona.
 - **Mot déclencheur** : le mot donné avec le fichier, obligatoire dès qu'une adresse est collée.
 - **Force du personnage** : de 0,1 à 1,5 (0,8 conseillé ; plus haut, plus ressemblant mais moins naturel).
-- **Tenue et ambiance** : ce qu'elle porte, les lieux, ce qu'il faut éviter. Lu pour chaque photo et chaque vidéo.
+- **Tenue et ambiance** : ce qu'elle porte, les lieux, ce qu'il faut éviter. Lu pour chaque photo.
 
-Pour une assistante du canal, ces médias ne sont jamais présentés comme ses photos. Les 3 premières vidéos et les 3 premières photos d'une nouvelle persona vous sont toujours montrées avant de partir, quel que soit le niveau.
+Pour une assistante du canal, ces médias ne sont jamais présentés comme ses photos. Les 3 premières photos d'une nouvelle persona vous sont toujours montrées avant de partir, quel que soit le niveau.
 
 **Supprimer la persona** (administrateurs seulement) : impossible tant qu'un bot l'utilise ; liez d'abord une autre persona au bot dans [Réglages → Bots](#reglages-bots), ou repassez-le en bot normal. Pour l'arrêter tout de suite, décochez plutôt **Persona activée**. Ses conversations restent dans la boîte de réception.
 
@@ -908,7 +908,7 @@ Choisissez la période en haut (le même sélecteur que les [Statistiques](#peri
 Le premier onglet de **Agents** montre tout sur un seul écran, de haut en bas :
 
 - **Ce qui vous attend** : quatre cases cliquables. **Validations à faire** (les posts qui attendent **Publier** ou **Refuser**), **Demandes du bot** (les questions posées sur Telegram), **Alertes ouvertes** (équipe en pause, plafond proche, canal en baisse… ; la case ouvre Réglages → Alertes pour les administrateurs) et **Tests A/B en cours** (ceux de l'équipe Algorithme).
-- **Une carte par équipe** (Rencontres, Casino, Paris sportifs, Algorithme) : son état (**Active**, **En pause** ou **Pause générale**, **Simulation** ou **Vrais canaux**, niveau 0, 1 ou 2), puis les **Missions du jour** (**Créées**, **Publiées**, **En attente**, **Refusées**, **Échouées**, **Replis** : un post fait autrement que prévu, par exemple une photo au lieu d'une vidéo), la **Dépense du mois** poste par poste (IA d'écriture, vidéos, photos, cotes, captures) face au plafond, avec ce qui est **prévu à la fin du mois** à ce rythme (en orange si cela dépasserait le plafond), et les **Résultats des posts de l'équipe** sur 7 et 28 jours : posts, vues, clics, inscriptions, premiers dépôts et commissions, comptés comme dans les [Statistiques](#statistiques). Trois boutons : **Ouvrir l'équipe**, **Pause** (ou **Reprendre**) et, pour Rencontres et Casino, **Créer une mission de test**.
+- **Une carte par équipe** (Rencontres, Casino, Paris sportifs, Algorithme) : son état (**Active**, **En pause** ou **Pause générale**, **Simulation** ou **Vrais canaux**, niveau 0, 1 ou 2), puis les **Missions du jour** (**Créées**, **Publiées**, **En attente**, **Refusées**, **Échouées**, **Replis** : un post fait autrement que prévu, par exemple un texte au lieu d'une photo), la **Dépense du mois** poste par poste (IA d'écriture, photos, cotes) face au plafond, avec ce qui est **prévu à la fin du mois** à ce rythme (en orange si cela dépasserait le plafond), et les **Résultats des posts de l'équipe** sur 7 et 28 jours : posts, vues, clics, inscriptions, premiers dépôts et commissions, comptés comme dans les [Statistiques](#statistiques). Trois boutons : **Ouvrir l'équipe**, **Pause** (ou **Reprendre**) et, pour Rencontres et Casino, **Créer une mission de test**.
 - **La carte de l'Agent Ads** : les recommandations à décider, celles faites sur 30 jours et la date du dernier rapport ; **Ouvrir l'Agent Ads**.
 - **Réglages appliqués cette semaine** : ce que l'équipe Algorithme a changé chez les autres équipes depuis lundi (quel réglage, sur quel canal ou quelle persona, quel jour), avec **Annuler** (voir [Annuler un réglage de l'équipe Algorithme](#annuler-un-reglage-de-l-equipe-algorithme)).
 - **Derniers rapports** : les trois derniers rapports envoyés chaque matin à 9 h sur Telegram (une ligne par équipe : publié, en attente, refusé, dépense du mois), et les liens **Rapports de la semaine** (équipe Algorithme) et **Rapports pubs** (Agent Ads).
@@ -944,10 +944,9 @@ Dans **Réglages appliqués cette semaine** (tableau de bord) ou dans **Proposit
 
 Dans Telegram, envoyez (ou transférez) la photo ou la vidéo au bot du dialogue, avec en légende les mots-clés :
 
-- **Rencontres** : `#rencontres #source` puis le prénom de la persona, par exemple `#rencontres #source #lea` (vidéos sources, une personne entière bien visible).
 - **Casino** : `#casino` puis le thème, par exemple `#casino #roulette` (voir [Équipe Casino](#equipe-casino-vos-videos-images-et-themes)).
 
-Le bot répond en une ligne pour dire où le média est rangé. Un album se range avec la légende de son premier élément. Le même fichier envoyé deux fois n'est rangé qu'une fois. Depuis l'ordinateur, les fiches des équipes Rencontres et Casino ont aussi un bouton de dépôt.
+Le bot répond en une ligne pour dire où le média est rangé. Un album se range avec la légende de son premier élément. Le même fichier envoyé deux fois n'est rangé qu'une fois. Depuis l'ordinateur, la fiche de l'équipe Casino a aussi un bouton de dépôt (les images de référence d'une persona se déposent dans sa fiche, section **Médias du personnage**).
 
 ### Où voir les coûts
 
@@ -963,26 +962,23 @@ Vous êtes prévenu sur Telegram à 80 % et à 100 % d'un plafond ; au plafond, 
 Cliquez sur **Ouvrir l'équipe**. La fiche se lit de haut en bas :
 
 - **Pilotage** : où partent les posts (simulation ou vrais canaux) et le niveau d'autonomie (voir [Simulation, niveaux et pause](#simulation-niveaux-et-pause)).
-- **Réglages de l'équipe** : les **Consignes de style** lues par la Rédaction (« phrases très courtes, tutoiement… »), les **Mots interdits** (un par ligne), les **Heures calmes** (une plage par ligne, par exemple 23:00-08:00, heure de Paris) et la **Longueur maximale d'un post** (900 caractères conseillés). Pour Rencontres, le bloc **Vidéos** (voir plus bas). Puis les **Plafonds du mois** de l'équipe, en euros, avec ce qui est déjà dépensé (modifiables par les administrateurs seulement). Cliquez sur **Enregistrer** : le Grand Chef les applique à son prochain passage (toutes les 30 minutes).
-- **Plan par canal** : un bloc par canal de l'univers (le canal Test en premier). Cochez **Les agents publient sur ce canal**, puis réglez les **Posts par jour**, la fenêtre (**Début** et **Fin**, heure de Paris), l'**Espacement minimal** entre deux posts, le **Mélange** (parts de vidéo, photo et texte), la **Persona** dont le canal reprend la façon de parler, la **Campagne du bouton Offre** et, si vous le souhaitez, des **Thèmes**. Cliquez sur **Enregistrer le plan**. Si tous les posts du jour ne tiennent pas dans la fenêtre avec cet espacement, la fiche vous le dit.
+- **Réglages de l'équipe** : les **Consignes de style** lues par la Rédaction (« phrases très courtes, tutoiement… »), les **Mots interdits** (un par ligne), les **Heures calmes** (une plage par ligne, par exemple 23:00-08:00, heure de Paris) et la **Longueur maximale d'un post** (900 caractères conseillés). Puis les **Plafonds du mois** de l'équipe, en euros, avec ce qui est déjà dépensé (modifiables par les administrateurs seulement). Cliquez sur **Enregistrer** : le Grand Chef les applique à son prochain passage (toutes les 30 minutes).
+- **Plan par canal** : un bloc par canal de l'univers (le canal Test en premier). Cochez **Les agents publient sur ce canal**, puis réglez les **Posts par jour**, la fenêtre (**Début** et **Fin**, heure de Paris), l'**Espacement minimal** entre deux posts, le **Mélange** (parts de vidéo, photo et texte ; photo et texte seulement pour Rencontres), la **Persona** dont le canal reprend la façon de parler, la **Campagne du bouton Offre** et, si vous le souhaitez, des **Thèmes**. Cliquez sur **Enregistrer le plan**. Si tous les posts du jour ne tiennent pas dans la fenêtre avec cet espacement, la fiche vous le dit.
 - **Agents de l'équipe** : chaque agent, dans l'ordre de la chaîne, avec ses trois derniers passages. Ceux qui arrivent plus tard sont marqués **Arrive dans une prochaine étape**.
 - **Missions** : filtrez par **Statut** et **Période**, puis cliquez sur une ligne pour voir la mission **Étape par étape** (ce que chaque agent a fait, son coût, une erreur éventuelle) et, une fois programmé, **Ouvrir le message**.
 
 Changer un réglage ou un plan ne fait jamais travailler l'IA : c'est seulement lu au prochain passage du Grand Chef.
 
-### Équipe Rencontres : vidéos, photos et banc d'essai
+### Équipe Rencontres : photos des personas
 
-L'équipe Rencontres fabrique trois sortes de posts pour chaque persona : des **vidéos** (une vidéo source dans laquelle la personne entière est remplacée par le personnage), des **photos** neuves du personnage (faites avec son fichier du personnage) et des **textes**, chacun avec une légende très courte dans le style de la persona. Sa fiche a en plus :
+L'équipe Rencontres fabrique deux sortes de posts pour chaque persona : des **photos** neuves du personnage (faites avec son fichier du personnage) et des **textes**, chacun avec une légende très courte dans le style de la persona. Elle ne fabrique plus de vidéos (retirées le 29 octobre 2026). Sa fiche a en plus :
 
-- **Vidéos et photos des personas** : la dépense du mois en vidéos et en photos face aux plafonds (100 € et 15 € au départ), puis **Produire un post de test** : choisissez le **Type de post** (vidéo, photo ou texte) et la **Persona**, puis cliquez. Le post part en simulation sur le canal Test, après votre validation. C'est le test de 5 minutes.
-- **Une carte par persona** : les **Vidéos sources non utilisées** (en orange sous 3 : déposez-en), les vidéos et photos produites ce mois, les images de référence, et les **Dernières productions** avec leur aperçu (cliquez sur lecture pour une vidéo). Le prénom ouvre la fiche persona, à la section **Médias du personnage**.
-- **Banc d'essai** (administrateurs) : prend les 3 vidéos sources les plus anciennes de la persona et les fait passer chez chaque fournisseur disponible (fal.ai en 580p et en 720p, Magic Hour si sa clé est collée). Chaque résultat vous arrive sur Telegram avec son coût, puis le bot vous demande lequel vous préférez : votre réponse règle le fournisseur et la résolution de l'équipe. Sans clé, rien ne se lance et la fiche vous le dit.
-- **Déposer des vidéos sources** : choisissez la persona, puis **Déposer des vidéos sources** (MP4, MOV ou WebM, 50 Mo au plus chacune ; une personne entière bien visible, 5 à 15 secondes). Vous pouvez aussi les envoyer au bot sur Telegram avec `#rencontres #source` et le prénom. Une vidéo source n'est jamais réutilisée sur le même canal avant 30 jours.
-- **Vidéos** (dans les réglages, administrateurs) : le **Fournisseur des vidéos** (fal.ai, qui remplace la personne entière, ou Magic Hour, qui remplace seulement le visage et sert aussi de secours) et la **Résolution des vidéos** (480p, 580p conseillé, 720p).
-- **Plan par canal** : la **Persona du canal** est obligatoire pour activer un canal Rencontres ; le **Mélange de la journée** part de 1 vidéo, 2 photos et 1 texte. Sans vidéo source neuve ou quand le plafond vidéo est atteint, une vidéo devient une photo, puis un texte, sans jamais dépasser le plafond.
+- **Photos des personas** : la dépense du mois en photos face au plafond (15 € au départ), puis **Produire un post de test** : choisissez le **Type de post** (photo ou texte) et la **Persona**, puis cliquez. Le post part en simulation sur le canal Test, après votre validation. C'est le test de 5 minutes.
+- **Une carte par persona** : les photos produites ce mois, les images de référence et les **Dernières productions** avec leur aperçu. Le prénom ouvre la fiche persona, à la section **Médias du personnage**.
+- **Plan par canal** : la **Persona du canal** est obligatoire pour activer un canal Rencontres ; le **Mélange de la journée** part de 3 photos et 1 texte. Quand le plafond photo est atteint, une photo devient un texte, sans jamais dépasser le plafond.
 - **Conversation** : les messages privés des membres sont traités par les personas de [Conversations](#conversations) : rien à régler ici.
 
-Sans clé fal.ai, tout tourne en simulation : la vidéo source revient telle quelle et la photo est celle de la persona. Toute vidéo pour laquelle le Contrôle qualité a un doute (mains, visage, membres, texte déformé) vous est montrée avec 3 images extraites, quel que soit le niveau.
+Sans clé fal.ai, tout tourne en simulation : la photo est celle de la persona. Toute photo pour laquelle le Contrôle qualité a un doute (mains, visage, membres, texte déformé) vous est montrée, quel que soit le niveau.
 
 ### Équipe Casino : vos vidéos, images et thèmes
 
@@ -1021,70 +1017,6 @@ Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte Paris sportifs. La fic
 1. L'équipe choisit le pari sur les **statistiques des matchs** (service gratuit API-Football) : les 5 derniers matchs de chaque équipe, leurs tirs cadrés pour et contre, puis une ligne « Plus de X,5 tirs cadrés » dont la cote estimée tombe dans la fourchette de la catégorie. Kevin vous demande une seule fois la clé gratuite (compte sur dashboard.api-football.com) ; elle se colle aussi dans **Agents → Réglages → Statistiques des matchs (API-Football)**. L'offre gratuite donne 100 demandes par jour : l'équipe s'arrête à 90 et étudie 4 matchs par passage. Sans cette clé, l'équipe utilise les cotes du fournisseur SportsGameOdds (si sa clé est réglée) avec l'image de repli, toujours validée.
 2. **Kevin vous demande la capture et la cote** sur Telegram : le match, l'heure, le pari et le site (le premier bookmaker de la catégorie). Ouvrez le site, trouvez le pari, faites une capture d'écran et envoyez-la à Kevin **avec la cote en légende** (par exemple `1,85`). Vous pouvez aussi envoyer la capture puis la cote dans un second message. Le pari n'existe pas sur le site : répondez **pas dispo**. Pour passer : **plus tard**.
 3. Le post part avec **votre capture et votre cote**, jamais une cote estimée. Une cote hors de la fourchette de la catégorie vous est redemandée une fois, puis le pari est écarté. Sans réponse avant l'heure indiquée, le pari est écarté. Les paris par capture sont réglés après le match avec les tirs cadrés d'API-Football.
-
-### Montage vidéo
-
-L'équipe Montage découpe vos vidéos longues (une partie de casino filmée de 30 minutes à 1 heure, par exemple) en shorts de quelques secondes, prêts pour TikTok, Instagram ou vos canaux. Elle coupe, recadre, place votre caméra et ajoute des sous-titres tirés de ce qui est vraiment dit : elle n'invente aucune image. **Rien n'est publié sans votre ✅** : chaque short vous est d'abord envoyé par Kevin en aperçu. Ouvrez **Agents**, puis l'onglet **Montage**, pour suivre les travaux.
-
-#### Envoyer une vidéo à Kevin
-
-1. Dans Telegram, ouvrez votre conversation **privée** avec Kevin, depuis votre propre compte (pas dans le groupe de l'équipe).
-2. Envoyez la vidéo comme une vidéo ou comme un fichier : **2 Go au plus** et 3 heures au plus. La qualité d'origine est gardée (1080p ou plus de préférence).
-3. Écrivez vos consignes dans la légende de la vidéo, ou dans le message suivant (à l'écrit ou par message vocal).
-4. Kevin répond : « J'ai reçu la vidéo (47 min, 1080p). Je l'analyse et je vous propose un plan de coupe. »
-
-La vidéo reste dans votre conversation Telegram : elle n'est jamais copiée sur le site.
-
-#### Les consignes possibles
-
-Une phrase suffit, en français courant. Ce que vous ne dites pas prend la valeur habituelle (vertical, 15 secondes, sous-titres, sans caméra incrustée, nombre de shorts choisi par l'équipe, 20 au plus).
-
-- **Durée** : « des shorts de 15 secondes », « 30 secondes chacun » (5 à 90 secondes).
-- **Nombre** : « fais-moi 10 clips ».
-- **Format** : « vertical pour TikTok », « en carré », « horizontal ».
-- **Caméra** : « cam en haut à droite », « cam en bas à gauche » : votre caméra est recadrée et placée dans ce coin.
-- **Sous-titres** : « mets des sous-titres » (oui par défaut), « sans sous-titres ».
-- **Texte incrusté** : « écris « Jackpot ! » en bas ».
-- **Thème** : « thème roulette », « blackjack », « machines à sous » : il sert au classement dans la médiathèque.
-- **Vitesse** : « accélère un peu », « au ralenti » (de 0,5 à 2 fois).
-
-Exemples complets : « découpe ça en shorts de 15 secondes, cam en haut à droite, thème roulette » ; « fais des shorts pour TikTok avec sous-titres ».
-
-#### Le plan de coupe
-
-L'équipe regarde la vidéo et choisit les meilleurs moments (gains, réactions, suspense ; jamais les pauses ni les chargements). Kevin vous envoie le plan : « 1. 2:30 à 2:45 — Gros gain à la roulette (9/10) ». Répondez-lui :
-
-- « ok » ou « lance » : le montage commence ;
-- « enlève le 3 » : le moment 3 est retiré ;
-- « le 2, commence 2 secondes plus tôt » : le moment est ajusté.
-
-Sur le site, la fiche du montage montre ce plan **en frise** : chaque moment est placé sur la durée de la vidéo, avec son numéro, son score d'intérêt et sa description.
-
-#### Les aperçus et les boutons
-
-Chaque short est contrôlé avant de vous être montré : durée, qualité (1080 pixels au moins sur le grand côté), pas d'écran noir, son présent et sans saturation, sous-titres lisibles. Un passage de sous-titre douteux vous est soumis (« « martingale » ou « martindale » ? ») : répondez à Kevin, rien n'est incrusté avant. Un short trop lourd pour Telegram (plus de 50 Mo) est compressé une fois, et Kevin vous le dit.
-
-Kevin vous envoie ensuite chaque short (vidéo, durée, format, poids) avec trois boutons :
-
-- **✅ Valider** : le short est prêt et rangé dans la médiathèque. Il n'est pas publié.
-- **✏️ Modifier** : Kevin vous demande quoi changer, puis refait le short et vous renvoie un nouvel aperçu.
-- **❌ Refuser** : le short est archivé (il n'est pas supprimé).
-
-Vous pouvez aussi répondre en une phrase : « ok », « ok sauf le 3 », « refuse le 4 ».
-
-Les mêmes boutons **Valider**, **Modifier** et **Refuser** sont sur la fiche du montage, sous chaque short, avec la lecture du short dans le navigateur, son statut, votre retour, la mention **Compressé pour Telegram** s'il l'a été, et le résultat du contrôle en clair. Un short de plus de 20 Mo ne se lit pas sur le site : ouvrez-le dans Telegram (lien **Ouvrir dans Telegram**). **Annuler le montage** (avec confirmation) arrête le travail : les shorts pas encore faits sont abandonnés, les shorts validés restent. Ces boutons sont réservés aux administrateurs ; les autres membres de l'équipe voient tout en lecture. Chaque geste est noté dans le journal.
-
-#### Modifier un short
-
-Écrivez à Kevin, ou dans le champ **Modifier** de la fiche : « le 5, raccourcis de 2 secondes », « refais le 2 avec la cam en bas à gauche », « le 3, 10 secondes au lieu de 15 », « ajoute le texte « Bonus » ». Le short est refait depuis la vidéo d'origine, sans perte de qualité, puis un nouvel aperçu vous arrive.
-
-#### Où retrouver les shorts
-
-- **Agents → Montage**, vue **Travaux** : un montage par vidéo, avec son état et le nombre de shorts validés sur le total.
-- **Agents → Montage**, vue **Médiathèque** : les **Shorts** et les **Vidéos longues**, filtrés par **Thème**. Les fichiers sont gardés dans Telegram (canal Médiathèque) ; le lien **Ouvrir dans Telegram** y mène.
-- Pour publier : dites à Kevin « envoie les 10 validés dans le canal Roulette » (il vous montre ce qui partira et demande votre OUI), ou « garde-les, je les prendrai ».
-
-Pour savoir où en est un montage : « où en est le montage ? ». Pour l'arrêter : « annule le montage en cours ».
 
 ### Analyse de marché
 
@@ -1147,7 +1079,6 @@ Le contrôle qualité global est le dernier verrou avant que quoi que ce soit so
 #### Ce que le contrôle vérifie
 
 - **Les posts** des équipes Rencontres, Casino et Paris sportifs : règles du canal (mots interdits, aucune mention de l'IA, aucune promesse de gain, aucun lien hors plateforme, jamais de média non fourni en casino), règles publicitaires relevées par l'équipe Analystes, aucune copie d'un canal d'inspiration (8 mots à la suite au plus), aucune donnée sensible, pas de contradiction avec les posts d'avant, un français correct.
-- **Les shorts** du montage : durée, format et image cohérents, sous-titres et texte à l'écran sans faute ni contenu interdit.
 - **Les rapports et alertes** de l'équipe Analystes : chaque affirmation a sa source, les chiffres tiennent entre eux, aucun conseil juridique, une alerte repose sur un fait réel.
 - **Les recommandations** (Algorithme, Analystes) et **les règles publicitaires** : cohérentes entre elles, avec les règles publicitaires et dans les limites de l'équipe Algorithme.
 - **Les réponses de Kevin écrites par l'IA** : elles répondent à la question, avec les vrais chiffres, sans rien inventer.
@@ -1162,7 +1093,7 @@ La page a trois vues :
 - **Historique** : chaque vérification, filtrable par **Résultat** (accepté, refusé, bloqué), **Type**, **Équipe** et dates. **Voir le détail** montre les motifs, les corrections demandées, la tentative (1, 2 ou 3), la durée, le modèle et le contenu vérifié **masqué** (clés, mots de passe, courriels, téléphones et identifiants sont cachés).
 - **Tendances** : les motifs de refus les plus fréquents, les équipes les plus refusées et les refus jour par jour sur 4 semaines, comparés à la semaine d'avant.
 
-Par Kevin : « comment va le contrôle qualité ? », « montre-moi les refus de cette semaine », « combien de refus cette semaine ? », « pourquoi le post 42 a été refusé ? », « pourquoi le short 3 a été bloqué ? », ou « pourquoi le 2 ? » juste après la liste.
+Par Kevin : « comment va le contrôle qualité ? », « montre-moi les refus de cette semaine », « combien de refus cette semaine ? », « pourquoi le post 42 a été refusé ? », ou « pourquoi le 2 ? » juste après la liste.
 
 #### Un contenu est bloqué
 
@@ -1364,7 +1295,7 @@ Vous pouvez demander à Kevin, en une phrase, un travail précis à une équipe 
 
 **Quand il lance tout de suite** : un ordre sur le **canal Test**, **pour de faux**, sans dépense, sur 7 jours au plus. Il écrit « C'est parti » et vous avez 1 minute pour répondre « annule ».
 
-**Quand il demande OUI** : un **vrai canal**, un passage **en vrai**, une **dépense** (vidéos, photos, cotes), ou **plus de 7 jours** (30 jours au plus). Boutons **OUI** / **NON**, comme pour les autres confirmations. « Faire comme si » ne marche que sur le canal Test : un vrai canal garde toujours son univers (Kevin propose alors de créer un canal). Un canal au niveau 0 continue de vous demander de valider chaque post : Kevin le rappelle dans le récapitulatif.
+**Quand il demande OUI** : un **vrai canal**, un passage **en vrai**, une **dépense** (photos, cotes), ou **plus de 7 jours** (30 jours au plus). Boutons **OUI** / **NON**, comme pour les autres confirmations. « Faire comme si » ne marche que sur le canal Test : un vrai canal garde toujours son univers (Kevin propose alors de créer un canal). Un canal au niveau 0 continue de vous demander de valider chaque post : Kevin le rappelle dans le récapitulatif.
 
 **Pendant l'ordre** : le canal suit un **réglage temporaire** (l'équipe, la quantité, le thème, la fenêtre de l'ordre) ; son plan habituel n'est jamais modifié et reprend tout seul à la fin. La fiche du canal affiche « Réglage temporaire en cours jusqu'au … (ordre n°…) » avec le lien vers l'ordre. Kevin vous écrit au lancement, une fois par jour (« Jour 2/3 sur Test : 2 paris publiés · 1 en attente de validation ») et à la fin avec le bilan ; il prévient tout de suite après 2 échecs.
 
@@ -1383,7 +1314,7 @@ Vous pouvez demander à Kevin, en une phrase, un travail précis à une équipe 
 - « l'agent Rédaction, il fait quoi ? » : son rôle, ce qu'il a fait aujourd'hui et ce qu'il va faire ;
 - « dis à l'agent Rédaction d'écrire plus court sur Roulette » : la demande passe par le Chef de son équipe, dans les limites habituelles.
 
-**Dans le site** : Agents → **Ordres** liste les ordres (numéro, statut, équipe, canal, période, progression, coût), filtrables par équipe et par statut. La fiche d'un ordre montre votre phrase, le récapitulatif de Kevin, le plan validé, ce qui était impossible et les solutions proposées, les missions et leurs posts, le réglage temporaire du canal et la chronologie (demandé, confirmé, lancé, rapports, arrêté ou fini). **Arrêter** et **Prolonger** (1, 2, 3 ou 7 jours) : administrateurs, avec confirmation ; chaque geste est noté dans Réglages → Journal. Une équipe qui n'existe pas encore (« programme des shorts ») : Kevin le dit et note la demande dans Agents → Kevin → **Pas encore possible**, rangée par équipe et par ce qu'il faudrait lui apprendre.
+**Dans le site** : Agents → **Ordres** liste les ordres (numéro, statut, équipe, canal, période, progression, coût), filtrables par équipe et par statut. La fiche d'un ordre montre votre phrase, le récapitulatif de Kevin, le plan validé, ce qui était impossible et les solutions proposées, les missions et leurs posts, le réglage temporaire du canal et la chronologie (demandé, confirmé, lancé, rapports, arrêté ou fini). **Arrêter** et **Prolonger** (1, 2, 3 ou 7 jours) : administrateurs, avec confirmation ; chaque geste est noté dans Réglages → Journal. Une équipe qui n'existe pas (« programme des shorts ») : Kevin le dit et note la demande dans Agents → Kevin → **Pas encore possible**, rangée par équipe et par ce qu'il faudrait lui apprendre.
 
 #### Kevin dans le groupe de l'équipe
 
@@ -1426,7 +1357,7 @@ Tout ce que les agents ont fait. Onglet **Missions** : chaque mission, avec son 
 Administrateurs seulement :
 
 - **Pause générale** : **Tout mettre en pause** arrête toutes les équipes d'un coup ; **Tout reprendre** les relance.
-- **Clés des fournisseurs** (fal.ai pour les vidéos et photos, Magic Hour en secours, cotes sportives) : créez la clé sur le site du fournisseur (le lien est sous chaque champ : fal.ai/dashboard/keys, magichour.ai/developer), collez-la puis cliquez sur **Enregistrer** ; elle est chiffrée et seuls ses 4 derniers caractères s'affichent. **Vérifier** la teste quand c'est possible ; **Retirer la clé** l'efface. Le bot vous demande lui-même chaque clé sur Telegram au moment voulu : cette page sert de secours.
+- **Clés des fournisseurs** (fal.ai pour les photos, cotes sportives) : créez la clé sur le site du fournisseur (le lien est sous chaque champ, par exemple fal.ai/dashboard/keys), collez-la puis cliquez sur **Enregistrer** ; elle est chiffrée et seuls ses 4 derniers caractères s'affichent. **Vérifier** la teste quand c'est possible ; **Retirer la clé** l'efface. Le bot vous demande lui-même chaque clé sur Telegram au moment voulu : cette page sert de secours.
 - **Modèles d'IA et médiathèque** : l'**IA rapide** (contrôles) et l'**IA d'écriture** (Rédaction), avec la clé de [Réglages → IA](#reglages-ia) ; le **Canal Médiathèque** (facultatif), un canal privé où le bot recopie chaque média rangé.
 - **Plafonds du mois par équipe**, en euros ; puis **Enregistrer les plafonds**.
 
@@ -1762,8 +1693,7 @@ Une phrase type par page :
 - **Écrire à un groupe** : transférez le message puis « envoie ce message à tous les membres de Zone Interdite demain 20 h ».
 - **Relances automatiques** : « active la relance de bienvenue ».
 - **Conversations et personas** : « crée la persona Inès, 24 ans, Lyon, étudiante », puis envoyez ses photos.
-- **Agents** : « passe le casino en vrai », « monte le budget vidéo à 80 € ce mois-ci », « active la catégorie corners avec des cotes entre 1,6 et 2,5 ».
-- **Montage** : envoyez une vidéo à Kevin avec « découpe ça en shorts de 15 secondes, cam en haut à droite », puis « valide le short 3 », « le 5, raccourcis de 2 secondes », « refuse le 4 » ou « annule le montage en cours ».
+- **Agents** : « passe le casino en vrai », « monte le budget photos à 20 € ce mois-ci », « active la catégorie corners avec des cotes entre 1,6 et 2,5 ».
 - **Analyses** : « qu'est-ce qui marche en casino en France ? », « briefing paris sportifs Allemagne », « désactive la source Reddit r/gambling » ou « j'accepte la recommandation 2 de l'analyse de marché ».
 - **Qualité** : « comment va le contrôle qualité ? », « montre-moi les refus de cette semaine » ou « pourquoi le post 42 a été refusé ? » (lecture seule : personne ne peut accepter un contenu à la place du contrôle).
 - **Réglages** : « crée l'étiquette VIP en vert », « envoie-moi le rapport à 8 h au lieu de 9 h », « ajoute Léa à l'équipe comme responsable ».

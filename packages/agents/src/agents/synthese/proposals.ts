@@ -147,7 +147,9 @@ export function channelProposals(
     const fmt = ranking.dimensions.format;
     const best = bestCase(fmt);
     const worst = [...fmt.cases].reverse().find((c) => fmt.weak.includes(c.key)) ?? null;
-    if (best && worst && mixKeyOf(best.key) !== mixKeyOf(worst.key)) {
+    // Rencontres : jamais plus de vidéos (vidéos IA retirées le 29 octobre 2026).
+    const noVideo = plan.teamKey === "dating" && best ? mixKeyOf(best.key) === "video" : false;
+    if (best && worst && !noVideo && mixKeyOf(best.key) !== mixKeyOf(worst.key)) {
       // Mélange effectif (Casino non réglé = 2 / 1 / 1), jamais la valeur brute de la base.
       const mix = effectiveMix(plan.teamKey, plan.mix);
       const after = shiftMix(mix, mixKeyOf(best.key), Math.min(WEEKLY_MIX_STEP, MAX_MIX_POINTS_PER_PROPOSAL, settings.maxMixShiftPoints));

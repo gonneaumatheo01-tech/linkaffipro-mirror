@@ -37,15 +37,14 @@ export function autonomyDecision(level: 0 | 1 | 2, facts: AutonomyFacts): Autono
   return { validate: false, reason: null };
 }
 
-/** Nombre de premières vidéos et de premières photos d'une persona toujours validées (phase 20). */
+/** Nombre de premières photos d'une persona toujours validées (phase 20). */
 export const FIRST_PERSONA_MEDIA_VALIDATED = 3;
 
 export type AlwaysValidateFacts = {
   teamKey: string;
   format: "video" | "photo" | "text" | undefined;
   personaName?: string | null;
-  /** Missions déjà terminées de la persona, par format. */
-  personaVideosDone: number;
+  /** Missions photo déjà terminées de la persona. */
   personaPhotosDone: number;
   firstPostOfChannel: boolean;
   /** Doute ou défaut vu par le contrôle du média. */
@@ -72,8 +71,7 @@ export function casinoAlwaysValidateReason(f: AlwaysValidateFacts): string | nul
 }
 
 /**
- * Validations imposées quel que soit le niveau (équipe Dating, phase 20) : les 3 premières vidéos et les 3 premières
- * photos d'une persona, le premier post d'un canal, et tout média dont le contrôle doute (règle pure).
+ * Validations imposées quel que soit le niveau (équipe Dating, phase 20) : les 3 premières photos d'une persona, le premier post d'un canal, et tout média dont le contrôle doute (règle pure).
  */
 export function alwaysValidateReason(f: AlwaysValidateFacts): string | null {
   if (f.teamKey === "casino") return casinoAlwaysValidateReason(f);
@@ -81,8 +79,6 @@ export function alwaysValidateReason(f: AlwaysValidateFacts): string | null {
   const reasons: string[] = [];
   const who = f.personaName ? ` de ${f.personaName}` : "";
   if (f.mediaDoubt) reasons.push(`contrôle du média : ${f.mediaDoubt}`);
-  if (f.format === "video" && f.personaVideosDone < FIRST_PERSONA_MEDIA_VALIDATED)
-    reasons.push(`une des ${FIRST_PERSONA_MEDIA_VALIDATED} premières vidéos${who}`);
   if (f.format === "photo" && f.personaPhotosDone < FIRST_PERSONA_MEDIA_VALIDATED)
     reasons.push(`une des ${FIRST_PERSONA_MEDIA_VALIDATED} premières photos${who}`);
   if (f.firstPostOfChannel) reasons.push("nouveau canal");

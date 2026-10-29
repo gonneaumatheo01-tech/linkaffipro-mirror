@@ -6,7 +6,6 @@
  */
 import { agentAudit, esc, nowOf } from "../admin/journal";
 import { agentsOverview } from "../orchestrator/overview-contract";
-import { startBench } from "../orchestrator/bench";
 import { readCasinoThemes } from "../casino/themes";
 import { loadCasinoOffer } from "../casino/offer";
 import { applyRecommendation, undoRecommendation } from "../algo/contracts";
@@ -36,10 +35,6 @@ export const CATALOG_UNIVERS_VARIANTS = {
   personasHead: voiceTemplate([{ n: 1 }, { n: 3 }], (p: { n: number }) => [
     `${p.n > 1 ? `Tes ${p.n} personas` : "Ta persona"} :`,
     `${plural(p.n, "persona")} en tout :`,
-  ]),
-  benchSummary: voiceTemplate([{ persona: "Léa" }], (p: { persona: string }) => [
-    `Je lance le banc d'essai vidéo de ${p.persona} ?\nÇa coûte quelques euros chez le fournisseur vidéo, dans le plafond du mois.`,
-    `On teste les réglages vidéo de ${p.persona} ?\nÇa dépense quelques euros, dans le plafond du mois.`,
   ]),
   casinoThemes: voiceTemplate([{ n: 3, tags: "#roulette #blackjack #slots" }], (p: { n: number; tags: string }) => [
     `${plural(p.n, "thème")} casino : ${p.tags}\nPour déposer une vidéo, mets en légende #casino puis le thème (par exemple #casino #roulette).`,
@@ -172,7 +167,7 @@ type TeamOpt = { equipe?: string };
 
 export const stockMedias = defineAction<TeamOpt>({
   key: "stock_medias",
-  description: "Dire le stock de médias : vidéos sources et photos par persona (Rencontres), thèmes en manque (Casino)",
+  description: "Dire le stock de médias : photos par persona (Rencontres), thèmes en manque (Casino)",
   theme: "rencontres",
   cls: "immediate",
   spec: { equipe: str("rencontres ou casino (facultatif : les deux)", { optional: true }) },
@@ -184,26 +179,6 @@ export const stockMedias = defineAction<TeamOpt>({
       team = r.value === "all" ? null : r.value;
     }
     return { reply: escLines((await stockFacts(deps, team)).lines) };
-  },
-});
-
-type PersonaP = { persona: string };
-
-export const bancEssai = defineAction<PersonaP>({
-  key: "banc_essai",
-  check: async (deps, p) => { const r = await resolvePersona(deps, { actionKey: "banc_essai", params: p, field: "persona" }, p.persona); return r.ok ? null : r.reply; },
-  description: "Lancer le banc d'essai vidéo d'une persona (compare les réglages, dépense quelques euros)",
-  theme: "rencontres",
-  cls: "confirm",
-  spec: { persona: str("Prénom de la persona") },
-  async summarize(deps, p) {
-    return say(deps, V.benchSummary({ persona: p.persona }), "benchSummary");
-  },
-  async execute(deps, p, actor) {
-    const pe = await resolvePersona(deps, { actionKey: "banc_essai", params: p, field: "persona" }, p.persona);
-    if (!pe.ok) return pe.reply;
-    const r = await startBench(deps, { personaId: pe.value.id, byUserId: actor.userId });
-    return { reply: esc(r.message) };
   },
 });
 
@@ -520,7 +495,6 @@ export const pariTest = defineAction<TestBetP>({
 export const UNIVERSE_ACTIONS: BossAction[] = [
   personas,
   stockMedias,
-  bancEssai,
   themesCasino,
   offreCanal,
   categoriesParis,

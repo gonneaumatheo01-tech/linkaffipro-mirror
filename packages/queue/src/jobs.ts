@@ -25,8 +25,6 @@ export const QUEUE_NAMES = [
   "agents-sports",
   "agents-algo",
   "agents-ads",
-  // Phase 28 : équipe Montage (ffmpeg, une tâche à la fois).
-  "agents-montage",
   // Phase 29 : équipe Analystes (veille du marché, règles des plateformes pub, rapports ; lecture réseau, 2 à la fois).
   "agents-analystes",
   // Phase 31 : équipe Prospection (canaux Telegram publics d'affiliés ; lecture réseau, 2 à la fois).
@@ -148,9 +146,6 @@ export const JOB_RETRY_OPTIONS: Record<
   "agents-sports": { attempts: 1 },
   "agents-algo": { attempts: 1 },
   "agents-ads": { attempts: 1 },
-  // Phase 28 : 3 essais (2 reprises : 1 min puis 2 min) ; l'étape repart de la base (un short rangé n'est jamais
-  // refait) ; au 3e échec, la chaîne marque l'échec et Kevin prévient (la tâche se termine alors sans erreur).
-  "agents-montage": { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
   // Phase 29 : 2 essais (reprise après 1 min) ; la base fait foi (une source lue repart de `nextScrapeAt`, une entrée déjà
   // vérifiée ou une alerte déjà envoyée ne l'est jamais deux fois).
   "agents-analystes": { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
@@ -255,8 +250,6 @@ export type AgentsOrchestratorJob =
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }
   | { type: "validations" }
-  /** Banc d'essai vidéo (phase 20) : lancement (`personaId`, `count`) puis relectures toutes les 30 s (`benchId`). */
-  | { type: "bench"; personaId?: string; count?: number; benchId?: string }
   | { type: "admin-voice"; botId: string; fileId: string; messageId: number; chatId: number; replyToMessageId?: number | null; mimeType?: string | null }
   /** Message de l'admin au Boss qui demande l'interprète IA (phase 26), traité par `apps/worker/src/agents/boss-text.ts`. */
   | {
@@ -304,23 +297,6 @@ export type AgentsSportsJob = { type: "sports"; task: "settle" };
  * lundi) ; `report-now` : rapport tout de suite (quotidien par défaut, ou de la semaine).
  */
 export type AgentsAdsJob = { type: "tick" } | { type: "report-now"; kind?: "daily" | "weekly"; send?: boolean };
-
-/**
- * File `agents-montage` (phase 28) : étapes de la chaîne (copie structurelle de `MontageQueueJob` de
- * `@linkaffipro/agents`, ce paquet ne dépend pas des agents), `sweep` toutes les 15 min (tâches perdues remises en
- * file), `cleanup` chaque jour (dossiers de travail orphelins de plus de 24 h).
- */
-export type AgentsMontageJob =
-  | { type: "montage.analyze"; montageJobId: string }
-  | { type: "montage.cut"; montageJobId: string; shortClipId: string }
-  | { type: "montage.dress"; montageJobId: string; shortClipId: string }
-  | { type: "montage.qc"; montageJobId: string; shortClipId: string }
-  | { type: "montage.preview"; montageJobId: string; shortClipId: string }
-  | { type: "montage.sweep" }
-  | { type: "montage.cleanup" }
-  // Personne remplacée par une persona dans une vidéo envoyée à Kevin (`boss/video-ia-run.ts`) : soumission, relectures.
-  | { type: "video-ia.submit"; chatId: string }
-  | { type: "video-ia.poll"; chatId: string };
 
 /**
  * File `agents-analystes` (phase 29) : copie structurelle de `AnalystsQueueJob` de `@linkaffipro/agents`
@@ -399,9 +375,7 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                             ? AgentStepJob
                             : Q extends "agents-ads"
                               ? AgentsAdsJob
-                              : Q extends "agents-montage"
-                                  ? AgentsMontageJob
-                                  : Q extends "agents-analystes"
+                              : Q extends "agents-analystes"
                                     ? AgentsAnalystesJob
                                     : Q extends "agents-prospection"
                                       ? AgentsProspectionJob

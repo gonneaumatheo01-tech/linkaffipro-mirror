@@ -41,14 +41,13 @@ async function seedCheck(kit: BossKit, s: Seed) {
   });
 }
 
-/** Un post casino refusé deux fois (validation 42), un short 3 refusé, des acceptations. */
+/** Un post casino refusé deux fois (validation 42), un rapport des Analystes refusé, des acceptations. */
 async function seed(kit: BossKit) {
   const p = kit.prisma;
   const post = await p.post.create({ data: { code: "AB12CD34", channelId: kit.ids.casino, botId: "b1", text: CONTENT_TEXT } as never });
   const mission = await p.agentMission.create({ data: { teamKey: "casino", channelId: kit.ids.casino, status: "WAITING_VALIDATION", postId: post.id } as never });
   await p.agentValidation.create({ data: { number: 42, missionId: mission.id, teamKey: "casino", previewText: CONTENT_TEXT, reason: "x" } as never });
-  const job = await p.montageJob.create({ data: { status: "PREVIEW" } as never });
-  const clip = await p.shortClip.create({ data: { montageJobId: job.id, index: 3, startMs: 0, endMs: 15000, durationMs: 15000, createdAt: kit.deps.now!() } as never });
+  const report = await p.strategyReport.create({ data: { period: "2026-W43", reportType: "WEEKLY", title: "Tendances casino", summary: "s", content: {} } as never });
   const gain = { code: "GAIN_PROMISE", message: `« 500 euros garantis » est une promesse de gain ; jeton vu : ${SECRET}`, severity: "critical" };
   await seedCheck(kit, { verdict: "REJECTED", ago: 3 * 60 * MIN, contentId: post.id, reasons: [gain], attempt: 1, ms: 3000 });
   await seedCheck(kit, {
@@ -60,16 +59,16 @@ async function seed(kit: BossKit) {
     attempt: 2,
     ms: 4000,
   });
-  await seedCheck(kit, { verdict: "REJECTED", ago: 20 * MIN, type: "SHORT", team: "montage", contentId: clip.id, reasons: [{ code: "SUBTITLE_ERROR", message: "« sa marche » au lieu de « ça marche » à 0:04", severity: "critical" }], ms: 5000 });
+  await seedCheck(kit, { verdict: "REJECTED", ago: 20 * MIN, type: "REPORT", team: "analystes", contentId: report.id, reasons: [{ code: "UNSOURCED", message: "« +40 % de joueurs » sans aucune source", severity: "critical" }], ms: 5000 });
   for (let i = 0; i < 7; i++) await seedCheck(kit, { verdict: "APPROVED", ago: (i + 1) * 5 * MIN, ms: 1000 });
   await seedCheck(kit, { verdict: "APPROVED", ago: 3 * 24 * 60 * MIN, team: "dating", ms: 1000 });
-  return { post, clip };
+  return { post, report };
 }
 
 function noLeak(text: string) {
   expect(text).not.toContain(SECRET);
   expect(text).not.toContain(CONTENT_TEXT);
-  expect(text).not.toMatch(/\b(APPROVED|REJECTED|TIMEOUT|ERROR|GAIN_PROMISE|SUBTITLE_ERROR)\b/);
+  expect(text).not.toMatch(/\b(APPROVED|REJECTED|TIMEOUT|ERROR|GAIN_PROMISE|UNSOURCED)\b/);
 }
 
 beforeEach(() => resetVoiceRotation());
@@ -96,7 +95,7 @@ describe("catalogue de Kevin : contrôle qualité global", () => {
     expect(text).toContain("Aujourd'hui : 10 contenus vérifiés, 70 % acceptés, 3 refus.");
     expect(text).toContain("Sur 7 jours : 11 contenus vérifiés, 73 % acceptés, 3 refus.");
     expect(text).toContain("Temps moyen d'une vérification : 1,8 s.");
-    expect(text).toContain("Derniers refus : le short 3 (erreur dans les sous-titres), le post 42 sur Casino VIP (promesse de gain).");
+    expect(text).toContain("Derniers refus : le rapport « Tendances casino » (affirmation sans source), le post 42 sur Casino VIP (promesse de gain).");
     expect(QA_KEVIN_VARIANTS.running).toContain(text.split("\n").at(-1));
     expect(voiceCheck(text).problems, text).toEqual([]);
     noLeak(text);
@@ -120,8 +119,8 @@ describe("catalogue de Kevin : contrôle qualité global", () => {
     const r = await bossAiTurn(kit.deps, kit.input("montre-moi les refus de cette semaine"));
     const text = r.reply ?? "";
     expect(text).toMatch(/^Sur 7 jours : 3 refus sur 11 contenus vérifiés\./);
-    expect(text).toContain("Motifs les plus fréquents : promesse de gain (2), erreur dans les sous-titres (1).");
-    expect(text).toMatch(/\n1\. le short 3, aujourd'hui à \d{2} h \d{2} : erreur dans les sous-titres/);
+    expect(text).toContain("Motifs les plus fréquents : promesse de gain (2), affirmation sans source (1).");
+    expect(text).toMatch(/\n1\. le rapport « Tendances casino », aujourd'hui à \d{2} h \d{2} : affirmation sans source/);
     expect(text).toMatch(/\n2\. le post 42 sur Casino VIP, aujourd'hui à .+ : promesse de gain/);
     expect(text.split("\n").length).toBeLessThanOrEqual(8);
     expect(voiceCheck(text, { allowList: true }).problems, text).toEqual([]);
@@ -140,11 +139,11 @@ describe("catalogue de Kevin : contrôle qualité global", () => {
     expect(r.reply).toContain("1 contenu bloqué faute de contrôle, il repasse tout seul.");
   });
 
-  it("« les shorts refusés » : filtre par type", async () => {
-    const kit = await createBossKit([["les shorts refusés cette semaine", call("qa_history", { type: "short" })]]);
+  it("« les rapports refusés » : filtre par type", async () => {
+    const kit = await createBossKit([["les rapports refusés cette semaine", call("qa_history", { type: "rapport" })]]);
     await seed(kit);
-    const r = await bossAiTurn(kit.deps, kit.input("les shorts refusés cette semaine"));
-    expect(r.reply).toMatch(/^Sur 7 jours \(shorts\) : 1 refus sur 1 contenu vérifié\./);
+    const r = await bossAiTurn(kit.deps, kit.input("les rapports refusés cette semaine"));
+    expect(r.reply).toMatch(/^Sur 7 jours \(rapports\) : 1 refus sur 1 contenu vérifié\./);
     expect(r.reply).not.toContain("post 42");
   });
 
@@ -163,15 +162,9 @@ describe("catalogue de Kevin : contrôle qualité global", () => {
     noLeak(text);
   });
 
-  it("« pourquoi le short 3 a été bloqué ? » ; 3e refus : le client tranche ; inconnu : réponse claire", async () => {
-    const kit = await createBossKit([
-      ["pourquoi le short 3 a été bloqué ?", call("qa_detail", { type: "short", numero: 3 })],
-      ["pourquoi le post 99 a été refusé ?", call("qa_detail", { type: "post", numero: 99 })],
-    ]);
+  it("inconnu : réponse claire ; 3e refus : le client tranche", async () => {
+    const kit = await createBossKit([["pourquoi le post 99 a été refusé ?", call("qa_detail", { type: "post", numero: 99 })]]);
     const { post } = await seed(kit);
-    const r = await bossAiTurn(kit.deps, kit.input("pourquoi le short 3 a été bloqué ?"));
-    expect(r.reply).toMatch(/^Le short 3 : refusé .+, tentative 1 sur 3/);
-    expect(r.reply).toContain("❌ erreur dans les sous-titres : « sa marche » au lieu de « ça marche » à 0:04");
     const u = await bossAiTurn(kit.deps, kit.input("pourquoi le post 99 a été refusé ?"));
     expect(QA_KEVIN_VARIANTS.notFound).toContain(u.reply);
     await seedCheck(kit, { verdict: "REJECTED", ago: MIN, contentId: post.id, reasons: [{ code: "GAIN_PROMISE", message: "toujours une promesse", severity: "critical" }], attempt: 3 });
@@ -260,7 +253,7 @@ describe("capacités et annuaire : contrôle qualité global", () => {
     const text = card.lines.join("\n");
     expect(text).toContain("QA Global (sous le Grand Chef)");
     expect(text).toContain("Aujourd'hui : 10 contenus vérifiés, 3 refus.");
-    expect(text).toMatch(/Sur 7 jours : 11 contenus vérifiés, 73 % acceptés, surtout refusés pour promesse de gain et erreur dans les sous-titres\./);
+    expect(text).toMatch(/Sur 7 jours : 11 contenus vérifiés, 73 % acceptés, surtout refusés pour promesse de gain et affirmation sans source\./);
     expect(voiceCheck(text, { allowLong: true }).problems, text).toEqual([]);
     noLeak(text);
   });

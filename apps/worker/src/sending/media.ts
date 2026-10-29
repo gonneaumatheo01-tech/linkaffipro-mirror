@@ -1,7 +1,6 @@
 import { InputFile } from "grammy";
 import type { InputMediaDocument, InputMediaPhoto, InputMediaVideo, InputMediaAnimation, Message } from "grammy/types";
 import { prisma } from "@linkaffipro/db";
-import { assertShortApproved, sendableBytes } from "../montage/media-bytes";
 
 export type MediaKind = "photo" | "video" | "animation" | "document";
 
@@ -15,18 +14,29 @@ export function mediaKindOf(mimeType: string): MediaKind {
 export type LoadedMedia = { assetId: string; kind: MediaKind; media: string | InputFile; filename: string };
 
 /**
- * Charge un média : identifiant Telegram déjà connu pour ce bot, sinon les octets (phase 28 : un short gardé dans
- * Telegram est retrouvé par `sendableBytes` ; un short pas encore validé ne part jamais).
+ * Média du montage (retiré le 28 octobre 2026) : vidéo gardée dans Telegram, sans octets en base, ou short. Il ne part
+ * plus jamais (erreur, l'envoi échoue) plutôt qu'un fichier vide.
  */
+export class RetiredMontageMedia extends Error {
+  constructor() {
+    super("vidéo du montage retiré : elle n'est plus envoyée, choisis un autre média");
+    this.name = "RetiredMontageMedia";
+  }
+}
+
+export function assertSendableMedia(asset: { kind?: string | null; storage?: string | null }): void {
+  if (asset.storage === "telegram" || asset.kind === "SHORT") throw new RetiredMontageMedia();
+}
+
+/** Charge un média : identifiant Telegram déjà connu pour ce bot, sinon les octets. */
 export async function loadMedia(assetId: string, botId: string): Promise<LoadedMedia | null> {
   const asset = await prisma.mediaAsset.findUnique({ where: { id: assetId }, include: { telegramFiles: { where: { botId } } } });
   if (!asset) return null;
   const kind = mediaKindOf(asset.mimeType);
-  await assertShortApproved(asset);
+  assertSendableMedia(asset);
   const known = asset.telegramFiles[0];
   if (known) return { assetId, kind, media: known.telegramFileId, filename: asset.filename };
-  const bytes = asset.storage === "telegram" ? await sendableBytes(asset) : asset.bytes;
-  return { assetId, kind, media: new InputFile(Buffer.from(bytes), asset.filename), filename: asset.filename };
+  return { assetId, kind, media: new InputFile(Buffer.from(asset.bytes), asset.filename), filename: asset.filename };
 }
 
 export function toInputMedia(m: LoadedMedia, caption?: string): InputMediaPhoto | InputMediaVideo | InputMediaAnimation | InputMediaDocument {

@@ -52,7 +52,7 @@ describe("bornes des recommandations", () => {
 function setup(level = 0) {
   const prisma = createFakePrisma({
     agentTeamConfig: [{ teamKey: "algo", autonomyLevel: level }, { teamKey: "dating", styleGuidelines: "Ton humain." }],
-    channelAgentPlan: [{ channelId: "c1", teamKey: "dating", mix: { video: 1, photo: 2, text: 1 }, windowStart: "09:00", windowEnd: "22:00", postsPerDay: 3 }],
+    channelAgentPlan: [{ channelId: "c1", teamKey: "dating", mix: { video: 0, photo: 2, text: 1 }, windowStart: "09:00", windowEnd: "22:00", postsPerDay: 3 }],
     persona: [{ id: "pe1", name: "Léa", identityKind: "GIRL", followUpsMax: 2, styleExamples: "lui: salut\nmoi: coucou" }],
   });
   // Phase 30 : QA Global simulé qui approuve (une recommandation ne s'applique qu'approuvée).
@@ -67,18 +67,18 @@ const human = { userId: "u1", via: "SITE" as const };
 describe("application, annulation, refus", () => {
   it("applique (bornes revérifiées), puis annule en un clic", async () => {
     const k = setup();
-    const r = await k.rec({ target: "CHANNEL_PLAN", targetId: "c1", field: "mix", before: { video: 1, photo: 2, text: 1 }, after: { video: 35, photo: 45, text: 20 } });
+    const r = await k.rec({ target: "CHANNEL_PLAN", targetId: "c1", field: "mix", before: { video: 0, photo: 2, text: 1 }, after: { video: 0, photo: 75, text: 25 } });
     const a = await applyRecommendation(k.deps, r.id, human);
     expect(a.ok).toBe(true);
-    expect(k.plan().mix).toEqual({ video: 35, photo: 45, text: 20 });
+    expect(k.plan().mix).toEqual({ video: 0, photo: 75, text: 25 });
     const row = k.prisma._tables.recommendation![0]!;
-    expect(row).toMatchObject({ status: "APPLIED", appliedBy: "HUMAN", appliedById: "u1", before: { video: 1, photo: 2, text: 1 } });
+    expect(row).toMatchObject({ status: "APPLIED", appliedBy: "HUMAN", appliedById: "u1", before: { video: 0, photo: 2, text: 1 } });
     expect(k.prisma._tables.auditLog!.map((x) => x.action)).toContain("agents.algo.recommendation_applied");
     expect(k.prisma._tables.event!.map((x) => x.type)).toContain("agents.algo.recommendation_applied");
     expect((await applyRecommendation(k.deps, r.id, human)).ok).toBe(false);
     const u = await undoRecommendation(k.deps, r.id, human);
     expect(u.ok).toBe(true);
-    expect(k.plan().mix).toEqual({ video: 1, photo: 2, text: 1 });
+    expect(k.plan().mix).toEqual({ video: 0, photo: 2, text: 1 });
     expect(row.status).toBe("UNDONE");
     expect(k.prisma._tables.auditLog!.map((x) => x.action)).toContain("agents.algo.recommendation_undone");
   });
@@ -199,7 +199,9 @@ describe("relecture adverse (phase 25)", () => {
     const { channelProposals } = await import("./proposals");
     const { experimentProposals } = await import("../experimentation/index");
     expect(effectiveMix("casino", { video: 0, photo: 0, text: 1 })).toEqual({ video: 2, photo: 1, text: 1 });
-    expect(effectiveMix("dating", { video: 0, photo: 0, text: 0 })).toEqual({ video: 1, photo: 2, text: 1 });
+    expect(effectiveMix("dating", { video: 0, photo: 0, text: 0 })).toEqual({ video: 0, photo: 3, text: 1 });
+    // Rencontres : la part de vidéos d'un ancien mélange est ignorée (vidéos IA retirées).
+    expect(effectiveMix("dating", { video: 1, photo: 2, text: 1 })).toEqual({ video: 0, photo: 2, text: 1 });
     const plan = { channelId: "c9", teamKey: "casino", mix: { video: 0, photo: 0, text: 1 }, windowStart: "09:00", windowEnd: "22:00", postsPerDay: 3, minSpacingMinutes: 60, styleNotes: null };
     const exp = experimentProposals(plan, { formatsInsufficient: true, bestHour: null, settings: S }).find((p) => p.kind === "MELANGE")!;
     expect(exp.variants.A.mix).toEqual({ video: 2, photo: 1, text: 1 });
@@ -224,7 +226,7 @@ describe("relecture adverse (phase 25)", () => {
     const k = setup();
     const r = await k.rec({ target: "CHANNEL_PLAN", targetId: "c1", field: "mix", after: { video: 45, photo: 36.7, text: 18.3 } });
     expect((await applyRecommendation(k.deps, r.id, human)).ok).toBe(false);
-    expect(k.plan().mix).toEqual({ video: 1, photo: 2, text: 1 });
+    expect(k.plan().mix).toEqual({ video: 0, photo: 2, text: 1 });
   });
   it("fenêtre proposée : la plage 18 h-20 h reste 18:00-20:00 (durée paire)", async () => {
     const { channelProposals } = await import("./proposals");

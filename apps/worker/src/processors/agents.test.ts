@@ -9,7 +9,6 @@ vi.mock("@linkaffipro/agents", () => ({
   bossDailyNudge: vi.fn(async () => ({ sent: false, reason: "nothing" })),
   sweepValidations: vi.fn(async () => ({ reminded: 0 })),
   sendDailyReport: vi.fn(async () => ({ sent: false })),
-  runBench: vi.fn(async () => ({ ok: true, open: true })),
   runAlgoTick: vi.fn(async () => ({ alerts: {} })),
   runAlgoReportNow: vi.fn(async () => ({ ok: true, message: "ok", reportIds: [] })),
   runAdsTick: vi.fn(async () => ({ alerts: {} })),
@@ -58,8 +57,8 @@ describe("processeurs des agents (phase 19)", () => {
     // Phase 26 : la relance quotidienne du Boss part du même balayage, juste après.
     expect(agents.bossDailyNudge).toHaveBeenCalledWith({});
     expect(agents.sweepValidations).toHaveBeenCalled();
-    await PROCESSORS["agents-orchestrator"].process(job({ type: "bench", benchId: "b1" }));
-    expect(agents.runBench).toHaveBeenCalledWith({}, { type: "bench", benchId: "b1" });
+    // Banc d'essai vidéo retiré (29 octobre 2026) : une ancienne tâche restée en file est ignorée sans erreur.
+    expect(await PROCESSORS["agents-orchestrator"].process(job({ type: "bench", benchId: "b1" }))).toMatchObject({ ok: false });
   });
   it("équipe Algorithme (phase 21) : passage horaire et rapport maintenant", async () => {
     expect(repeatableAgentsAlgo).toContainEqual({ data: { type: "algo", task: "tick" }, everyMs: 3_600_000, jobId: "agents-algo-tick" });
