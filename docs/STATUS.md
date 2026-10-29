@@ -1,3 +1,21 @@
+# Statut — 29 octobre 2026 : Kevin répond comme Claude
+
+## Fait
+- ✅ Kevin répond maintenant à tout, comme Claude : questions générales, conseils (pubs, TikTok, canaux), idées, « écris-moi un post », traductions, explications, calculs. Il ne dit plus « je ne sais pas encore faire » à une simple question.
+- ✅ Réponses longues et mises en forme quand il faut (listes, gras), et il suit mieux la conversation (20 derniers échanges).
+- ✅ Garde-fous inchangés pour les actions : il n'agit que par ses commandes habituelles, avec OUI quand il faut ; il n'invente jamais nos chiffres (membres, dépôts, gains…) et le contrôle qualité vérifie chaque réponse.
+- ✅ Tests du paquet agents : 2 256 verts.
+
+## Test de 5 minutes
+1. Écrire à Kevin : « c'est quoi un bon taux de clic sur une pub TikTok ? »
+2. Puis : « écris-moi un post pour annoncer un bonus casino ce soir ».
+3. Puis : « fais-le plus court » (il doit reprendre le post d'avant).
+
+## Problèmes et actions humaines
+- Aucun. Une réponse longue coûte un peu plus d'IA, toujours dans le plafond mensuel de Kevin.
+
+---
+
 # Statut — 29 octobre 2026 : retrait du Montage et des vidéos IA
 
 ## Fait

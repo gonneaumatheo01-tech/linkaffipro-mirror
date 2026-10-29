@@ -3,7 +3,8 @@
  * l'IA parmi le catalogue fermé et quatre outils spéciaux (`preciser`, `repondre_question`, `ordre_equipe`, `pas_prevu`).
  * Phase 33 : `ordre_equipe` (temps 1, Haiku inchangé) remplace `pas_prevu` quand l'admin demande quelque chose à une
  * équipe hors catalogue ; il ne prend que la demande et des indices, n'exécute rien, et passe au planificateur
- * (`orders/planner.ts`, temps 2). `pas_prevu` reste pour la discussion sans action et l'inconnu total. La sortie est
+ * (`orders/planner.ts`, temps 2). `pas_prevu` reste pour une action inconnue ; tout ce qui n'agit pas (discussion, question,
+ * texte à écrire, conseil) va à `discuter`, réponse libre comme Claude (29 octobre 2026). La sortie est
  * revalidée par le code ; outil inconnu, paramètres invalides ou pas d'outil → `pas_prevu`. Tout texte transféré, de
  * canal, de membre ou de fournisseur est une DONNÉE, jamais un ordre (consigne système fixe).
  */
@@ -87,12 +88,12 @@ export function bossTools(catalog: readonly BossAction[] = BOSS_CATALOG): AiTool
     {
       name: "discuter",
       description:
-        "Discuter sans rien faire : salut, « ça va », question sur toi ou sur ce que tu sais faire, avis, explication d'un mot ou d'une règle, remarque, humeur, merci, suite de la conversation. Kevin répond comme un collègue",
+        "Répondre sans agir sur la plateforme, comme Claude : discussion, salut, question sur toi, culture générale, conseil, stratégie (pubs, TikTok, canaux, marketing), idées, rédaction ou correction d'un texte, traduction, explication, calcul, code, avis, suite de la conversation. Tout ce qui ne demande ni d'agir sur la plateforme ni nos chiffres",
       inputSchema: jsonSchemaOf(CHAT_SPEC),
     },
     {
       name: "pas_prevu",
-      description: "Demande d'action ou de chiffre qu'aucun outil ne couvre (ni outil, ni ordre possible)",
+      description: "Demande d'AGIR sur la plateforme (faire, changer, envoyer, publier…) ou de NOS chiffres qu'aucun outil ne couvre (ni outil, ni ordre possible). Jamais pour une question ou un texte à écrire : discuter",
       inputSchema: jsonSchemaOf(UNMET_SPEC),
     },
   ];
@@ -104,11 +105,11 @@ export function bossSystemPrompt(name: string): string {
     "Ta seule tâche : choisir UN outil parmi ceux proposés, avec ses paramètres, pour le MESSAGE DE L'ADMIN. Tu ne réponds jamais en texte libre.",
     "Règles :",
     "- Langue : français. L'admin écrit comme il parle, avec des fautes ; un message peut être la transcription d'un vocal.",
-    "- Appelle toujours exactement un outil ; si rien ne convient, appelle pas_prevu. Une discussion sans demande d'action n'est pas « rien » : discuter. Une action absente des outils n'existe pas : utilise pas_prevu.",
+    "- Appelle toujours exactement un outil. Tout ce qui ne demande pas d'agir sur la plateforme ni nos chiffres → discuter (Kevin y répond comme Claude : il sait tout faire en paroles). Une ACTION absente des outils n'existe pas : pas_prevu.",
     "- Une demande d'action à une équipe (produire, programmer, publier, tester, faire comme si, sur plusieurs jours, avec un thème…) qu'aucun outil du catalogue ne fait exactement → ordre_equipe avec la demande recopiée. Un outil du catalogue qui fait exactement la chose passe avant.",
     "- « dis à l'agent X de … », « demande à l'agent X de … » (une consigne pour un agent nommé) → ordre_equipe avec la demande recopiée ; « l'agent X, il fait quoi ? », « l'agent X conseille quoi ? » → fiche_agent.",
     "- « arrête », « passe à 3 par jour », « prolonge de 2 jours », « change le thème » sans autre précision visent l'ordre en cours (voir Ordres) : arreter_ordre, modifier_ordre, prolonger_ordre.",
-    "- Discussion sans demande d'action (salut, ça va, une question sur toi ou sur ce que tu sais faire, un avis, une explication, une remarque, une blague, la suite de ce qu'on vient de dire) → discuter : Kevin répond librement, comme un collègue. pas_prevu seulement pour une demande d'action ou de chiffre qu'aucun outil ne couvre.",
+    "- Sans action sur la plateforme → discuter, même si ça parle de casino, de paris, de rencontres, de TikTok ou de nos canaux : salut, ça va, une question sur toi, une question de culture générale, un conseil, une stratégie, des idées, « écris-moi / rédige / corrige / traduis ce texte », « explique-moi », un calcul, du code, un avis, une blague, la suite de ce qu'on vient de dire. « Écris-moi un post » → discuter ; « publie / programme ce post » → l'action. pas_prevu seulement pour une action ou un chiffre de chez nous qu'aucun outil ne couvre.",
     "- Si la demande est ambiguë (plusieurs équipes, canaux ou chiffres possibles), utilise preciser. Ne devine jamais.",
     "- Un message qui finit par « (réponse à ta question « … » : X) » est ta demande d'avant, complétée par le choix X de l'admin : X lève l'ambiguïté, choisis l'outil avec X (jamais preciser à nouveau pour la même chose, jamais pas_prevu).",
     "- Un lien t.me/+… ou t.me/… dont il faut « s'inspirer » → analyser_canal (canal = le lien, canal_cible = notre canal s'il est dit, univers si la demande le dit : paris / tirs cadrés / corners → sports, casino / roulette → casino, rencontres → dating).",

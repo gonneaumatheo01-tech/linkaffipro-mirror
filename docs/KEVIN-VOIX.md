@@ -56,6 +56,16 @@ Demande du client : « qu'il me réponde comme toi, pas avec des messages de bot
 
 Garde-fous du code, dans l'ordre : aucun chiffre absent du message, de la mémoire ou du texte du code ; en mode « action », mêmes chiffres, signes, noms et mode que le texte du code (`voiceFidelityProblems`) ; jamais « c'est fait », « j'ai lancé… », ✅ quand le code ne l'a pas dit (`claimsDone`) ; rien qui ressemble à un secret ; `kevinText` (voix, une réécriture) ; QA Global (`qaKevinReply`, 3 tentatives). Le moindre échec (IA absente ou en panne, délai, plafond, contrôle, QA refusé ou indisponible) envoie le texte du code, comme avant. Les politesses du chemin rapide (« salut », « ça va », « merci », « t'es un bot ? »), les secrets, OUI / NON et les commandes exactes restent des textes fixes, gratuits et immédiats.
 
+## Kevin répond comme Claude (réponse libre, 29 octobre 2026)
+
+Demande du client : « je veux que ce soit comme si c'était Claude, pas qu'il réponde seulement ce qu'il sait ». Tout ce qui n'agit pas sur la plateforme et ne demande pas nos chiffres va à `discuter` (culture générale, conseil, stratégie, idées, « écris-moi un post », traduction, explication, calcul, code, avis) ; `pas_prevu` ne sert plus qu'aux actions inconnues.
+
+- Consigne `CONVERSE_FREE_SYSTEM` + liste de ce que Kevin sait faire sur la plateforme (`converseFreeSystem()`, fixe, en cache) ; Opus 5.5, effort « medium », 4 000 jetons de sortie ; 20 tours de mémoire coupés à 1 200 caractères ; message jusqu'à 6 000 caractères.
+- Mise en forme libre : Markdown converti en HTML Telegram (`markdownToTelegramHtml`), découpé au-delà de 4 000 caractères à l'envoi.
+- Voix : `voiceCheck(…, { free: true })` ne contrôle que les formules d'ouverture et de fin, les statuts et identifiants techniques et la répétition (un texte pour les membres peut vouvoyer, être long, avoir des emojis).
+- Chiffres : ceux de culture générale passent ; une phrase qui présente un chiffre comme NOTRE résultat (indicateur + « nos », « hier », « ton canal »…) absent du message et de la mémoire est refusée (`ourNumberProblems`). « C'est fait » interdit en ouverture. Un brouillon refusé est réécrit une fois avec la correction, puis repli comme avant.
+- QA Global : `dataConsulted.reponseLibre = true`, la consigne du QA accepte connaissances générales et réponse longue.
+
 ## Textes fixes : comment en ajouter un
 
 - Chaque module exporte une table `export const <NOM>_VARIANTS = { cle: ["…", "…"], autre: voiceTemplate([exemples], (p) => [`…${p.x}…`]) } satisfies VoiceTable;`. Les exemples de `voiceTemplate` couvrent les branches (singulier, pluriel, champ vide…). Pour une liste demandée, ajouter `{ allowList: true, allowLong: true }`.

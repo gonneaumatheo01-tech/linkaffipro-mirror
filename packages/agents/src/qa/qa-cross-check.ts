@@ -418,7 +418,11 @@ export async function loadQaContext(deps: AgentsDeps, input: QaCrossCheckInput):
     const data = content.dataConsulted ?? given.dataConsulted;
     loaded.dataConsulted = data ?? null;
     const response = str(content.response) ?? str(content.text) ?? "";
-    if (data !== undefined && data !== null && response) {
+    const libre = !!data && typeof data === "object" && (data as { reponseLibre?: unknown }).reponseLibre === true;
+    if (libre)
+      // Réponse libre de Kevin (« comme Claude », 29 octobre 2026) : culture générale permise, longueur libre.
+      hints.push("Réponse libre (question générale, conseil, texte demandé) : les connaissances générales et une réponse longue et structurée sont permises ; seuls les chiffres présentés comme ceux de l'équipe doivent venir des données consultées.");
+    else if (data !== undefined && data !== null && response) {
       const problems = inventedNumbers(response, allowedNumbers(data));
       if (problems.length) hints.push(`Chiffres de la réponse absents des données consultées : ${problems.slice(0, 5).join(" ; ")}.`);
     }

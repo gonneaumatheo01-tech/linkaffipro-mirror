@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createBossKit } from "./testing";
 import { bossAiTurn, UNMET_HEADS } from "./execute";
 import { writeBossTurn } from "./memory";
-import { claimsDone, rewritableResult } from "./converse";
+import { claimsDone, converseFreeSystem, markdownToTelegramHtml, ourNumberProblems, rewritableResult } from "./converse";
 import { FAST_VARIANTS } from "./fast";
 import { resetVoiceRotation, voiceCheck } from "./voice";
 import { createFakeQaLlm, type FakeQaStep } from "../qa/testing";
@@ -28,6 +28,9 @@ const TABLE: FakeBossTable = [
   ["merci", { name: "discuter", input: {} }],
   ["fais-moi un café", { name: "pas_prevu", input: { besoin: "un café" } }],
   ["mets le casino en pause", { name: "pause", input: { equipe: "casino" } }],
+  ["c'est quoi un bon taux de clic sur tiktok", { name: "discuter", input: {} }],
+  ["ecris-moi un post pour ce soir", { name: "discuter", input: {} }],
+  ["on a fait combien", { name: "discuter", input: {} }],
 ];
 
 async function kitWith(converser: (user: string) => string, qa: (i: number) => FakeQaStep = () => APPROVE) {
@@ -175,5 +178,78 @@ describe("Kevin répond comme un collègue", () => {
     const r = await bossAiTurn(kit.deps, kit.input("fais-moi un café"));
     expect(UNMET_HEADS.some((h) => r.reply!.startsWith(h))).toBe(true);
     expect(kit.llm.calls.converse).toHaveLength(0);
+  });
+});
+
+describe("Kevin répond comme Claude (29 octobre 2026)", () => {
+  it("question générale avec des chiffres de culture générale : réponse complète, longue sortie, liste de ce qu'il sait faire en consigne", async () => {
+    const said = [
+      "Sur TikTok, un taux de clic autour de 1 % est correct, au-delà de 2 % c'est très bon.",
+      "",
+      "Pour le monter :",
+      "- **accroche** dans les 2 premières secondes",
+      "- un seul message par vidéo",
+      "- un appel à l'action clair à la fin",
+    ].join("\n");
+    const { kit, qaLlm } = await kitWith(() => said);
+    const r = await bossAiTurn(kit.deps, kit.input("c'est quoi un bon taux de clic sur tiktok ?"));
+    expect(r.reply).toContain("1 %");
+    expect(r.reply).toContain("• <b>accroche</b> dans les 2 premières secondes");
+    expect(kit.llm.calls.converse).toHaveLength(1);
+    const call = kit.llm.calls.converse[0]!;
+    expect(call.long).toBe(true);
+    expect(call.system).toBe(converseFreeSystem());
+    expect(call.system).toMatch(/c'est Claude/);
+    expect(call.system).toMatch(/\n- \S/);
+    // Le QA sait que c'est une réponse libre.
+    expect(JSON.stringify(qaLlm.calls[0])).toContain("Réponse libre");
+    expect(kit.tables("bossUnmet")).toHaveLength(0);
+  });
+
+  it("texte demandé pour les membres : vouvoiement, longueur et emojis permis", async () => {
+    const post = [
+      "Un post prêt à copier :",
+      "",
+      "🔥 Ce soir, on vous a préparé une sélection spéciale.",
+      "Rejoignez-nous avant 21 h pour ne rien rater 🎯",
+      "",
+      "Je peux te faire une version plus courte si tu veux.",
+    ].join("\n");
+    const { kit } = await kitWith(() => post);
+    const r = await bossAiTurn(kit.deps, kit.input("ecris-moi un post pour ce soir"));
+    expect(r.reply).toContain("on vous a préparé");
+  });
+
+  it("chiffre de NOS résultats inventé : une nouvelle rédaction, et elle part si elle est propre", async () => {
+    let n = 0;
+    const { kit } = await kitWith(() => (n++ === 0 ? "Hier tu as eu 42 inscriptions, c'est bien." : "Je n'ai pas ce chiffre sous les yeux : demande-moi « combien d'inscriptions hier ? » et je te le sors."));
+    const r = await bossAiTurn(kit.deps, kit.input("on a fait combien ?"));
+    expect(kit.llm.calls.converse).toHaveLength(2);
+    expect(kit.llm.calls.converse[1]!.user).toContain("CORRECTION");
+    expect(r.reply).not.toContain("42");
+    expect(r.reply).toContain("combien d'inscriptions hier");
+  });
+
+  it("chiffres : les nôtres absents des données refusés, ceux de culture générale ou déjà dits acceptés (pur)", () => {
+    expect(ourNumberProblems("Hier tu as eu 42 inscriptions.", [])).toEqual(["42"]);
+    expect(ourNumberProblems("Nos dépôts ont fait 1 200 € ce mois.", [])).not.toEqual([]);
+    expect(ourNumberProblems("Hier tu as eu 42 inscriptions.", [42])).toEqual([]);
+    expect(ourNumberProblems("En moyenne, un taux de conversion de 2,5 % est bon sur ce marché.", [])).toEqual([]);
+    expect(ourNumberProblems("La Coupe du monde 2026 compte 48 équipes.", [])).toEqual([]);
+  });
+
+  it("Markdown → HTML Telegram (pur)", () => {
+    expect(markdownToTelegramHtml("## Plan\n- **un**\n* deux\n\n\n\nFin *vraiment*")).toBe("<b>Plan</b>\n• <b>un</b>\n• deux\n\nFin <i>vraiment</i>");
+    expect(markdownToTelegramHtml("Code : `a < b` et\n```js\nif (a && b) {}\n```")).toBe("Code : <code>a &lt; b</code> et\n<pre>if (a &amp;&amp; b) {}</pre>");
+    expect(markdownToTelegramHtml("Voir [la doc](https://example.com/x) & <b>ok</b>")).toBe('Voir <a href="https://example.com/x">la doc</a> &amp; ok');
+    expect(markdownToTelegramHtml("2 * 3 = 6")).toBe("2 * 3 = 6");
+  });
+
+  it("voix d'une réponse libre : formules d'ouverture refusées, le reste libre", () => {
+    const long = Array.from({ length: 12 }, (_, i) => `- point ${i + 1} : une idée assez détaillée pour que la phrase dépasse largement la limite habituelle de trente mots que Kevin garde d'ordinaire dans ses messages courts`).join("\n");
+    expect(voiceCheck(long).ok).toBe(false);
+    expect(voiceCheck(long, { free: true }).ok).toBe(true);
+    expect(voiceCheck("Bien sûr ! Voici trois idées.", { free: true }).ok).toBe(false);
+    expect(voiceCheck("Statut : PENDING.", { free: true }).ok).toBe(false);
   });
 });

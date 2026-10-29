@@ -325,7 +325,9 @@ describe("10. mots qui confirment, remplacement du Boss", () => {
 
 describe("11. toujours exactement un outil", () => {
   it("consigne système et réponse sans outil → pas_prevu", async () => {
-    expect(bossSystemPrompt("Kevin")).toContain("Appelle toujours exactement un outil ; si rien ne convient, appelle pas_prevu");
+    // 29 octobre 2026 : sans action, discuter (réponse libre comme Claude) ; une action inconnue, pas_prevu.
+    expect(bossSystemPrompt("Kevin")).toContain("Appelle toujours exactement un outil.");
+    expect(bossSystemPrompt("Kevin")).toContain("Une ACTION absente des outils n'existe pas : pas_prevu.");
     expect(decisionOf(null)).toMatchObject({ type: "pas_prevu" });
     const kit = await createBossKit();
     const r = await bossAiTurn(kit.deps, kit.input("raconte-moi une blague"));

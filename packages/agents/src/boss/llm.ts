@@ -48,6 +48,8 @@ export const BOSS_PLAN_MAX_TOKENS = 8000;
  */
 export const BOSS_CONVERSE_MODEL = PLANNER_MODEL;
 export const BOSS_CONVERSE_MAX_TOKENS = 1500;
+/** Réponse libre (29 octobre 2026, « comme si c'était Claude ») : texte rédigé, explication, plan. */
+export const BOSS_CONVERSE_LONG_MAX_TOKENS = 4000;
 
 /**
  * Phase 33 — IA du Boss étendue (le type `BossLlm` du contrat est figé) : planificateur des ordres (Opus 5.5, sortie
@@ -58,7 +60,8 @@ export type BossLlmExt = BossLlm & {
   plan?(req: { system: string; user: string }): Promise<{ text: string; costCents: number }>;
   writeQuality?(req: { system: string; user: string }): Promise<{ text: string; costCents: number }>;
   /** Réponse de Kevin en conversation (`converse.ts`, meilleur modèle) ; absente : textes du code, comme avant. */
-  converse?(req: { system: string; user: string }): Promise<{ text: string; costCents: number }>;
+  /** `long` : réponse libre (« comme Claude ») : sortie plus longue et effort « medium ». */
+  converse?(req: { system: string; user: string; long?: boolean }): Promise<{ text: string; costCents: number }>;
 };
 
 const eur = (cents: number) => `${(cents / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -236,8 +239,8 @@ export function bossLlmFromClient(prisma: PrismaClient, client: AiClient, opts: 
       await guard();
       const res = await client.createMessage({
         model: BOSS_CONVERSE_MODEL,
-        maxTokens: BOSS_CONVERSE_MAX_TOKENS,
-        effort: "low",
+        maxTokens: req.long ? BOSS_CONVERSE_LONG_MAX_TOKENS : BOSS_CONVERSE_MAX_TOKENS,
+        effort: req.long ? "medium" : "low",
         system: [{ text: req.system, cache: true }],
         user: req.user,
       });
@@ -294,7 +297,7 @@ export type FakeBossLlm = BossLlmExt & {
     write: { system: string; user: string }[];
     plan: { system: string; user: string }[];
     writeQuality: { system: string; user: string }[];
-    converse: { system: string; user: string }[];
+    converse: { system: string; user: string; long?: boolean }[];
   };
 };
 
@@ -323,7 +326,7 @@ export function createFakeBossLlm(
   return {
     ...(converser
       ? {
-          async converse(req: { system: string; user: string }) {
+          async converse(req: { system: string; user: string; long?: boolean }) {
             calls.converse.push(req);
             return { text: converser(req.user), costCents: opts.costCents ?? 0 };
           },

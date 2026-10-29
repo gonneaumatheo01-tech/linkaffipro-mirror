@@ -1106,3 +1106,9 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
 - Ménage au démarrage du worker (`cleanupRetired`) : planifications `agents-montage-sweep` / `agents-montage-cleanup`, file `agents-montage` vidée, questions au client sans objet (`media.dating.source.*`, `persona.*.sourceVideos`, `persona.*.bench`, `agents.team.dating.videoBudget`) passées en SKIPPED. Anciennes tâches `bench` de la file `agents-orchestrator` : ignorées (type inconnu).
 - Image du worker : polices retirées (elles ne servaient qu'aux sous-titres des shorts) ; ffmpeg gardé pour la transcription des vocaux de l'admin.
 - Gardés en base sans usage : clé Magic Hour chiffrée, `videoProvider` / `videoResolution` / `monthlyBudgetCents.video` de l'équipe Rencontres, `agents.bench.*`, `Setting video-ia.kevin.*`. Une vidéo envoyée au bot avec `#rencontres #source` est encore rangée dans la médiathèque, sans usage.
+
+## Kevin répond comme Claude (29 octobre 2026)
+
+- Demande du client : Kevin doit répondre « comme si c'était Claude » et non seulement à ce qu'il sait faire. Choix : l'interprète envoie à `discuter` tout ce qui n'agit pas sur la plateforme ; le rédacteur `boss/converse.ts` (mode `chat`) devient une réponse libre de Claude (Opus 5.5, effort « medium », 4 000 jetons) avec la liste du catalogue en consigne système. Les actions restent faites par le code seulement (catalogue, ordres, opérations du site, confirmations inchangées) : Claude ne fait rien dans ce message.
+- Garde-fous gardés : aucun chiffre présenté comme le nôtre sans données, jamais « c'est fait » en ouverture, secrets, QA Global (réponse libre signalée au QA). Une nouvelle rédaction au plus avant le repli sur le texte du code. Détails : `docs/KEVIN-VOIX.md`.
+- Coût : même plafond `boss.budget` (30 € par mois par défaut) ; une réponse longue coûte quelques centimes de plus qu'avant, plus le contrôle qualité.
