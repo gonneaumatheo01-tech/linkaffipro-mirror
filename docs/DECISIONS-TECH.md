@@ -1106,3 +1106,8 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
 - Ménage au démarrage du worker (`cleanupRetired`) : planifications `agents-montage-sweep` / `agents-montage-cleanup`, file `agents-montage` vidée, questions au client sans objet (`media.dating.source.*`, `persona.*.sourceVideos`, `persona.*.bench`, `agents.team.dating.videoBudget`) passées en SKIPPED. Anciennes tâches `bench` de la file `agents-orchestrator` : ignorées (type inconnu).
 - Image du worker : polices retirées (elles ne servaient qu'aux sous-titres des shorts) ; ffmpeg gardé pour la transcription des vocaux de l'admin.
 - Gardés en base sans usage : clé Magic Hour chiffrée, `videoProvider` / `videoResolution` / `monthlyBudgetCents.video` de l'équipe Rencontres, `agents.bench.*`, `Setting video-ia.kevin.*`. Une vidéo envoyée au bot avec `#rencontres #source` est encore rangée dans la médiathèque, sans usage.
+
+## Comptes Telegram : personas Paris sportifs autorisées (29 octobre 2026)
+
+- Demande du client : Mehdi (VIP_MANAGER, univers sports) doit pouvoir être relié à un vrai compte Telegram, comme Léa (GIRL, univers dating). La restriction précédente (univers dating uniquement) est assouplie : dating ET sports sont acceptés. Seul l'univers casino reste interdit sur un vrai compte.
+- `apps/web/lib/accounts/persona-choice.ts` : `ACCOUNT_PERSONA_UNIVERSES = ["dating", "sports"]`, filtre Prisma `{ universe: { in: [...] } }`.
