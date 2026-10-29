@@ -843,7 +843,7 @@ export const LOT_C_OPS: SiteOpMeta[] = [
     key: "univers.persona_enregistrer",
     domain: "univers",
     description:
-      "Créer ou modifier une persona de l'assistante : prénom, âge, personnalité (ville, métier…), ton, langues, centres d'intérêt, offre et moment du lien, activation (créée désactivée).",
+      "Créer ou modifier une persona de l'assistante : prénom, âge, personnalité (ville, métier…), ton, langues, centres d'intérêt, offre et moment du lien, bookmakers partenaires d'un bot VIP Paris sportifs (offre d'inscription et lien du canal VIP de chacun, dans l'ordre), activation (créée désactivée).",
     examples: ["crée la persona Inès, 24 ans, Lyon, étudiante", "rends Inès plus drôle et active-la"],
     kind: "create",
     role: "MANAGER",
@@ -852,7 +852,10 @@ export const LOT_C_OPS: SiteOpMeta[] = [
       ...PERSONA,
       name: str("Prénom (40 caractères au plus)."),
       gender: en("F = elle, M = il.", ["F", "M"]),
-      identityKind: en("ASSISTANT = assistante déclarée ; GIRL = fille (Rencontres seulement).", ["ASSISTANT", "GIRL"]),
+      identityKind: en(
+        "ASSISTANT = assistante déclarée ; GIRL = fille (Rencontres seulement) ; VIP_MANAGER = gérant du VIP (Paris sportifs seulement : propose les bookmakers partenaires et envoie le lien du canal VIP).",
+        ["ASSISTANT", "GIRL", "VIP_MANAGER"],
+      ),
       universe: en("Univers.", ["dating", "casino", "sports"]),
       age: int("Âge (18 à 99)."),
       personality: str("Personnalité : qui elle est (ville, études, métier, goûts)."),
@@ -869,6 +872,21 @@ export const LOT_C_OPS: SiteOpMeta[] = [
       followUpAfterHours: int("Relance après N heures (4 à 168)."),
       followUpsMax: int("Relances au plus (0 à 2)."),
       requireInterest: bool("Attendre un intérêt avant le lien."),
+      bookmakers: {
+        type: "array",
+        description:
+          "Gérant du VIP (identityKind VIP_MANAGER, Paris sportifs) seulement : bookmakers partenaires dans l'ordre de proposition (la liste entière, elle remplace l'ancienne). Lien du canal VIP facultatif.",
+        items: {
+          type: "object",
+          properties: {
+            label: str("Nom du bookmaker (Celsius Casino, Bet Portal…)."),
+            affiliateCampaignId: str("Offre Link Affi du lien d'inscription (identifiant)."),
+            inviteLinkId: str("Lien d'invitation du canal VIP (identifiant), facultatif."),
+            bookmakerKey: str("Clé déjà enregistrée, à garder pour un bookmaker existant."),
+          },
+          required: ["label", "affiliateCampaignId"],
+        },
+      },
       extraPrompt: str("Consignes en plus."),
       isActive: bool("Persona activée."),
     }),

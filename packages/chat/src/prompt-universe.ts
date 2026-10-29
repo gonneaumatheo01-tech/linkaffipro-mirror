@@ -13,7 +13,8 @@ import { LANGUAGE_NAMES_FR } from "./lang-names";
 // Type seulement : aucune dépendance circulaire à l'exécution (prompt.ts appelle ce module).
 import type { SystemPromptContext } from "./prompt";
 import { describeStyle, personaLanguages } from "./style";
-import { assistantRole, fixedText } from "./texts";
+import { assistantRole, fixedText, vipManagerRole } from "./texts";
+import type { PersonaBookmakerInput } from "./turn-types";
 import type { ConversationStage } from "./types";
 import { MAX_MESSAGE_CHARS, MAX_TURN_CHARS } from "./validate";
 
@@ -49,9 +50,15 @@ const STAGE_GUIDE: Record<ConversationStage, string> = {
   CLOSED: "fermée",
 };
 
-function virtualRoleFr(gender: string | null | undefined): string {
+function virtualRoleFr(gender: string | null | undefined, vipManager = false): string {
+  if (vipManager)
+    return gender === "M" ? "le gérant virtuel du VIP" : "la gérante virtuelle du VIP";
   return gender === "M" ? "l'assistant virtuel" : "l'assistante virtuelle";
 }
+
+/** Rôle du gérant du VIP (Paris sportifs) : remplace la ligne de rôle de l'univers. */
+const VIP_MANAGER_ROLE_LINE =
+  "Ton rôle : gérer l'accès au groupe VIP gratuit du canal. Tu réponds à ses questions sur le VIP, les pronostics et l'inscription, tu proposes les bookmakers partenaires dans l'ordre (voir PARCOURS INSCRIPTION BOOKMAKER), et une fois le dépôt confirmé, le système envoie le lien du canal VIP.";
 
 /** Lignes de la fiche d'informations pour le prompt. */
 export function faqPromptLines(faq: readonly PersonaFaqEntry[] | null | undefined): string[] {
@@ -63,16 +70,53 @@ export function faqPromptLines(faq: readonly PersonaFaqEntry[] | null | undefine
   return entries.map((e) => `- Question : ${e.q.trim()}\n  Réponse de l'équipe : ${e.a.trim()}`);
 }
 
+/**
+ * Section BOOKMAKERS du prompt (phase 25 bis, sports uniquement) : explique le parcours multi-book.
+ * Les bookmakers sont triés par `priority` et proposés dans cet ordre. Si la personne a déjà un compte
+ * sur le premier, on passe au suivant.
+ */
+function bookmakerFlowSection(books: readonly PersonaBookmakerInput[]): string[] {
+  if (books.length === 0) return [];
+  const lines: string[] = ["", "BOOKMAKERS PARTENAIRES (propose-les dans cet ordre)"];
+  for (const b of books) {
+    lines.push(`${b.priority}. ${b.label} (clé : ${b.bookmakerKey})`);
+  }
+  lines.push(
+    "",
+    "PARCOURS INSCRIPTION BOOKMAKER",
+    "1. Quand la personne veut le VIP, propose le premier bookmaker de la liste.",
+    "2. Demande si elle a déjà un compte dessus.",
+    "3. Si elle a déjà un compte → propose le bookmaker suivant dans la liste. Continue jusqu'à en trouver un où elle n'a pas de compte.",
+    "4. Si elle n'a pas de compte → dis-lui que tu lui envoies le lien d'inscription et mets send_offer : true + selected_book : \"<clé du bookmaker choisi>\".",
+    '5. Si elle a un compte sur TOUS les bookmakers → mets handoff : { needed: true, reason: "off_faq" } pour passer la main à l\'équipe.',
+    "6. Après l'envoi du lien : demande-lui de s'inscrire via le lien, de faire un premier dépôt, et de te confirmer quand c'est fait.",
+    "7. Quand la personne confirme avoir déposé → mets send_vip_link : true et selected_book à la clé du bookmaker sur lequel elle a déposé. Le système lui enverra automatiquement le lien du canal VIP.",
+    "8. Si après plusieurs relances elle n'a toujours pas déposé → mets handoff : { needed: true, reason: \"off_faq\" } pour passer la main à l'équipe.",
+    "9. Ne mentionne jamais selected_book ni send_vip_link dans tes messages. Ce sont des champs techniques invisibles pour la personne.",
+  );
+  return lines;
+}
+
 function offerSection(ctx: SystemPromptContext, universe: AssistantUniverse): string {
   const p = ctx.persona;
   const noun = OFFER_NOUN[universe];
   if (!p.hasOffer)
-    return "Aucune offre n'est liée : ne parle d'aucun lien ni d'aucun accès. send_offer : false.";
+    return "Aucune offre n'est liée : ne parle d'aucun lien ni d'aucun accès. send_offer : false. selected_book : \"\".";
   if (ctx.isFirstAssistantTurn)
-    return "Premier message : pas encore de lien, même si on te le demande (tu l'enverras au message suivant). send_offer : false.";
-  if (ctx.kind === "follow_up") return "Relance : pas de lien, ne parle pas du lien. send_offer : false.";
+    return (
+      "Premier message : pas encore de lien, même si on te le demande (tu l'enverras au message suivant). send_offer : false." +
+      (universe === "sports" ? ' selected_book : "".' : "")
+    );
+  if (ctx.kind === "follow_up")
+    return (
+      "Relance : pas de lien, ne parle pas du lien. send_offer : false." +
+      (universe === "sports" ? ' selected_book : "".' : "")
+    );
   if (ctx.offerSends >= offerSendsAllowed(p))
-    return `Le lien a déjà été envoyé ${ctx.offerSends} fois : ne le propose plus, réponds simplement à ses questions. send_offer : false.`;
+    return (
+      `Le lien a déjà été envoyé ${ctx.offerSends} fois : ne le propose plus, réponds simplement à ses questions. send_offer : false.` +
+      (universe === "sports" ? ' selected_book : "".' : "")
+    );
   const conv = {
     memberMessages: ctx.memberMessages,
     offerSends: ctx.offerSends,
@@ -81,20 +125,30 @@ function offerSection(ctx: SystemPromptContext, universe: AssistantUniverse): st
     memberAskedOffer: ctx.memberAskedOffer ?? false,
   };
   if (!offerAllowedNow(conv, p, ctx.kind))
-    return `Trop tôt pour le lien : réponds à ses questions ; tu pourras proposer ${noun} plus tard. send_offer : false.`;
+    return (
+      `Trop tôt pour le lien : réponds à ses questions ; tu pourras proposer ${noun} plus tard. send_offer : false.` +
+      (universe === "sports" ? ' selected_book : "".' : "")
+    );
   const button = offerButtonTextFor(p.universe, p.offerButtonText);
   const again =
     ctx.offerSends > 0
       ? " Le lien a déjà été envoyé : ne le renvoie que si la personne le demande ou l'a perdu."
       : "";
+
+  // Multi-book sports: the model picks the book via selected_book
+  const hasBooks = universe === "sports" && p.bookmakers && p.bookmakers.length > 0;
+  const bookNote = hasBooks
+    ? " Mets selected_book à la clé du bookmaker choisi (voir PARCOURS INSCRIPTION BOOKMAKER)."
+    : "";
+
   if (ctx.memberAskedOffer)
-    return `La personne demande l'accès, le lien ou l'inscription : réponds-lui et envoie le lien maintenant (send_offer : true, stage : PROPOSAL). Un bouton « ${button} » s'ajoutera sous ton dernier message ; annonce-le simplement (« je te mets le lien juste en dessous »), sans jamais écrire d'adresse.${again}`;
+    return `La personne demande l'accès, le lien ou l'inscription : réponds-lui et envoie le lien maintenant (send_offer : true, stage : PROPOSAL).${bookNote} Un bouton « ${button} » s'ajoutera sous ton dernier message ; annonce-le simplement (« je te mets le lien juste en dessous »), sans jamais écrire d'adresse.${again}`;
   const interest = p.requireInterest
     ? ` et seulement si son intérêt (style_update.interest) est d'au moins ${OFFER_INTEREST_THRESHOLD}/10`
     : "";
   return (
     `Tu peux proposer ${noun} à ce tour si la discussion s'y prête${interest} ; ne force jamais. ` +
-    `Mets alors send_offer : true : un bouton « ${button} » s'ajoutera sous ton dernier message. ` +
+    `Mets alors send_offer : true${bookNote} : un bouton « ${button} » s'ajoutera sous ton dernier message. ` +
     `Annonce-le simplement, sans jamais écrire d'adresse.${again}`
   );
 }
@@ -105,9 +159,11 @@ export function buildUniverseSystemPrompt(
   opts: { corrections: readonly string[] },
 ): string {
   const p = ctx.persona;
-  const universe: AssistantUniverse = parsePersonaUniverse(p.universe) === "sports" ? "sports" : "casino";
-  const role = assistantRole("fr", p.gender);
-  const virtualRole = virtualRoleFr(p.gender);
+  const universe: AssistantUniverse =
+    parsePersonaUniverse(p.universe) === "sports" ? "sports" : "casino";
+  const vip = universe === "sports" && p.vipManager === true;
+  const role = vip ? vipManagerRole("fr", p.gender) : assistantRole("fr", p.gender);
+  const virtualRole = virtualRoleFr(p.gender, vip);
   const channel = p.channelTitle?.trim() ? ` « ${p.channelTitle.trim()} »` : "";
   const langs = personaLanguages(p.languages);
   const otherLangs = langs.filter((l) => l !== ctx.lang).map((l) => LANGUAGE_NAMES_FR[l]);
@@ -116,7 +172,7 @@ export function buildUniverseSystemPrompt(
   lines.push(
     `Tu es ${p.name}, ${role} du canal${channel} sur Telegram (univers ${PERSONA_UNIVERSE_LABELS[universe]}). Tu discutes en privé avec une personne qui a écrit au bot d'elle-même.`,
     `Tu es ${virtualRole} du canal (une IA) avec un prénom et une personnalité : jamais une vraie personne.`,
-    ROLE_LINES[universe],
+    vip ? VIP_MANAGER_ROLE_LINE : ROLE_LINES[universe],
     "",
     "PERSONNALITÉ",
     `- Personnalité : ${p.personality.trim() || "accueillante, claire, serviable"}.`,
@@ -169,6 +225,13 @@ export function buildUniverseSystemPrompt(
   else lines.push("Rien pour l'instant.");
   if (ctx.summary?.trim()) lines.push("", "RÉSUMÉ DES ÉCHANGES PLUS ANCIENS", ctx.summary.trim());
 
+  // Bookmakers partenaires (sports uniquement, phase 25 bis)
+  const books =
+    universe === "sports" && p.bookmakers
+      ? [...p.bookmakers].sort((a, b) => a.priority - b.priority)
+      : [];
+  if (books.length > 0) lines.push(...bookmakerFlowSection(books));
+
   lines.push(
     "",
     "PARCOURS",
@@ -186,7 +249,11 @@ export function buildUniverseSystemPrompt(
   );
 
   if (ctx.isFirstAssistantTurn) {
-    const example = fixedText(ctx.lang, "intro", { name: p.name, gender: p.gender });
+    const example = fixedText(ctx.lang, "intro", {
+      name: p.name,
+      gender: p.gender,
+      vipManager: vip,
+    });
     lines.push(
       "",
       "PREMIER MESSAGE",
@@ -212,15 +279,29 @@ export function buildUniverseSystemPrompt(
     for (const c of opts.corrections) lines.push(`- ${c}`);
   }
 
+  const jsonExample =
+    universe === "sports" && books.length > 0
+      ? '{"messages":[{"text":"..."}],"style_update":{"length":"short|medium|long","emojis":"none|few|many","register":"casual|neutral|formal","language":"fr|en|es|pt|de|it","tone":"shy|direct|flirty|dry|chatty","interest":0},"stage":"CHAT","send_offer":false,"selected_book":"","send_vip_link":false,"memory_facts":[],"minor_suspected":false,"app_refused":false,"handoff":{"needed":false,"reason":"none"},"note_interne":"..."}'
+      : '{"messages":[{"text":"..."}],"style_update":{"length":"short|medium|long","emojis":"none|few|many","register":"casual|neutral|formal","language":"fr|en|es|pt|de|it","tone":"shy|direct|flirty|dry|chatty","interest":0},"stage":"CHAT","send_offer":false,"memory_facts":[],"minor_suspected":false,"app_refused":false,"handoff":{"needed":false,"reason":"none"},"note_interne":"..."}';
+
   lines.push(
     "",
     "SORTIE",
     "Réponds uniquement par un objet JSON, sans texte autour, de cette forme :",
-    '{"messages":[{"text":"..."}],"style_update":{"length":"short|medium|long","emojis":"none|few|many","register":"casual|neutral|formal","language":"fr|en|es|pt|de|it","tone":"shy|direct|flirty|dry|chatty","interest":0},"stage":"CHAT","send_offer":false,"memory_facts":[],"minor_suspected":false,"app_refused":false,"handoff":{"needed":false,"reason":"none"},"note_interne":"..."}',
+    jsonExample,
     "- messages : tes messages, un seul la plupart du temps, deux au maximum.",
     "- style_update : le style de la personne (pas le tien) d'après ses messages, et son intérêt de 0 à 10 pour l'offre.",
     "- stage : CHAT ou PROPOSAL (elle s'intéresse, tu présentes l'accès) ; les autres étapes sont décidées par le système.",
     "- send_offer : voir PARCOURS.",
+  );
+  if (universe === "sports" && books.length > 0) {
+    const bookKeys = books.map((b) => `"${b.bookmakerKey}"`).join(", ");
+    lines.push(
+      `- selected_book : clé du bookmaker choisi quand send_offer est true (${bookKeys}). Chaîne vide "" sinon.`,
+      `- send_vip_link : true UNIQUEMENT quand la personne confirme qu'elle a fait son premier dépôt sur le bookmaker choisi (selected_book). Le système lui enverra alors le lien d'accès au canal VIP correspondant. false sinon. Ne mets jamais true sans confirmation claire de la personne.`,
+    );
+  }
+  lines.push(
     "- memory_facts : nouveaux faits que la personne a dits d'elle-même dans ses derniers messages, en phrases courtes ; [] sinon. Jamais de déduction.",
     "- minor_suspected : true si elle a peut-être moins de 18 ans.",
     "- app_refused : true si la personne dit clairement qu'elle ne veut pas de l'offre.",

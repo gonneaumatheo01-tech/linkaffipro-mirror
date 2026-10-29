@@ -57,6 +57,7 @@ export default async function PersonaPage({
     loadPersonaFormChoices({
       affiliateCampaignId: persona.affiliateCampaignId,
       offerMediaAssetId: persona.offerMediaAssetId,
+      bookmakers: persona.bookmakers,
     }),
     loadPersonaTurnInput(persona.id),
     loadAssistantConfig(),
@@ -130,6 +131,7 @@ export default async function PersonaPage({
             templates={choices.templates}
             action={savePersonaAction}
             canEditFaq={me.role === "ADMIN"}
+            vipLinks={choices.vipLinks}
           />
         </div>
 

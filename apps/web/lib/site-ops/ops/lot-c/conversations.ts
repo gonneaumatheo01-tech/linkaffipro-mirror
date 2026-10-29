@@ -192,11 +192,24 @@ async function personaDraft(input: Record<string, unknown>): Promise<unknown | C
       after[k] = Array.isArray(input[k]) ? (input[k] as unknown[]).join(", ") : String(input[k]);
   for (const k of ["gender", "identityKind", "universe"] as const)
     if (typeof input[k] === "string") after[k] = input[k];
+  // Comme le formulaire : choisir le gérant du VIP passe la persona en Paris sportifs.
+  if (after.identityKind === "VIP_MANAGER" && typeof input.universe !== "string") after.universe = "sports";
   if (Array.isArray(input.languages)) after.languages = input.languages.map(String);
   else if (typeof input.languages === "string") after.languages = input.languages.split(/[,\s]+/).filter(Boolean);
   for (const k of ["requireInterest", "isActive"] as const)
     if (typeof input[k] === "boolean") after[k] = input[k];
   if (Array.isArray(input.faq)) after.faq = input.faq;
+  // Bookmakers partenaires (Paris sportifs) : la liste dite remplace la liste entière, dans l'ordre de proposition.
+  if (Array.isArray(input.bookmakers))
+    after.bookmakers = input.bookmakers.map((b) => {
+      const row = (b && typeof b === "object" ? b : {}) as Record<string, unknown>;
+      return {
+        bookmakerKey: str(row.bookmakerKey),
+        label: str(row.label),
+        affiliateCampaignId: str(row.affiliateCampaignId),
+        inviteLinkId: str(row.inviteLinkId),
+      };
+    });
   return withProfileTexts(before, after as typeof before, templates);
 }
 

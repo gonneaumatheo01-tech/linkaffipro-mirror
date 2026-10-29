@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   allowedIdentities,
   effectiveIdentityKind,
+  isVipManager,
   isAssistantOnlyUniverse,
   mergeNeedsHuman,
   needsHumanReasonLabel,
@@ -27,6 +28,12 @@ describe("univers d'une persona", () => {
     expect(effectiveIdentityKind(undefined, "GIRL")).toBe("GIRL");
     expect(effectiveIdentityKind("dating", "autre")).toBe("ASSISTANT");
     expect(allowedIdentities("casino")).toEqual(["ASSISTANT"]);
+    expect(allowedIdentities("sports")).toEqual(["ASSISTANT", "VIP_MANAGER"]);
+    expect(allowedIdentities("dating")).toEqual(["ASSISTANT", "GIRL"]);
+    expect(effectiveIdentityKind("sports", "VIP_MANAGER")).toBe("ASSISTANT");
+    expect(isVipManager("sports", "VIP_MANAGER")).toBe(true);
+    expect(isVipManager("casino", "VIP_MANAGER")).toBe(false);
+    expect(isVipManager("sports", "ASSISTANT")).toBe(false);
     expect(isAssistantOnlyUniverse("dating")).toBe(false);
   });
 });

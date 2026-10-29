@@ -9,9 +9,26 @@ export function isPersonaUniverse(v: unknown): v is PersonaUniverse {
   return typeof v === "string" && (PERSONA_UNIVERSES as readonly string[]).includes(v);
 }
 
-/** Identités permises dans un univers (GIRL seulement pour Rencontres). */
-export function allowedIdentities(universe: PersonaUniverse): readonly ("ASSISTANT" | "GIRL")[] {
-  return universe === "dating" ? ["ASSISTANT", "GIRL"] : ["ASSISTANT"];
+/**
+ * Identités enregistrables (`Persona.identityKind`) : l'assistante du canal, une fille (Rencontres) ou le gérant du VIP
+ * (Paris sportifs : il propose les bookmakers partenaires et envoie le lien du canal VIP après le dépôt).
+ */
+export const PERSONA_IDENTITY_KINDS = ["ASSISTANT", "GIRL", "VIP_MANAGER"] as const;
+export type PersonaIdentityKind = (typeof PERSONA_IDENTITY_KINDS)[number];
+
+/** Identités permises dans un univers (GIRL seulement pour Rencontres, VIP_MANAGER seulement pour Paris sportifs). */
+export function allowedIdentities(universe: PersonaUniverse): readonly PersonaIdentityKind[] {
+  if (universe === "dating") return ["ASSISTANT", "GIRL"];
+  if (universe === "sports") return ["ASSISTANT", "VIP_MANAGER"];
+  return ["ASSISTANT"];
+}
+
+/**
+ * Gérant du VIP : seulement en Paris sportifs. Il reste une assistante déclarée pour l'honnêteté (`effectiveIdentityKind`
+ * donne ASSISTANT) ; seuls son rôle affiché et le parcours des bookmakers partenaires changent.
+ */
+export function isVipManager(universe: unknown, identity: unknown): boolean {
+  return universe === "sports" && identity === "VIP_MANAGER";
 }
 
 /** Fiche d'informations : 40 entrées au plus. */
@@ -37,8 +54,8 @@ export function isAssistantOnlyUniverse(v: unknown): boolean {
 
 /**
  * Identité effective d'une persona : en Casino ou Paris sportifs, toujours ASSISTANT (une persona réglée « fille » par
- * erreur, par un ancien formulaire ou un script, n'est jamais présentée comme une fille). Ailleurs, « GIRL » seulement si
- * c'est la valeur enregistrée.
+ * erreur, par un ancien formulaire ou un script, n'est jamais présentée comme une fille ; le gérant du VIP est une
+ * assistante déclarée). Ailleurs, « GIRL » seulement si c'est la valeur enregistrée.
  */
 export function effectiveIdentityKind(universe: unknown, identity: unknown): "ASSISTANT" | "GIRL" {
   if (isAssistantOnlyUniverse(universe)) return "ASSISTANT";

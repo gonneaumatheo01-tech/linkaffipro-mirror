@@ -70,6 +70,8 @@ export type ValidationContext = {
    * fiche de l'offre ; tout autre chiffre ou montant est refusé.
    */
   faqTexts?: readonly string[];
+  /** Gérant du VIP (Paris sportifs) : au premier message, « gérant du VIP » vaut « assistant(e) ». */
+  vipManager?: boolean;
 };
 
 export type ValidationResult =
@@ -462,9 +464,13 @@ export function hasNameIntro(text: string, personaName: string): boolean {
 }
 
 /** Vrai si le texte contient le prénom de la persona et un mot « assistant(e) » (6 langues). */
-export function hasIntro(text: string, personaName: string): boolean {
+/** « gérant du VIP », « VIP manager », « gestora del VIP »… (6 langues), pour la présentation du gérant du VIP. */
+const VIP_MANAGER_WORD =
+  /\b(?:gerante?|manager|managerin|gestor|gestora|gerente|gestore|gestrice)\b(?: [a-z]+){0,2} vip\b|\bvip (?:manager|managerin)\b/;
+
+export function hasIntro(text: string, personaName: string, vipManager = false): boolean {
   const words = ` ${wordsForm(text)} `;
-  if (!ASSISTANT_WORD.test(words)) return false;
+  if (!ASSISTANT_WORD.test(words) && !(vipManager && VIP_MANAGER_WORD.test(words))) return false;
   const name = wordsForm(personaName);
   // Prénom sans lettre latine (ex. alphabet cyrillique) : simple présence, sans tenir compte de la casse.
   if (!name)
@@ -879,7 +885,9 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
     !illusion &&
     ctx.isFirstAssistantMessage &&
     !illusion &&
-    !(girl ? hasNameIntro(joined, ctx.personaName) : hasIntro(joined, ctx.personaName))
+    !(girl
+      ? hasNameIntro(joined, ctx.personaName)
+      : hasIntro(joined, ctx.personaName, ctx.vipManager === true))
   )
     reject(
       "intro_missing",

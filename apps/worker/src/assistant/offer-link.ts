@@ -84,12 +84,84 @@ export async function personaOfferTrackingLink(personaId: string): Promise<{ id:
   return { id: link.id };
 }
 
-/** Crée le lien de CET envoi (un sub-ID neuf), ou null si aucune offre utilisable. */
+/**
+ * Lien OFFER via PersonaBookmaker (phase 25 bis, paris sportifs) : la persona a plusieurs bookmakers, chacun avec sa
+ * propre AffiliateCampaign. Le modèle choisit lequel proposer (`selected_book`) ; on cherche le lien suivi correspondant.
+ * Retourne null si le bookmaker n'est pas configuré, si l'offre est inactive ou si la campagne n'a pas de lien.
+ */
+export async function personaBookmakerOfferTrackingLink(
+  personaId: string,
+  bookmakerKey: string,
+): Promise<{ id: string } | null> {
+  const pb = await prisma.personaBookmaker.findUnique({
+    where: { personaId_bookmakerKey: { personaId, bookmakerKey } },
+    select: {
+      affiliateCampaignId: true,
+      label: true,
+      persona: { select: { name: true, campaignId: true } },
+    },
+  });
+  if (!pb?.affiliateCampaignId) return null;
+  const offer = await prisma.affiliateCampaign.findUnique({
+    where: { id: pb.affiliateCampaignId },
+    select: { id: true, isActive: true, trackingUrlTemplate: true },
+  });
+  if (!offer || !offer.isActive || !offer.trackingUrlTemplate.trim()) return null;
+  // Slug déterministe : persona + affiliateCampaign (le même qu'un lien simple, mais ici l'offer.id vient du
+  // PersonaBookmaker et non de la persona directement).
+  const slug = assistantOfferSlug(personaId, offer.id);
+  const label = assistantOfferLabel(pb.persona.name, pb.label);
+  const link = await prisma.trackingLink.upsert({
+    where: { slug },
+    create: {
+      slug,
+      kind: "OFFER",
+      destinationTemplate: offer.trackingUrlTemplate,
+      label,
+      affiliateCampaignId: offer.id,
+      campaignId: pb.persona.campaignId,
+      personaId,
+    },
+    update: {},
+    select: {
+      id: true,
+      isActive: true,
+      destinationTemplate: true,
+      campaignId: true,
+      personaId: true,
+      label: true,
+    },
+  });
+  if (!link.isActive) return null;
+  if (
+    link.destinationTemplate !== offer.trackingUrlTemplate ||
+    link.campaignId !== pb.persona.campaignId ||
+    link.personaId !== personaId ||
+    link.label !== label
+  )
+    await prisma.trackingLink.update({
+      where: { id: link.id },
+      data: {
+        destinationTemplate: offer.trackingUrlTemplate,
+        campaignId: pb.persona.campaignId,
+        personaId,
+        label,
+      },
+    });
+  return { id: link.id };
+}
+
+/**
+ * Crée le lien de CET envoi (un sub-ID neuf), ou null si aucune offre utilisable.
+ * `bookmakerKey` (phase 25 bis) : si fourni, le lien passe par la table PersonaBookmaker au lieu de persona.affiliateCampaignId.
+ */
 export async function createAssistantOfferLink(
-  ctx: OfferLinkContext,
+  ctx: OfferLinkContext & { bookmakerKey?: string },
   env: Record<string, string | undefined> = process.env,
 ): Promise<CreatedOfferLink | null> {
-  const tracking = await personaOfferTrackingLink(ctx.personaId);
+  const tracking = ctx.bookmakerKey
+    ? await personaBookmakerOfferTrackingLink(ctx.personaId, ctx.bookmakerKey)
+    : await personaOfferTrackingLink(ctx.personaId);
   if (!tracking) return null;
   for (let attempt = 1; ; attempt++) {
     const subId = newSubId();

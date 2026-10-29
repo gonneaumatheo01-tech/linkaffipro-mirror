@@ -87,6 +87,7 @@ import {
   summaryPlan,
   toHistoryMessage,
   toPersonaInput,
+  vipBookmakers,
   type ConversationPatch,
   type HistoryRow,
   type LiveWrites,
@@ -140,6 +141,19 @@ export async function processChatTurn(conversationId: string): Promise<ChatTurnR
 const personaInclude = {
   affiliateCampaign: { select: { isActive: true, trackingUrlTemplate: true } },
   campaign: { select: { channelIds: true } },
+  // Phase 25 bis : bookmakers liés à la persona (paris sportifs), chacun avec sa campagne et son lien VIP.
+  bookmakers: {
+    select: {
+      bookmakerKey: true,
+      label: true,
+      priority: true,
+      affiliateCampaignId: true,
+      affiliateCampaign: { select: { isActive: true, trackingUrlTemplate: true } },
+      inviteLinkId: true,
+      inviteLink: { select: { telegramInviteLink: true } },
+    },
+    orderBy: { priority: "asc" as const },
+  },
 } satisfies Prisma.PersonaInclude;
 
 type PersonaWithOffer = Prisma.PersonaGetPayload<{ include: typeof personaInclude }>;
@@ -740,8 +754,11 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
   const cfg = settings.config;
   if (!conv.personaId)
     await prisma.conversation.update({ where: { id: conv.id }, data: { personaId: persona.id } });
+  // Phase 25 bis : un gérant du VIP (paris sportifs) a une offre utilisable dès qu'un de ses bookmakers en a une.
+  const hasBookmakerOffer = vipBookmakers(persona).length > 0;
   const offerUsable = Boolean(
-    persona.affiliateCampaign?.isActive && persona.affiliateCampaign.trackingUrlTemplate.trim(),
+    hasBookmakerOffer ||
+    (persona.affiliateCampaign?.isActive && persona.affiliateCampaign.trackingUrlTemplate.trim()),
   );
   const [channelTitle, { history, plan }] = await Promise.all([
     personaChannelTitle(persona, conv.botId),
@@ -803,17 +820,23 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
     now: () => rt.now(),
     sleep: (ms) => rt.sleep(ms),
     random: () => rt.random(),
-    createOfferLink: async () => {
+    createOfferLink: async (bookmakerKey?: string) => {
       const link = await createAssistantOfferLink({
         conversationId: conv.id,
         personaId: persona.id,
         botId: conv.botId,
         memberId: conv.memberId,
         source: conv.source,
+        bookmakerKey,
       });
       if (!link) return null;
       sendCtx.pendingOffer = { subId: link.subId, url: link.url };
       return { url: link.url, subId: link.subId };
+    },
+    resolveVipLink: async (bookmakerKey: string) => {
+      const pb = persona.bookmakers.find((b) => b.bookmakerKey === bookmakerKey);
+      if (!pb?.inviteLinkId || !pb.inviteLink?.telegramInviteLink) return null;
+      return { url: pb.inviteLink.telegramInviteLink, bookmakerKey };
     },
     beforeSend: async () => {
       // Reprise par l'équipe, /stop, mineur ou /reset pendant la préparation : rien ne part.

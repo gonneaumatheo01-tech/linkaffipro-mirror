@@ -20,11 +20,14 @@ import {
   advancedModifiedCount,
   girlAllowed,
   personaRole,
+  universeForIdentity,
   universeLabelFr,
+  vipManagerLabel,
   proposedProfileTexts,
   withProfileTexts,
   type PersonaFormField,
   type PersonaFormState,
+  type PersonaIdentity,
   type ProfileTemplates,
 } from "@/lib/personas/form";
 import {
@@ -34,11 +37,15 @@ import {
   personaModelOptions,
   type CampaignChoice,
   type OfferChoice,
+  type VipLinkChoice,
 } from "@/lib/personas/view";
 import { OfferVisualField, type VisualOption } from "./offer-visual-field";
+import { PersonaBookmakersField } from "./persona-bookmakers-field";
 import { PersonaFaqField } from "./persona-faq-field";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** « de l'assistante », « du gérant du VIP », « de la gérante du VIP ». */
+const ofRole = (r: string) => (r.startsWith("le ") ? `du ${r.slice(3)}` : `de ${r}`);
 
 /** Champs qui changent les textes proposés du profil du bot. */
 const PROFILE_KEYS = new Set<keyof PersonaFormState>([
@@ -66,6 +73,7 @@ export function PersonaForm({
   templates,
   action,
   canEditFaq,
+  vipLinks,
 }: {
   initial: PersonaFormState;
   offers: OfferChoice[];
@@ -77,6 +85,8 @@ export function PersonaForm({
   action: (prev: PersonaSaveState, formData: FormData) => Promise<PersonaSaveState>;
   /** Fiche d'informations modifiable (administrateurs) ; sinon lecture seule. */
   canEditFaq: boolean;
+  /** Liens d'invitation de nos canaux, pour le canal VIP des bookmakers (Paris sportifs). */
+  vipLinks: VipLinkChoice[];
 }) {
   const [state, setState] = useState<PersonaFormState>(initial);
   const [images, setImages] = useState<VisualOption[]>(initialImages);
@@ -88,18 +98,33 @@ export function PersonaForm({
 
   const errors = result?.errors ?? {};
   const isNew = state.id === null;
-  const role = personaRole(state.gender);
+  const isVipManager = state.identityKind === "VIP_MANAGER";
+  const role = isVipManager ? vipManagerLabel(state.gender) : personaRole(state.gender);
   const set = <K extends keyof PersonaFormState>(k: K, v: PersonaFormState[K]) =>
     setState((s) => {
       const next = { ...s, [k]: v };
-      // Casino et Paris sportifs : toujours l'assistante (la règle du serveur reste la vraie garde).
-      if (k === "universe" && !girlAllowed(next.universe)) next.identityKind = "ASSISTANT";
+      // Casino et Paris sportifs : jamais « une fille » ; le gérant du VIP n'existe qu'en Paris sportifs (la règle du
+      // serveur reste la vraie garde).
+      if (k === "universe" && !girlAllowed(next.universe) && next.identityKind === "GIRL")
+        next.identityKind = "ASSISTANT";
+      if (k === "universe" && next.universe !== "sports" && next.identityKind === "VIP_MANAGER")
+        next.identityKind = "ASSISTANT";
+      // Choisir « Gérant du VIP » passe la persona en Paris sportifs.
+      if (k === "identityKind")
+        next.universe = universeForIdentity(next.identityKind) ?? next.universe;
       return PROFILE_KEYS.has(k) ? withProfileTexts(s, next, templates) : next;
     });
   const canBeGirl = girlAllowed(state.universe);
-  const identityChoices: ReadonlyArray<"ASSISTANT" | "GIRL"> = canBeGirl
-    ? ["ASSISTANT", "GIRL"]
-    : ["ASSISTANT"];
+  // « Gérant du VIP » est toujours proposé : le choisir passe la persona en Paris sportifs.
+  const identityChoices: ReadonlyArray<PersonaIdentity> = canBeGirl
+    ? ["ASSISTANT", "GIRL", "VIP_MANAGER"]
+    : ["ASSISTANT", "VIP_MANAGER"];
+  const identityChoiceLabel = (k: PersonaIdentity) =>
+    k === "GIRL"
+      ? "Une fille"
+      : k === "VIP_MANAGER"
+        ? cap(vipManagerLabel(state.gender).replace(/^(le|la) /, ""))
+        : `${personaRole(state.gender)} du canal`;
 
   const dirty = useMemo(() => JSON.stringify(state) !== JSON.stringify(initial), [state, initial]);
   useEffect(() => {
@@ -128,6 +153,7 @@ export function PersonaForm({
     affiliateCampaignId: state.affiliateCampaignId || null,
     offerPitch: state.offerPitch,
     gender: state.gender,
+    bookmakerOffers: state.bookmakers.filter((b) => b.affiliateCampaignId).length,
   });
   const err = (k: PersonaFormField) => errors[k];
 
@@ -156,7 +182,7 @@ export function PersonaForm({
         description={
           state.identityKind === "GIRL"
             ? "Une fille sur un compte Telegram réel : un prénom, un âge, une personnalité, une façon d'écrire. Elle ne dit jamais qu'elle est une IA."
-            : `Le personnage de ${role} : un prénom, une personnalité, une façon de parler. Jamais une vraie personne.`
+            : `Le personnage ${ofRole(role)} : un prénom, une personnalité, une façon de parler. Jamais une vraie personne.`
         }
       >
         <div className="grid gap-4 sm:grid-cols-2">
@@ -186,7 +212,7 @@ export function PersonaForm({
                     onChange={() => set("gender", g)}
                     className="size-4 accent-brand"
                   />
-                  {personaRole(g)} du canal
+                  {isVipManager ? vipManagerLabel(g) : `${personaRole(g)} du canal`}
                 </label>
               ))}
             </div>
@@ -215,7 +241,7 @@ export function PersonaForm({
           <p id="persona-universe-help" className="text-note text-muted-foreground">
             {canBeGirl
               ? "L'univers du bot qui l'utilise."
-              : `${universeName} : toujours ${role} du canal, qui dit franchement être une IA.`}
+              : `${universeName} : toujours un bot qui dit franchement être une IA (« Une fille » n'existe qu'en Rencontres).`}
           </p>
         </div>
         <fieldset className="space-y-2" aria-describedby="persona-identity-help">
@@ -234,7 +260,7 @@ export function PersonaForm({
                   onChange={() => set("identityKind", k)}
                   className="size-4 accent-brand"
                 />
-                {k === "GIRL" ? "Une fille" : `${personaRole(state.gender)} du canal`}
+                {identityChoiceLabel(k)}
               </label>
             ))}
           </div>
@@ -248,9 +274,11 @@ export function PersonaForm({
             {err("identityKind") ??
               (state.identityKind === "GIRL"
                 ? "Une fille sur un compte Telegram réel : elle écrit comme une fille de son âge et ne se démasque jamais, même si on insiste. Ni « assistante », ni « IA », ni « canal »."
-                : canBeGirl
-                  ? `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande.`
-                  : `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande. « Une fille » n'existe qu'en Rencontres.`)}
+                : isVipManager
+                  ? `${cap(role)} (Paris sportifs) : il propose vos bookmakers partenaires dans l'ordre, envoie le lien d'inscription, puis le lien du canal VIP quand la personne a déposé. C'est un bot, qui dit franchement être une IA si on lui demande. Réglez-le juste en dessous.`
+                  : canBeGirl
+                    ? `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande.`
+                    : `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande. « Une fille » n'existe qu'en Rencontres.`)}
           </p>
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -358,9 +386,22 @@ export function PersonaForm({
         <p className="rounded-lg bg-info-soft px-3 py-2 text-note text-info">
           {state.identityKind === "GIRL"
             ? "Une fille ne se démasque jamais : elle se dit vraie fille, même si la personne insiste. Elle ne dit ni « assistante », ni « IA », ni « canal »."
-            : `${cap(role)} se présente toujours comme ${role} du canal au premier message et répond franchement si on lui demande si c'est une IA.`}
+            : isVipManager
+              ? `${cap(role)} se présente toujours comme ${role} au premier message et répond franchement si on lui demande si c'est une IA.`
+              : `${cap(role)} se présente toujours comme ${role} du canal au premier message et répond franchement si on lui demande si c'est une IA.`}
         </p>
       </FormSection>
+
+      {isVipManager || state.bookmakers.length > 0 ? (
+        <PersonaBookmakersField
+          value={state.bookmakers}
+          onChange={(v) => set("bookmakers", v)}
+          offerGroups={offerGroups}
+          offers={offers}
+          vipLinks={vipLinks}
+          error={err("bookmakers")}
+        />
+      ) : null}
 
       <FormSection
         title="Parcours"
@@ -545,7 +586,7 @@ export function PersonaForm({
               )}
             >
               {err("offerMediaAssetId") ??
-                `Un visuel de l'app ou de l'offre, jamais une photo présentée comme celle de ${role}.`}
+                `Un visuel de l'app ou de l'offre, jamais une photo présentée comme celle ${ofRole(role)}.`}
             </p>
           </div>
         </div>

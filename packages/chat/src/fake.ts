@@ -46,6 +46,8 @@ export function fakeOutput(over: FakeOutputInput = {}): TurnOutput {
     app_refused: over.app_refused ?? false,
     note_interne: over.note_interne ?? "",
     ...(over.handoff ? { handoff: over.handoff } : {}),
+    ...(over.selected_book !== undefined ? { selected_book: over.selected_book } : {}),
+    ...(over.send_vip_link !== undefined ? { send_vip_link: over.send_vip_link } : {}),
   };
 }
 
@@ -236,6 +238,8 @@ export type FakeTurnDeps = TurnDeps & {
   sleeps: number[];
   usages: UsageRecord[];
   offerLinks: { url: string; subId: string }[];
+  /** Bookmaker demandé à chaque appel de `createOfferLink` (null = aucun). */
+  offerBookKeys: (string | null)[];
   beforeSendCalls(): number;
   capChecks(): number;
 };
@@ -250,6 +254,8 @@ export type FakeTurnDepsOptions = {
   beforeSend?: readonly { abort?: boolean; newInbound?: TurnInbound[] }[];
   /** null : aucun lien ne peut être créé. */
   offerBaseUrl?: string | null;
+  /** Liens des canaux VIP par clé de bookmaker (Paris sportifs) ; absent = aucun lien VIP. */
+  vipLinks?: Record<string, string>;
   random?: () => number;
 };
 
@@ -263,6 +269,7 @@ export function createFakeTurnDeps(opts: FakeTurnDepsOptions): FakeTurnDeps {
   const sleeps: number[] = [];
   const usages: UsageRecord[] = [];
   const offerLinks: { url: string; subId: string }[] = [];
+  const offerBookKeys: (string | null)[] = [];
   let beforeSendCalls = 0;
   let capChecks = 0;
   const base = opts.offerBaseUrl === undefined ? "https://go.goolink.eu/a/" : opts.offerBaseUrl;
@@ -273,6 +280,7 @@ export function createFakeTurnDeps(opts: FakeTurnDepsOptions): FakeTurnDeps {
     sleeps,
     usages,
     offerLinks,
+    offerBookKeys,
     beforeSendCalls: () => beforeSendCalls,
     capChecks: () => capChecks,
     now: () => new Date(t),
@@ -281,12 +289,17 @@ export function createFakeTurnDeps(opts: FakeTurnDepsOptions): FakeTurnDeps {
       t += ms;
     },
     random: opts.random ?? (() => 0.5),
-    createOfferLink: async () => {
+    createOfferLink: async (bookmakerKey) => {
+      offerBookKeys.push(bookmakerKey ?? null);
       if (base === null) return null;
       const subId = `TEST${String(offerLinks.length + 1).padStart(8, "0")}`;
       const link = { url: `${base}${subId}`, subId };
       offerLinks.push(link);
       return link;
+    },
+    resolveVipLink: async (bookmakerKey) => {
+      const url = opts.vipLinks?.[bookmakerKey];
+      return url ? { url, bookmakerKey } : null;
     },
     beforeSend: async () => {
       const step = opts.beforeSend?.[beforeSendCalls++];
@@ -384,6 +397,8 @@ export type TestTurnDepsOptions = {
   startAt?: Date;
   /** Adresse des liens d'offre d'exemple (aucun lien réel n'est créé) ; null : aucun lien. */
   offerBaseUrl?: string | null;
+  /** Liens des canaux VIP par bookmaker (Paris sportifs) : les vrais liens de la persona, montés tels quels. */
+  vipLinks?: Record<string, string>;
   beforeSend?: FakeTurnDepsOptions["beforeSend"];
 };
 
@@ -397,6 +412,7 @@ export function createTestTurnDeps(opts: TestTurnDepsOptions): FakeTurnDeps {
     llm: opts.llm,
     ...(opts.startAt ? { startAt: opts.startAt } : {}),
     ...(opts.offerBaseUrl !== undefined ? { offerBaseUrl: opts.offerBaseUrl } : {}),
+    ...(opts.vipLinks ? { vipLinks: opts.vipLinks } : {}),
     ...(opts.beforeSend ? { beforeSend: opts.beforeSend } : {}),
   });
   let capChecks = 0;

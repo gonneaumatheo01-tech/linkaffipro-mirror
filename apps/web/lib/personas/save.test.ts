@@ -17,6 +17,9 @@ const m = vi.hoisted(() => ({
   deleted: [] as string[],
   audits: [] as Array<Record<string, unknown>>,
   linkMoves: [] as Array<Record<string, unknown>>,
+  bookOffers: [] as Array<{ id: string; isActive: boolean }>,
+  vipLinks: [] as Array<{ id: string; isActive: boolean }>,
+  bookWrites: [] as Array<{ op: string; args: Record<string, unknown> }>,
   profile: vi.fn(),
   refreshStats: vi.fn(async () => {}),
 }));
@@ -40,7 +43,19 @@ vi.mock("@linkaffipro/db", () => ({
         return {};
       }),
     },
-    affiliateCampaign: { findUnique: vi.fn(async () => m.offer) },
+    affiliateCampaign: {
+      findUnique: vi.fn(async () => m.offer),
+      findMany: vi.fn(async () => m.bookOffers),
+    },
+    inviteLink: { findMany: vi.fn(async () => m.vipLinks) },
+    personaBookmaker: {
+      deleteMany: vi.fn((args: Record<string, unknown>) => ({ op: "deleteMany", args })),
+      createMany: vi.fn((args: Record<string, unknown>) => ({ op: "createMany", args })),
+    },
+    $transaction: vi.fn(async (ops: Array<{ op: string; args: Record<string, unknown> }>) => {
+      m.bookWrites.push(...ops);
+      return [];
+    }),
     campaign: { findUnique: vi.fn(async () => m.campaign) },
     mediaAsset: { findUnique: vi.fn(async () => m.media) },
     bot: { findMany: vi.fn(async () => m.bots) },
@@ -119,6 +134,9 @@ beforeEach(() => {
   m.deleted.length = 0;
   m.audits.length = 0;
   m.linkMoves.length = 0;
+  m.bookOffers = [];
+  m.vipLinks = [];
+  m.bookWrites.length = 0;
   m.refreshStats.mockClear();
   m.profile.mockReset();
   m.profile.mockResolvedValue({
@@ -444,5 +462,122 @@ describe("univers et fiche d'informations (phase 25)", () => {
     );
     expect(girl.ok).toBe(false);
     expect(m.created).toHaveLength(0);
+  });
+});
+
+describe("bookmakers partenaires (gérant du VIP)", () => {
+  const sports = (over: Partial<PersonaFormState> = {}) =>
+    draft({
+      id: "p1",
+      name: "Mehdi",
+      gender: "M",
+      universe: "sports",
+      identityKind: "VIP_MANAGER",
+      botDescription: "Moi c'est Mehdi, l'assistant du canal : une IA.",
+      botShortDescription: "Mehdi, l'assistant du canal",
+      offerPitch: "VIP gratuit.",
+      ...over,
+    });
+  const book = (label: string, offer: string, link = "") => ({
+    bookmakerKey: "",
+    label,
+    affiliateCampaignId: offer,
+    inviteLinkId: link,
+  });
+
+  it("liste réécrite d'un bloc dans l'ordre, journal sans les liens", async () => {
+    m.existing = {
+      ...saved,
+      id: "p1",
+      universe: "sports",
+      identityKind: "VIP_MANAGER",
+      bookmakers: [],
+    };
+    m.bookOffers = [
+      { id: "c1", isActive: true },
+      { id: "c2", isActive: true },
+    ];
+    m.vipLinks = [{ id: "l1", isActive: true }];
+    const r = await savePersona(
+      sports({ bookmakers: [book("Celsius", "c1", "l1"), book("Bet Portal", "c2")] }),
+      admin,
+    );
+    expect(r.ok).toBe(true);
+    expect(m.bookWrites.map((w) => w.op)).toEqual(["deleteMany", "createMany"]);
+    expect(m.bookWrites[1]?.args).toEqual({
+      data: [
+        {
+          bookmakerKey: "celsius",
+          label: "Celsius",
+          priority: 1,
+          affiliateCampaignId: "c1",
+          inviteLinkId: "l1",
+          personaId: "p1",
+        },
+        {
+          bookmakerKey: "betportal",
+          label: "Bet Portal",
+          priority: 2,
+          affiliateCampaignId: "c2",
+          inviteLinkId: null,
+          personaId: "p1",
+        },
+      ],
+    });
+    expect(m.audits.find((a) => a.action === "persona.bookmakers_updated")?.metadata).toEqual({
+      before: [],
+      after: ["celsius", "betportal"],
+      vipLinks: 1,
+    });
+    expect(m.updated[0]).not.toHaveProperty("bookmakers");
+  });
+
+  it("offre introuvable ou lien VIP révoqué : refusé, rien n'est écrit", async () => {
+    m.existing = {
+      ...saved,
+      id: "p1",
+      universe: "sports",
+      identityKind: "VIP_MANAGER",
+      bookmakers: [],
+    };
+    m.bookOffers = [{ id: "c1", isActive: true }];
+    m.vipLinks = [{ id: "l1", isActive: false }];
+    const r = await savePersona(sports({ bookmakers: [book("Celsius", "c1", "l1")] }), admin);
+    expect(r).toMatchObject({
+      ok: false,
+      errors: { bookmakers: expect.stringMatching(/révoqué/) },
+    });
+    const r2 = await savePersona(sports({ bookmakers: [book("Celsius", "c9")] }), admin);
+    expect(r2).toMatchObject({
+      ok: false,
+      errors: { bookmakers: expect.stringMatching(/introuvable/) },
+    });
+    expect(m.bookWrites).toHaveLength(0);
+  });
+
+  it("même liste : rien n'est réécrit ni journalisé", async () => {
+    m.existing = {
+      ...saved,
+      id: "p1",
+      universe: "sports",
+      identityKind: "VIP_MANAGER",
+      bookmakers: [
+        {
+          bookmakerKey: "celsius",
+          label: "Celsius",
+          priority: 1,
+          affiliateCampaignId: "c1",
+          inviteLinkId: null,
+        },
+      ],
+    };
+    m.bookOffers = [{ id: "c1", isActive: true }];
+    const r = await savePersona(
+      sports({ bookmakers: [{ ...book("Celsius", "c1"), bookmakerKey: "celsius" }] }),
+      admin,
+    );
+    expect(r.ok).toBe(true);
+    expect(m.bookWrites).toHaveLength(0);
+    expect(m.audits.some((a) => a.action === "persona.bookmakers_updated")).toBe(false);
   });
 });
