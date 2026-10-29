@@ -7,8 +7,8 @@ WORKDIR /app
 COPY --chown=node:node . .
 USER node
 # Toutes les dépendances (dev comprises) sont nécessaires pour construire. Phase 26 : la vérification des types du
-# site dépasse la mémoire par défaut de Node (manque de mémoire constaté en local) : 4 Go pour le build seulement.
-RUN export NODE_OPTIONS=--max-old-space-size=4096 \
+# site dépasse la mémoire par défaut de Node (manque de mémoire constaté en local) : 6 Go pour le build seulement (4 Go ne suffisent plus depuis le 29 octobre 2026).
+RUN export NODE_OPTIONS=--max-old-space-size=6144 \
   && pnpm install --frozen-lockfile --prod=false \
   && pnpm db:generate \
   && pnpm exec turbo run build --filter=web \
