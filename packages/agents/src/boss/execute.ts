@@ -418,10 +418,13 @@ export function suggestable(a: BossAction): boolean {
 const NOT_SUGGESTED = new Set(["aide", "apercu_matchs", "voir_matchs_bookmaker", "demander_equipe"]);
 
 /** Fragment d'une description (« Dire où en sont… » → « te dire où en sont… »), pur. */
-function offerFragment(description: string): string {
+export function offerFragment(description: string): string {
   const d = description.trim().replace(/[.;:!\s]+$/u, "").replace(/\s*\(.*$/, "");
   const low = d.charAt(0).toLocaleLowerCase("fr-FR") + d.slice(1);
-  return /^(dire|donner|montrer|envoyer|lister)\b/.test(low) ? `te ${low}` : low;
+  if (/^(dire|donner|montrer|envoyer|lister)\b/.test(low)) return `te ${low}`;
+  // « Les prochains canaux… », « La fiche d'un prospect » : « te montrer les prochains canaux… » (jamais « je peux les… »).
+  if (/^(le|la|les|l'|un|une|des|ce|ces|cette|tes)\b/u.test(low)) return `te montrer ${low}`;
+  return low;
 }
 
 /**

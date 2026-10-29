@@ -185,6 +185,13 @@ export type VoiceCheckOptions = {
   allowLong?: boolean;
   /** Réponse à un « merci » : « Avec plaisir » est permis (et seulement là). */
   allowThanks?: boolean;
+  /**
+   * Réponse libre de Kevin (29 octobre 2026, « comme si c'était Claude ») : texte rédigé, explication, conseil. Seuls
+   * comptent les formules d'ouverture et de fin, les statuts et identifiants techniques et la répétition ; longueur,
+   * listes, gras, titres, emojis, longues phrases, vouvoiement et mots courants (« mission », « capacité ») sont libres
+   * (un texte demandé pour des membres peut vouvoyer).
+   */
+  free?: boolean;
 };
 
 const L = "\\p{L}";
@@ -261,11 +268,19 @@ export function voiceCheck(text: string, opts: VoiceCheckOptions = {}): { ok: bo
   const low = plain.toLowerCase();
   const prose = withoutTokens(low);
 
-  // Formules interdites et vouvoiement.
+  // Formules interdites (réponse libre : seulement la première et la dernière phrase) et vouvoiement.
+  const sentences = opts.free ? sentencesOf(low) : [];
+  const formulaText = opts.free ? withoutTokens([sentences[0] ?? "", sentences[sentences.length - 1] ?? ""].join(". ")) : prose;
   for (const f of FORBIDDEN_PHRASES) {
     if (opts.allowThanks && THANKS_PHRASES.has(f)) continue;
     const re = new RegExp(`(^|[^${L}])${escapeRe(f)}([^${L}]|$)`, "iu");
-    if (re.test(prose)) problems.push({ code: "formule", detail: f });
+    if (re.test(formulaText)) problems.push({ code: "formule", detail: f });
+  }
+  if (opts.free) {
+    // Statuts anglais, identifiants techniques et répétition seulement.
+    technicalProblems(plain, problems);
+    repetitionProblems(text, opts.previous, problems);
+    return { ok: problems.length === 0, problems };
   }
   const tutoiement = prose.replace(/rendez-vous/g, "rdv");
   const vous = /(^|[^\p{L}])(vous|votre|vos|vôtre|vôtres)([^\p{L}]|$)/iu.exec(tutoiement);
@@ -273,13 +288,7 @@ export function voiceCheck(text: string, opts: VoiceCheckOptions = {}): { ok: bo
 
   // Jargon interne : mots, statuts anglais, identifiants techniques.
   for (const j of JARGON_WORDS) if (new RegExp(`(^|[^${L}])${escapeRe(j)}s?([^${L}]|$)`, "iu").test(prose)) problems.push({ code: "jargon", detail: j });
-  const upper = withoutTokens(plain);
-  for (const s of ENGLISH_STATUS_WORDS) if (new RegExp(`(^|[^\\p{L}_])${s}([^\\p{L}_]|$)`, "u").test(upper)) problems.push({ code: "jargon", detail: s });
-  const enumLike = /(^|[^\p{L}\p{N}_])([A-Z]{2,}_[A-Z_]{2,})(?![\p{L}\p{N}_])/u.exec(upper);
-  if (enumLike) problems.push({ code: "jargon", detail: enumLike[2]! });
-  const cuid = /(^|[^\p{L}\p{N}])(c[a-z0-9]{20,30})(?![\p{L}\p{N}])/u.exec(upper);
-  if (cuid && /\d/.test(cuid[2]!)) problems.push({ code: "identifiant", detail: cuid[2]! });
-  if (/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(upper)) problems.push({ code: "identifiant", detail: "uuid" });
+  technicalProblems(plain, problems);
 
   // Longueur, puces, titres, gras.
   const lines = plain.split("\n").filter((l) => l.trim());
@@ -304,14 +313,28 @@ export function voiceCheck(text: string, opts: VoiceCheckOptions = {}): { ok: bo
     if (n > 30) problems.push({ code: "phrase_longue", detail: `${n} mots` });
   }
 
-  // Répétition du message précédent (même texte, ou même première phrase de 4 mots ou plus).
-  if (opts.previous && opts.previous.trim()) {
-    const first = (s: string) => sentencesOf(voicePlainText(s).toLowerCase())[0] ?? "";
-    const a = first(text);
-    if (sameText(opts.previous, text) || (a.split(/\s+/).length >= 4 && a === first(opts.previous)))
-      problems.push({ code: "repetition", detail: "même phrase que le message précédent" });
-  }
+  repetitionProblems(text, opts.previous, problems);
   return { ok: problems.length === 0, problems };
+}
+
+/** Statuts en anglais (PENDING…), noms d'énumération et identifiants techniques (cuid, uuid). */
+function technicalProblems(plain: string, problems: VoiceProblem[]): void {
+  const upper = withoutTokens(plain);
+  for (const s of ENGLISH_STATUS_WORDS) if (new RegExp(`(^|[^\\p{L}_])${s}([^\\p{L}_]|$)`, "u").test(upper)) problems.push({ code: "jargon", detail: s });
+  const enumLike = /(^|[^\p{L}\p{N}_])([A-Z]{2,}_[A-Z_]{2,})(?![\p{L}\p{N}_])/u.exec(upper);
+  if (enumLike) problems.push({ code: "jargon", detail: enumLike[2]! });
+  const cuid = /(^|[^\p{L}\p{N}])(c[a-z0-9]{20,30})(?![\p{L}\p{N}])/u.exec(upper);
+  if (cuid && /\d/.test(cuid[2]!)) problems.push({ code: "identifiant", detail: cuid[2]! });
+  if (/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(upper)) problems.push({ code: "identifiant", detail: "uuid" });
+}
+
+/** Répétition du message précédent (même texte, ou même première phrase de 4 mots ou plus). */
+function repetitionProblems(text: string, previous: string | null | undefined, problems: VoiceProblem[]): void {
+  if (!previous || !previous.trim()) return;
+  const first = (s: string) => sentencesOf(voicePlainText(s).toLowerCase())[0] ?? "";
+  const a = first(text);
+  if (sameText(previous, text) || (a.split(/\s+/).length >= 4 && a === first(previous)))
+    problems.push({ code: "repetition", detail: "même phrase que le message précédent" });
 }
 
 /** Motif lisible d'un échec (envoyé à l'IA pour la réécriture). */
@@ -508,7 +531,7 @@ export type KevinTextResult = { text: string; source: "draft" | "rewrite" | "fal
  */
 export async function kevinText(input: KevinTextInput): Promise<KevinTextResult> {
   const draft = (input.draft ?? "").trim();
-  const opts: VoiceCheckOptions = { previous: input.previous, allowList: input.allowList, allowLong: input.allowLong, allowThanks: input.allowThanks };
+  const opts: VoiceCheckOptions = { previous: input.previous, allowList: input.allowList, allowLong: input.allowLong, allowThanks: input.allowThanks, free: input.free };
   if (!draft) return { text: input.fallback, source: "fallback", costCents: 0, problems: [] };
   const check = voiceCheck(draft, opts);
   const numbers = input.facts !== undefined ? voiceNumberProblems(draft, { facts: input.facts }) : [];

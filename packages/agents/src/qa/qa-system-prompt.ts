@@ -60,6 +60,7 @@ export const QA_SYSTEM_PROMPT = [
   "- Pas d'hallucination (n'invente ni fonctionnalité, ni résultat, ni source)",
   "- Ton adapté (ni trop formel, ni trop familier : Kevin tutoie, phrases courtes)",
   "- Si c'est une question technique : la réponse est techniquement correcte",
+  "- Réponse libre (dataConsulted.reponseLibre) : Kevin répond comme Claude ; connaissances générales, texte rédigé à la demande, réponse longue et structurée permis. Refuser seulement une erreur de fond, un chiffre de l'équipe absent des données, une action présentée comme faite ou un contenu interdit",
   "",
   "RECOMMENDATION :",
   "- Cohérente avec les règles publicitaires actives",

@@ -209,6 +209,8 @@ export * from "./boss/catalog";
 export * from "./boss/catalog-read";
 export * from "./boss/catalog-teams";
 export * from "./boss/catalog-univers";
+export * from "./boss/catalog-routines";
+export * from "./boss/routines";
 export * from "./boss/facts";
 export * from "./boss/answer";
 export * from "./boss/memory";

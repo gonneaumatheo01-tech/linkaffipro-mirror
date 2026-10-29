@@ -247,6 +247,8 @@ export type AgentsOrchestratorJob =
   | { type: "resume" }
   /** Phase 33 : suivi des ordres de Kevin (`tickOrders` : progression, fin, reprise après redémarrage), toutes les 10 min. */
   | { type: "orders-tick" }
+  /** Envois programmés de Kevin (`tickBossRoutines`), toutes les 5 min. */
+  | { type: "routines-tick" }
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }
   | { type: "validations" }

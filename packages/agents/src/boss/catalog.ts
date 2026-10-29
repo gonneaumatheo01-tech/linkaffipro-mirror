@@ -20,6 +20,7 @@ import { ANALYSTS_ACTIONS } from "./catalog-analysts";
 import { QA_ACTIONS } from "./catalog-qa";
 import { PROSPECTION_ACTIONS } from "./catalog-prospection";
 import { PROSPECTION_ADVANCED_ACTIONS } from "./catalog-prospection-advanced";
+import { ROUTINE_ACTIONS, setRoutinesCatalog } from "./catalog-routines";
 import { bossHelpText } from "./help";
 import { bossStartReply } from "./guide";
 import { bossDeferredFollowUp, clearBossPending, NOTHING_TO_CANCEL, PENDING_CANCELLED, readBossPending } from "./confirm";
@@ -72,7 +73,7 @@ export const annule = defineAction<Empty>({
 
 export const GUIDE_ACTIONS: BossAction[] = [aide, commencer, annule] as unknown as BossAction[];
 
-export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...VIEW_ACTIONS, ...ANALYSTS_ACTIONS, ...QA_ACTIONS, ...PROSPECTION_ACTIONS, ...PROSPECTION_ADVANCED_ACTIONS, ...ORDER_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
+export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...VIEW_ACTIONS, ...ANALYSTS_ACTIONS, ...QA_ACTIONS, ...PROSPECTION_ACTIONS, ...PROSPECTION_ADVANCED_ACTIONS, ...ROUTINE_ACTIONS, ...ORDER_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
 
 const BY_KEY = new Map(BOSS_CATALOG.map((a) => [a.key, a]));
 // Phase 34 : opérations du site confirmées (OUI ; SUPPRIMER passe par le chemin rapide), jamais vues par l'IA.
@@ -85,6 +86,9 @@ const HIDDEN_BY_KEY = new Map([...HIDDEN_BOSS_ACTIONS, ...READ_HIDDEN_ACTIONS, .
 export function bossAction(key: string, opts: { includeHidden?: boolean } = {}): BossAction | null {
   return BY_KEY.get(key) ?? (opts.includeHidden ? (HIDDEN_BY_KEY.get(key) ?? null) : null);
 }
+
+// Envois programmés (29 octobre 2026) : le catalogue leur est branché ici (import circulaire évité).
+setRoutinesCatalog({ all: () => BOSS_CATALOG, byKey: (key) => bossAction(key) });
 
 /** Outils spéciaux de l'interprète (jamais exécutés comme des actions). */
 export const BOSS_SPECIAL_TOOLS = ["preciser", "repondre_question", "ordre_equipe", "pas_prevu"] as const;

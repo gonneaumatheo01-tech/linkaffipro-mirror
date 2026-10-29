@@ -158,12 +158,12 @@ export async function bossTurnsForSpeaker(
 }
 
 /** Mémoire en texte pour l'interprète (une ligne par tour, « Admin : … » / « Kevin : … »). */
-export function memoryLines(turns: readonly BossTurnRow[], bossName = "Kevin", personName = "Admin"): string[] {
+export function memoryLines(turns: readonly BossTurnRow[], bossName = "Kevin", personName = "Admin", maxChars = 300): string[] {
   return turns.map((t) => {
     // Ancien format « [message transféré] <contenu> » : le contenu ne part jamais à l'IA.
     const fwd = /^\[message transféré\]\s*([\s\S]*)$/.exec(t.text);
     const text = fwd ? `[message transféré : ${fwd[1]!.trim().length} caractères]` : t.text;
-    return `${t.role === "ADMIN" ? personName : bossName} : ${text.replace(/\s+/g, " ").slice(0, 300)}`;
+    return `${t.role === "ADMIN" ? personName : bossName} : ${text.replace(/\s+/g, " ").slice(0, maxChars)}`;
   });
 }
 

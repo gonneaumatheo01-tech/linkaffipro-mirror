@@ -1,3 +1,40 @@
+# Statut — 29 octobre 2026 (suite) : Kevin envoie ce que tu veux, à qui tu veux, quand tu veux
+
+## Fait
+- ✅ Kevin sait maintenant programmer des envois : « envoie chaque matin tous les canaux paris sportifs que tu as trouvés à @Raul_FNZ », « envoie-moi tous les lundis à 8 h les dépenses du mois », « envoie au groupe les paris du jour à 10 h », ou « envoie à Léa … » tout de suite.
+- ✅ Ça marche avec tout ce que Kevin sait lire ou répondre (listes, états, chiffres, réponses libres). Il montre ce qu'il va envoyer et demande OUI. « mes envois programmés » pour la liste, « arrête l'envoi 2 » pour en couper un.
+- ✅ La personne reçoit en privé si elle a déjà écrit /start à Kevin, sinon dans le groupe de l'équipe avec une mention. Si rien ne passe, Kevin te prévient.
+- ✅ Phrase corrigée : Kevin ne dit plus « je peux les prochains canaux… ».
+- ✅ Tests du paquet agents : 1 563 verts.
+
+## Test de 5 minutes
+1. Écrire à Kevin : « envoie chaque matin à 9 h tous les canaux paris sportifs que tu as trouvés à @Raul_FNZ », puis répondre OUI.
+2. Écrire « mes envois programmés » : l'envoi doit apparaître.
+3. Demain à 9 h, Raul reçoit la liste (en privé s'il a écrit /start à Kevin, sinon dans le groupe de l'équipe).
+
+## Problèmes et actions humaines
+- Pour qu'il reçoive en privé, Raul doit écrire une fois /start à @kevcanauxbot. Sinon Kevin passe par le groupe de l'équipe (s'il y en a un).
+
+---
+
+# Statut — 29 octobre 2026 : Kevin répond comme Claude
+
+## Fait
+- ✅ Kevin répond maintenant à tout, comme Claude : questions générales, conseils (pubs, TikTok, canaux), idées, « écris-moi un post », traductions, explications, calculs. Il ne dit plus « je ne sais pas encore faire » à une simple question.
+- ✅ Réponses longues et mises en forme quand il faut (listes, gras), et il suit mieux la conversation (20 derniers échanges).
+- ✅ Garde-fous inchangés pour les actions : il n'agit que par ses commandes habituelles, avec OUI quand il faut ; il n'invente jamais nos chiffres (membres, dépôts, gains…) et le contrôle qualité vérifie chaque réponse.
+- ✅ Tests du paquet agents : 2 256 verts.
+
+## Test de 5 minutes
+1. Écrire à Kevin : « c'est quoi un bon taux de clic sur une pub TikTok ? »
+2. Puis : « écris-moi un post pour annoncer un bonus casino ce soir ».
+3. Puis : « fais-le plus court » (il doit reprendre le post d'avant).
+
+## Problèmes et actions humaines
+- Aucun. Une réponse longue coûte un peu plus d'IA, toujours dans le plafond mensuel de Kevin.
+
+---
+
 # Statut — 29 octobre 2026 : retrait du Montage et des vidéos IA
 
 ## Fait
@@ -7,8 +44,10 @@
 - ✅ Image du worker allégée (polices des sous-titres retirées ; ffmpeg gardé pour les vocaux).
 - ✅ Vérifié en local : typage et lint verts partout ; tests unitaires verts (agents 1 547, site 3 537, Telegram 592, worker 494, cœur 420, chat 595, files 42, userbot 27) ; parité de Kevin : 237 actions, 0 manquante.
 
+- ✅ En ligne le 29 octobre vers 9 h 35 (site puis worker, version `main` avec le bot VIP paris déjà en ligne) : santé OK, `/agents/montage` → `/agents` (308), au démarrage le worker a effacé 2 planifications du montage et vidé 2 files retirées.
+
 ## Reste
-- Mise en ligne (site puis worker) après la vérification GitHub.
+- Rien.
 
 ## Test de 5 minutes (après la mise en ligne)
 1. Ouvrir Agents : l'onglet « Montage » a disparu.
@@ -17,6 +56,7 @@
 
 ## Problèmes et actions humaines
 - Aucune. La clé Magic Hour reste chiffrée en base, sans usage (effaçable sur demande).
+- Mise en ligne : depuis un dossier de travail séparé, `railway up` envoyait le dossier principal (travail en cours d'une autre session) : il faut `railway up "$PWD" --path-as-root --service …`. Le build du site demande maintenant 6 Go de mémoire (`apps/web/Dockerfile`).
 
 ---
 

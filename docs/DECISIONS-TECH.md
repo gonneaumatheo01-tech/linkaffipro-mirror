@@ -1107,6 +1107,20 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
 - Image du worker : polices retirées (elles ne servaient qu'aux sous-titres des shorts) ; ffmpeg gardé pour la transcription des vocaux de l'admin.
 - Gardés en base sans usage : clé Magic Hour chiffrée, `videoProvider` / `videoResolution` / `monthlyBudgetCents.video` de l'équipe Rencontres, `agents.bench.*`, `Setting video-ia.kevin.*`. Une vidéo envoyée au bot avec `#rencontres #source` est encore rangée dans la médiathèque, sans usage.
 
+## Kevin répond comme Claude (29 octobre 2026)
+
+- Demande du client : Kevin doit répondre « comme si c'était Claude » et non seulement à ce qu'il sait faire. Choix : l'interprète envoie à `discuter` tout ce qui n'agit pas sur la plateforme ; le rédacteur `boss/converse.ts` (mode `chat`) devient une réponse libre de Claude (Opus 5.5, effort « medium », 4 000 jetons) avec la liste du catalogue en consigne système. Les actions restent faites par le code seulement (catalogue, ordres, opérations du site, confirmations inchangées) : Claude ne fait rien dans ce message.
+- Garde-fous gardés : aucun chiffre présenté comme le nôtre sans données, jamais « c'est fait » en ouverture, secrets, QA Global (réponse libre signalée au QA). Une nouvelle rédaction au plus avant le repli sur le texte du code. Détails : `docs/KEVIN-VOIX.md`.
+- Coût : même plafond `boss.budget` (30 € par mois par défaut) ; une réponse longue coûte quelques centimes de plus qu'avant, plus le contrôle qualité.
+
+## Envois programmés de Kevin (29 octobre 2026)
+
+- Demande du client : « je veux que Kevin puisse tout faire », exemple « envoie chaque matin tous les canaux Paris sportifs que tu as trouvés à @Raul_FNZ » (Kevin répondait « pas encore possible »). Ce qui manquait n'était pas la liste (elle existe : `prospects_filtre`) mais deux briques génériques : répéter dans le temps et envoyer à quelqu'un d'autre que l'admin. Choix : un seul mécanisme pour TOUTES les lectures de Kevin plutôt qu'une commande par cas.
+- Contenu : l'interprète (même IA, outils de lecture seulement) choisit une lecture du catalogue, une question chiffrée (`answerQuestion`) ou une réponse libre (`writeKevinReply`). Jamais une action qui change quelque chose (liste fermée `routineReadKeys` = lectures de `BOSS_READ_KEYS` + lectures des Analystes, de la Prospection et du QA). Contenu et destinataire trouvés avant la question et gardés jusqu'au OUI (`Setting boss.routines.draft.<empreinte>`), pour que le OUI vaille pour ce qui a été montré.
+- Destinataire : « moi » → admin ; « le groupe » → groupe de l'équipe ; personne présentée → son privé (si elle a fait /start), sinon le groupe en la mentionnant ; @nom inconnu → le groupe en le mentionnant ; sans groupe → refus avec la marche à suivre. Boutons gardés pour l'admin seulement. En-tête « De la part de <admin> » pour les autres.
+- Stockage dans `Setting boss.routines` (pas de migration : 30 envois au plus, une ligne). Tâche `routines-tick` toutes les 5 min : un envoi par jour de Paris et par envoi programmé, repère posé avant l'envoi (jamais deux fois), rattrapage le jour même, rien le jour de la création si l'heure est passée. Échec → l'admin est prévenu une fois jusqu'au prochain envoi réussi.
+- Création et arrêt réservés à l'admin (`BOSS_ADMIN_ONLY_KEYS`). Correctif au passage : la proposition de Kevin quand il ne peut pas disait « je peux les prochains canaux… » ; un début en article devient « te montrer les … ».
+
 ## Comptes Telegram : personas Paris sportifs autorisées (29 octobre 2026)
 
 - Demande du client : Mehdi (VIP_MANAGER, univers sports) doit pouvoir être relié à un vrai compte Telegram, comme Léa (GIRL, univers dating). La restriction précédente (univers dating uniquement) est assouplie : dating ET sports sont acceptés. Seul l'univers casino reste interdit sur un vrai compte.
