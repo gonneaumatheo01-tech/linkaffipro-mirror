@@ -429,8 +429,8 @@ export const simulation = defineAction<SimP>({
   },
 });
 
-const POSTES: Record<string, ProviderKey> = { video: "video", image: "image", ia: "llm", cotes: "odds", captures: "screenshot" };
-type CapP = { equipe: string; poste: "video" | "image" | "ia" | "cotes" | "captures"; euros: number };
+const POSTES: Record<string, ProviderKey> = { image: "image", ia: "llm", cotes: "odds", captures: "screenshot" };
+type CapP = { equipe: string; poste: "image" | "ia" | "cotes" | "captures"; euros: number };
 
 async function currentCap(deps: BossDeps, t: TeamKey, provider: ProviderKey): Promise<number | undefined> {
   return (await loadTeamSettings(deps.prisma, t)).monthlyBudgetCents[provider];
@@ -439,12 +439,12 @@ async function currentCap(deps: BossDeps, t: TeamKey, provider: ProviderKey): Pr
 export const plafond = defineAction<CapP>({
   key: "plafond",
   check: (d, p) => teamCheck(d, p.equipe),
-  description: "Changer le plafond mensuel d'une équipe pour un poste (vidéo, image, IA, cotes, captures), en euros",
+  description: "Changer le plafond mensuel d'une équipe pour un poste (image, IA, cotes, captures), en euros",
   theme: "equipes",
   cls: "confirm",
   spec: {
     equipe: str(`${TEAM_DESC} (vidéo et image : rencontres ; cotes : paris sportifs)`),
-    poste: oneOf("Poste de dépense", ["video", "image", "ia", "cotes", "captures"]),
+    poste: oneOf("Poste de dépense", ["image", "ia", "cotes", "captures"]),
     euros: num("Nouveau plafond mensuel en euros (0 = aucune dépense)", 0, 100_000),
   },
   refine: (p) => checkCap(p.euros),
@@ -596,8 +596,15 @@ type MixP = { canal: string; video: number; photo: number; texte: number };
 
 export const melangeCanal = defineAction<MixP>({
   key: "melange_canal",
-  check: (deps, p) => channelCheck(deps, "melange_canal", p, "canal", p.canal),
-  description: "Changer le mélange vidéo / photo / texte des posts d'un canal (parts relatives)",
+  async check(deps, p) {
+    const c = await resolveChannel(deps, { actionKey: "melange_canal", params: p, field: "canal" }, p.canal);
+    if (!c.ok) return c.reply;
+    // Rencontres : plus de vidéos IA depuis le 29 octobre 2026.
+    if (p.video > 0 && (await currentChannelPlan(deps, c.value.id)).team === "dating")
+      return { reply: "L'équipe Rencontres ne fait plus de vidéos. Donne-moi juste les parts de photos et de textes." };
+    return null;
+  },
+  description: "Changer le mélange vidéo / photo / texte des posts d'un canal (parts relatives ; pas de vidéo pour un canal Rencontres)",
   theme: "canaux",
   cls: "confirm",
   spec: {

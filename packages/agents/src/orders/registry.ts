@@ -1,7 +1,7 @@
 /**
  * Registre des capacités (phase 33, règle 2 : les capacités déclarées sont la seule vérité). Chaque Chef d'équipe y
  * déclare ce que son équipe sait faire (`orders/capabilities/<équipe>.ts`) ; Kevin ne promet rien qui n'y est pas.
- * Les équipes des phases 28 à 32 (Montage, Analystes, QA, Prospection) s'y branchent par `registerCapabilities`.
+ * Les équipes des phases 29 à 32 (Analystes, QA, Prospection) s'y branchent par `registerCapabilities`.
  * Une équipe absente du registre n'est pas « ordonnable » : `capability()` rend `null`.
  */
 import type { Capability } from "./contract";
@@ -10,7 +10,6 @@ import { ALGO_CAPABILITIES } from "./capabilities/algo";
 import { CASINO_CAPABILITIES } from "./capabilities/casino";
 import { CONTROLE_CAPABILITIES } from "./capabilities/controle";
 import { DATING_CAPABILITIES } from "./capabilities/dating";
-import { MONTAGE_CAPABILITIES } from "./capabilities/montage";
 import { ANALYSTES_CAPABILITIES } from "./capabilities/analystes";
 import { QA_CAPABILITIES } from "./capabilities/qa";
 import { PROSPECTION_CAPABILITIES } from "./capabilities/prospection";
@@ -71,8 +70,6 @@ export const BUILTIN_CAPABILITIES: readonly AnyCapability[] = [
   ...TRANSVERSE_CAPABILITIES,
   ...REDACTION_CAPABILITIES,
   ...CONTROLE_CAPABILITIES,
-  // Phase 28 : équipe Montage (découpe d'une vidéo longue en shorts, état du montage).
-  ...MONTAGE_CAPABILITIES,
   // Phase 29 : équipe Analystes (veille du marché, règles des plateformes pub, stratégie, rapports ; lecture seule).
   ...ANALYSTES_CAPABILITIES,
   // Phase 30 : contrôle qualité global (lecture seule : état, refus, motifs ; jamais « accepter à sa place »).

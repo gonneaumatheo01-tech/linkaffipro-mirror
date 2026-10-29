@@ -51,8 +51,6 @@ const SECRET_PROVIDERS: Record<string, string> = {
   apifootball: "providers.apifootball.apiKey",
   "api-football": "providers.apifootball.apiKey",
   stats: "providers.apifootball.apiKey",
-  magichour: "providers.magichour.apiKey",
-  "magic-hour": "providers.magichour.apiKey",
 };
 
 const TRAILING_PUNCT = /[:;,.!?…]+$/u;

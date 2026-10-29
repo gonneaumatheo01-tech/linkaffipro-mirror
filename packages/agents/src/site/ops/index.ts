@@ -4,9 +4,8 @@ import { LOT_B_OPS } from "./lot-b";
 import { LOT_C_OPS } from "./lot-c";
 import { LOT_D_OPS } from "./lot-d";
 import { LOT_E_OPS } from "./lot-e";
-import { LOT_MONTAGE_OPS } from "./lot-montage";
 import { LOT_ANALYSTES_OPS } from "./lot-analystes";
 import { LOT_PROSPECTION_OPS } from "./lot-prospection";
 import { LOT_PROSPECTION_AVANCEE_OPS } from "./lot-prospection-avancee";
 
-export const SITE_OPS: SiteOpMeta[] = [...LOT_B_OPS, ...LOT_C_OPS, ...LOT_D_OPS, ...LOT_E_OPS, ...LOT_MONTAGE_OPS, ...LOT_ANALYSTES_OPS, ...LOT_PROSPECTION_OPS, ...LOT_PROSPECTION_AVANCEE_OPS];
+export const SITE_OPS: SiteOpMeta[] = [...LOT_B_OPS, ...LOT_C_OPS, ...LOT_D_OPS, ...LOT_E_OPS, ...LOT_ANALYSTES_OPS, ...LOT_PROSPECTION_OPS, ...LOT_PROSPECTION_AVANCEE_OPS];

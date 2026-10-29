@@ -237,7 +237,7 @@ describe("fiche d'une persona", () => {
     for (const t of [
       "Médias du personnage",
       "Images de référence (2 sur 3)",
-      "1re : sert aux vidéos",
+      "1re : le modèle",
       "Adresse du fichier du personnage",
       "Mot déclencheur",
       "Force du personnage",

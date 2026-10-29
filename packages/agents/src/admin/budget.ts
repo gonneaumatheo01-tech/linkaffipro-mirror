@@ -1,6 +1,6 @@
 /**
  * Plafond mensuel d'un poste de dépense d'une équipe (`AgentTeamConfig.monthlyBudgetCents`), réglé depuis Telegram
- * (commande « budget vidéo … », question de mise en route Dating). Les autres postes ne bougent pas.
+ * (Kevin, site). Les autres postes ne bougent pas.
  */
 import type { AgentsDeps, ProviderKey, TeamKey } from "../types";
 import type { ActorRef } from "./team";

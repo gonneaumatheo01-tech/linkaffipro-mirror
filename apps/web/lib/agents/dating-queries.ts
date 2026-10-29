@@ -1,12 +1,10 @@
 /**
- * Lectures de la fiche d'équipe Rencontres (phase 20) : médias par persona (vidéos sources non utilisées, vidéos et
- * photos produites ce mois, dernières productions), réglages vidéo de l'équipe, clés des fournisseurs présentes ou
- * non (jamais la clé elle-même). Lecture seule.
+ * Lectures de la fiche d'équipe Rencontres (phase 20) : photos par persona (produites ce mois, dernières
+ * productions), clé du fournisseur présente ou non (jamais la clé elle-même). Lecture seule.
  */
 import { prisma, type PrismaClient } from "@linkaffipro/db";
 import { secretSummary } from "@linkaffipro/agents";
 import { parisMidnightUtc } from "@/lib/periods";
-import { parseDatingSettings, type DatingMediaSettings } from "./dating";
 import { currentMonth } from "./missions";
 import { parseReferenceIds } from "@/lib/personas/media";
 
@@ -24,9 +22,6 @@ export type DatingPersonaView = {
   isActive: boolean;
   references: number;
   hasCharacterFile: boolean;
-  sourcesUnused: number;
-  sourcesTotal: number;
-  videosMonth: number;
   photosMonth: number;
   latest: ProductionView[];
 };
@@ -61,17 +56,12 @@ export async function loadDatingPersonas(now: Date): Promise<DatingPersonaView[]
   const since = monthStart(now);
   return Promise.all(
     personas.map(async (p) => {
-      const [sourcesUnused, sourcesTotal, videosMonth, photosMonth, latest] = await Promise.all([
-        prisma.mediaAsset.count({ where: { personaId: p.id, kind: "SOURCE", usages: { none: {} } } }),
-        prisma.mediaAsset.count({ where: { personaId: p.id, kind: "SOURCE" } }),
+      const [photosMonth, latest] = await Promise.all([
         prisma.mediaAsset.count({
-          where: { personaId: p.id, kind: "GENERATED", mimeType: { startsWith: "video/" }, createdAt: { gte: since } },
-        }),
-        prisma.mediaAsset.count({
-          where: { personaId: p.id, kind: "GENERATED", mimeType: { startsWith: "image/" }, createdAt: { gte: since } },
+          where: { personaId: p.id, kind: "PHOTO", origin: "AI", createdAt: { gte: since } },
         }),
         prisma.mediaAsset.findMany({
-          where: { personaId: p.id, kind: "GENERATED" },
+          where: { personaId: p.id, kind: "PHOTO", origin: "AI" },
           orderBy: { createdAt: "desc" },
           take: 6,
           select: { id: true, mimeType: true, createdAt: true, providerName: true, resolution: true },
@@ -83,9 +73,6 @@ export async function loadDatingPersonas(now: Date): Promise<DatingPersonaView[]
         isActive: p.isActive,
         references: parseReferenceIds(p.referenceImageIds).length,
         hasCharacterFile: Boolean(p.loraUrl && p.loraTrigger),
-        sourcesUnused,
-        sourcesTotal,
-        videosMonth,
         photosMonth,
         latest,
       };
@@ -93,18 +80,10 @@ export async function loadDatingPersonas(now: Date): Promise<DatingPersonaView[]
   );
 }
 
-export async function loadDatingSettings(): Promise<DatingMediaSettings> {
-  const row = await prisma.agentTeamConfig.findUnique({ where: { teamKey: "dating" }, select: { settings: true } });
-  return parseDatingSettings(row?.settings);
-}
-
-/** Clés des fournisseurs de médias présentes (true) ou non ; une lecture impossible compte comme absente. */
-export async function loadMediaKeys(): Promise<{ fal: boolean; magichour: boolean }> {
-  const db = prisma as unknown as PrismaClient;
-  const has = (key: string) =>
-    secretSummary(db, key)
-      .then((s) => s.set)
-      .catch(() => false);
-  const [fal, magichour] = await Promise.all([has("providers.fal.apiKey"), has("providers.magichour.apiKey")]);
-  return { fal, magichour };
+/** Clé du fournisseur de photos présente (true) ou non ; une lecture impossible compte comme absente. */
+export async function loadMediaKeys(): Promise<{ fal: boolean }> {
+  const fal = await secretSummary(prisma as unknown as PrismaClient, "providers.fal.apiKey")
+    .then((s) => s.set)
+    .catch(() => false);
+  return { fal };
 }

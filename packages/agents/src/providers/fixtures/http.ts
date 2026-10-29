@@ -1,6 +1,6 @@
 /**
- * Réponses HTTP enregistrées (forme de la documentation officielle, 23 octobre 2026) pour tester les clients fal.ai et
- * Magic Hour sans réseau, et un faux `fetch` qui les rejoue dans l'ordre des routes.
+ * Réponses HTTP enregistrées (forme de la documentation officielle, 23 octobre 2026) pour tester le client fal.ai sans
+ * réseau, et un faux `fetch` qui les rejoue dans l'ordre des routes.
  */
 export const REQ_ID = "764cabcf-b745-4b3e-ae38-1200304cf45b";
 
@@ -16,11 +16,6 @@ export const fal = {
   inProgress: { status: "IN_PROGRESS", logs: [] },
   completed: { status: "COMPLETED", logs: [], response_url: `https://queue.fal.run/fal-ai/wan/requests/${REQ_ID}` },
   completedWithError: { status: "COMPLETED", error: "Video decoding failed" },
-  videoResult: {
-    video: { url: "https://v3.fal.media/files/zebra/out.mp4", content_type: "video/mp4", file_name: "out.mp4", file_size: 1_234_567 },
-    prompt: "",
-    seed: 42,
-  },
   imageSubmit: {
     request_id: "img-1",
     response_url: "https://queue.fal.run/fal-ai/flux-lora/requests/img-1",
@@ -38,23 +33,6 @@ export const fal = {
   validation: { detail: [{ loc: ["body", "video_url"], msg: "field required", type: "value_error.missing" }] },
   serverError: { detail: "Internal Server Error" },
   rateLimited: { detail: "Too many requests" },
-};
-
-export const magichour = {
-  uploadUrls: (path: string) => ({ items: [{ upload_url: `https://videos.magichour.ai/upload/${path}?sig=x`, expires_at: "2026-10-24T10:00:00Z", file_path: `api-assets/id/${path}` }] }),
-  created: { id: "cm6pvghix0005yqzxb0x0xab", credits_charged: 450 },
-  queued: { id: "cm6pvghix0005yqzxb0x0xab", status: "queued", credits_charged: 450, downloads: [] },
-  rendering: { id: "cm6pvghix0005yqzxb0x0xab", status: "rendering", credits_charged: 450, downloads: [] },
-  complete: {
-    id: "cm6pvghix0005yqzxb0x0xab",
-    status: "complete",
-    credits_charged: 360,
-    downloads: [{ url: "https://videos.magichour.ai/id/output.mp4", expires_at: "2026-10-24T10:00:00Z" }],
-    error: null,
-  },
-  error: { id: "cm6pvghix0005yqzxb0x0xab", status: "error", credits_charged: 0, downloads: [], error: { message: "No faces detected", code: "no_source_face" } },
-  unauthorized: { message: "Unauthorized" },
-  notFound: { message: "Video project not found" },
 };
 
 export type Route = {

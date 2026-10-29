@@ -363,7 +363,7 @@ export function voiceNumberProblems(text: string, sources: { facts?: unknown; or
 // ---------------------------------------------------------------------------------- fidélité d'une réécriture
 
 /** Libellés des équipes cités tels quels (une réécriture ne les perd jamais). */
-const TEAM_NAME_WORDS = ["Rencontres", "Casino", "Paris sportifs", "Algorithme", "Ads", "Pubs", "Inspiration", "Montage"];
+const TEAM_NAME_WORDS = ["Rencontres", "Casino", "Paris sportifs", "Algorithme", "Ads", "Pubs"];
 
 const foldText = (s: string) =>
   voicePlainText(s)

@@ -131,7 +131,6 @@ export async function runPhoto(given: Mission, ctx: AgentContext): Promise<Agent
     }
     const stored = await storeProducedMedia(ctx.prisma, {
       file,
-      kind: "PHOTO",
       teamKey: mission.teamKey,
       personaId: persona.id,
       providerName: image.name,

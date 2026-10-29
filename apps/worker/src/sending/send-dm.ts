@@ -8,8 +8,7 @@ import { apiForBot } from "./api";
 import { describeDmFailure, describeTelegramError, withTelegramRetry } from "./errors";
 import { sendWithEmojiFallback, type CustomEmojiFallbackInfo } from "@linkaffipro/telegram";
 import { buildDmKeyboard } from "./keyboard";
-import { loadMedia, rememberTelegramFile, type LoadedMedia } from "./media";
-import { ShortNotApproved } from "../montage/media-bytes";
+import { loadMedia, rememberTelegramFile, RetiredMontageMedia, type LoadedMedia } from "./media";
 import { RateLimiter } from "./rate-limit";
 import { recordBroadcastOutcome } from "../broadcasts/progress";
 import {
@@ -145,10 +144,10 @@ export async function sendDm(outboundMessageId: string): Promise<DmSendResult> {
       emojiFallback ??= info;
     };
 
-    // Phase 28 : un short pas encore validé ne part jamais, et le message non plus (jamais le texte seul en silence).
+    // Vidéo du montage retiré : elle ne part jamais, et le message non plus (jamais le texte seul en silence).
     const media = om.mediaAssetId
       ? await loadMedia(om.mediaAssetId, om.botId).catch((err: unknown) => {
-          if (err instanceof ShortNotApproved) throw err;
+          if (err instanceof RetiredMontageMedia) throw err;
           return null;
         })
       : null;

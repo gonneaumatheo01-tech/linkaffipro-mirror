@@ -34,7 +34,7 @@ async function uploadReference(personaId: string, file: File): Promise<Reference
 
 /**
  * Section « Médias du personnage » de la fiche persona (phase 20) : 1 à 3 images de référence dans l'ordre (la
- * première sert aux vidéos), le fichier du personnage (adresse https du fichier LoRA, expliqué au survol), son mot
+ * première sert de modèle), le fichier du personnage (adresse https du fichier LoRA, expliqué au survol), son mot
  * déclencheur et son poids, les consignes de tenue et d'ambiance. Formulaire séparé du reste de la fiche (qui ne
  * change pas) : « Enregistrer les médias ». Les images sont envoyées tout de suite, et rangées à l'enregistrement.
  */
@@ -94,7 +94,7 @@ export function PersonaMediaForm({
         title="Médias du personnage"
         description={
           isGirl
-            ? `Ce qui sert aux agents de l'équipe Rencontres pour fabriquer les vidéos et les photos de ${name}. Rien ne part sans votre validation pour ses 3 premières vidéos et ses 3 premières photos.`
+            ? `Ce qui sert aux agents de l'équipe Rencontres pour fabriquer les photos de ${name}. Rien ne part sans votre validation pour ses 3 premières photos.`
             : "Pour une assistante du canal, ces médias ne sont jamais présentés comme ses photos. Ils servent surtout aux personas « Une fille » de l'équipe Rencontres."
         }
       >
@@ -103,8 +103,8 @@ export function PersonaMediaForm({
             Images de référence ({refs.length} sur {max})
           </legend>
           <p className="text-note text-muted-foreground">
-            1 à 3 photos nettes du personnage, de face et en pied. La première sert à remplacer la personne dans les
-            vidéos : mettez la meilleure en premier.
+            1 à 3 photos nettes du personnage, de face et en pied. La première sert de modèle : mettez la meilleure en
+            premier.
           </p>
           {refs.length ? (
             <ol className="grid gap-3 sm:grid-cols-3">
@@ -118,7 +118,7 @@ export function PersonaMediaForm({
                     className="aspect-square w-full rounded object-cover"
                   />
                   <p className="text-note text-muted-foreground">
-                    {i === 0 ? "1re : sert aux vidéos" : `${i + 1}e`}
+                    {i === 0 ? "1re : le modèle" : `${i + 1}e`}
                   </p>
                   <div className="flex gap-1">
                     <Button
@@ -240,7 +240,7 @@ export function PersonaMediaForm({
               aria-describedby="persona-media-notes-aide"
             />
             <p id="persona-media-notes-aide" className="text-note text-muted-foreground">
-              Lu pour chaque photo et chaque vidéo : ce qu&apos;elle porte, les lieux, ce qu&apos;il faut éviter.
+              Lu pour chaque photo : ce qu&apos;elle porte, les lieux, ce qu&apos;il faut éviter.
             </p>
           </div>
         </div>

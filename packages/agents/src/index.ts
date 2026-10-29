@@ -26,27 +26,14 @@ export * from "./rules/slots";
 export * from "./rules/time";
 export * from "./providers/llm";
 export * from "./providers/fake";
-export type * from "./providers/video";
 export type * from "./providers/image";
 export * from "./providers/costs";
 export { ProviderError } from "./providers/http";
-export { createFalClient, createFalImageProvider, createFalVideoProvider, FAL_IMAGE_MODEL, FAL_VIDEO_MODEL } from "./providers/fal";
-export { createMagicHourVideoProvider } from "./providers/magichour";
-export {
-  MAGICHOUR_SECRET_KEY,
-  VIDEO_RESOLUTIONS,
-  DEFAULT_VIDEO_RESOLUTION,
-  DEFAULT_MAX_VIDEO_SECONDS,
-  mediaSettings,
-  resolveMediaProviders,
-  pickVideoProviderName,
-  type MediaSettings,
-  type MediaProviders,
-} from "./providers/registry";
+export { createFalClient, createFalImageProvider, FAL_IMAGE_MODEL } from "./providers/fal";
+export { resolveMediaProviders, type MediaProviders } from "./providers/registry";
 export * from "./providers/verifiers";
-export { DATING_DEFAULT_MIX } from "./chiefs/dating-format";
+export { DATING_DEFAULT_MIX, datingMix } from "./chiefs/dating-format";
 export { DATING_DEFAULT_BUDGET_CENTS } from "./missions/settings";
-export { LOW_SOURCE_STOCK, unusedSourceCount } from "./agents/mediatheque/stock";
 export type * from "./providers/odds";
 export * from "./missions/settings";
 export * from "./missions/usage";
@@ -66,7 +53,6 @@ export * from "./orchestrator/resume";
 export * from "./orchestrator/cycle";
 export { simulationHeader, withSimulationHeader } from "./agents/publication/header";
 export * from "./missions/test-post";
-export * from "./orchestrator/bench";
 export * from "./human/dating-setup";
 // Chantier B (phase 20) : vocaux de l'admin, plafond par poste.
 export * from "./admin/voice";
@@ -223,11 +209,6 @@ export * from "./boss/catalog";
 export * from "./boss/catalog-read";
 export * from "./boss/catalog-teams";
 export * from "./boss/catalog-univers";
-export * from "./boss/catalog-video-ia";
-export * from "./boss/video-ia-intent";
-export * from "./boss/video-ia-run";
-export * from "./boss/video-ia-state";
-export * from "./boss/video-ia-texts";
 export * from "./boss/facts";
 export * from "./boss/answer";
 export * from "./boss/memory";
@@ -355,13 +336,6 @@ export { scanServerActions, checkParity, parityMarkdown, parityTable, parityOk, 
 
 // Phase 34, chantier F : entrées Telegram (message transféré, fichier, liens d'autorisation, reprise après OAuth).
 export * from "./boss/inputs";
-export * from "./montage/contract";
-
-// Phase 28, chantier B : moteur ffmpeg du montage (exécuteurs, rendu en un passage, contrôle qualité, fixtures de test).
-export * from "./montage/ffmpeg";
-
-// Phase 28, chantier C : IA du montage (instructions, plan de coupe, sous-titres, lisibilité) ; les autres chantiers ajoutent leurs lignes dans `montage/index.ts`.
-export * from "./montage/index";
 export * from "./analysts/contract";
 
 // Phase 29 : équipe Analystes (chantier A : veille ; B et C ajoutent leurs lignes dans `analysts/index.ts`).
@@ -371,7 +345,7 @@ export * from "./qa/contract";
 // Phase 30 : QA Global (chantier A : moteur ; B et C ajoutent leurs lignes dans `qa/index.ts`).
 export * from "./qa/index";
 
-// Phase 30, chantier B : branchements du QA Global dans les sorties des équipes (posts, shorts, rapports, alertes,
+// Phase 30, chantier B : branchements du QA Global dans les sorties des équipes (posts, rapports, alertes,
 // recommandations, réponses de Kevin, rattrapage).
 export * from "./qa-gates/index";
 

@@ -5,20 +5,18 @@
  *   chemin complet du modèle renvoie 405 : seules propriétaire/app servent) ;
  * - stockage : `POST /storage/upload/initiate` → `upload_url` + `file_url`, puis `PUT` des octets (repli sur
  *   `rest.alpha.fal.ai`) ; nos médias sont envoyés chez fal, jamais servis par notre site ;
- * - vidéo : Wan 2.2 Animate « replace » ; photo : Flux + LoRA.
+ * - photo : Flux + LoRA (les vidéos IA ont été retirées le 29 octobre 2026, décision du client).
  */
-import { falImageCents, falVideoCents, FAL_IMAGE_SIZES } from "./costs";
+import { falImageCents, FAL_IMAGE_SIZES } from "./costs";
 import { downloadBytes, ProviderError, requestJson, type HttpDeps } from "./http";
-import type { ImageGenerateInput, ImageGenerateOptions, ImageJobRef, ImageProvider } from "./image";
-import type { ProviderFile, VideoJobRef, VideoPoll, VideoProvider, VideoResolution } from "./video";
+import type { ImageGenerateInput, ImageGenerateOptions, ImageJobRef, ImageProvider, ProviderFile } from "./image";
 
 export const FAL_QUEUE_BASE = "https://queue.fal.run";
 export const FAL_STORAGE_HOSTS = ["https://rest.fal.ai", "https://rest.alpha.fal.ai"] as const;
-export const FAL_VIDEO_MODEL = "fal-ai/wan/v2.2-14b/animate/replace";
 export const FAL_IMAGE_MODEL = "fal-ai/flux-lora";
 const LABEL = "fal.ai";
 
-/** Propriétaire/app d'un modèle (`fal-ai/wan/v2.2-14b/animate/replace` → `fal-ai/wan`) : base des adresses d'état. */
+/** Propriétaire/app d'un modèle (`fal-ai/flux-lora/x` → `fal-ai/flux-lora`) : base des adresses d'état. */
 export function falAppPath(modelId: string): string {
   return modelId.split("/").slice(0, 2).join("/");
 }
@@ -136,52 +134,6 @@ export function createFalClient(opts: FalClientOptions) {
 }
 
 export type FalClient = ReturnType<typeof createFalClient>;
-
-/** Lecture d'un travail fal (pur après les appels) : état → `VideoPoll`, résultat → adresse de la vidéo. */
-async function pollFal<T>(client: FalClient, jobId: string, ref: VideoJobRef | undefined, modelId: string, urlOf: (out: T) => string | null): Promise<VideoPoll> {
-  const base = `${FAL_QUEUE_BASE}/${falAppPath(modelId)}/requests/${jobId}`;
-  try {
-    const st = await client.status(ref?.statusUrl || `${base}/status`);
-    if (st.status === "IN_QUEUE") return { status: "queued" };
-    if (st.status === "IN_PROGRESS") return { status: "running" };
-    if (st.error) return { status: "failed", error: `${LABEL} : ${st.error}`.slice(0, 300) };
-    const out = await client.result<T>(ref?.responseUrl || base);
-    const url = urlOf(out);
-    if (!url) return { status: "failed", error: `${LABEL} : résultat sans fichier` };
-    return { status: "done", outputUrl: url };
-  } catch (err) {
-    if (err instanceof ProviderError) return err.transient ? { status: "running", transient: true, error: err.message } : { status: "failed", error: err.message };
-    return { status: "running", transient: true, error: `${LABEL} : ${(err as Error).message}`.slice(0, 200) };
-  }
-}
-
-export type FalVideoOptions = { client: FalClient };
-
-export function createFalVideoProvider(opts: FalVideoOptions): VideoProvider {
-  const { client } = opts;
-  return {
-    name: "fal",
-    estimateCents: ({ durationSec, fps, resolution }) => falVideoCents(durationSec, fps, resolution),
-    async startReplace(input) {
-      const [videoUrl, imageUrl] = [await client.upload(input.sourceVideo), await client.upload(input.referenceImage)];
-      const sub = await client.submit(FAL_VIDEO_MODEL, {
-        video_url: videoUrl,
-        image_url: imageUrl,
-        resolution: input.resolution satisfies VideoResolution,
-        video_quality: "high",
-      });
-      return {
-        jobId: sub.requestId,
-        estimatedCents: falVideoCents(input.durationSec, input.fps, input.resolution),
-        ref: { statusUrl: sub.statusUrl, responseUrl: sub.responseUrl, cancelUrl: sub.cancelUrl },
-      };
-    },
-    cancel: (jobId, ref) => client.cancel(ref?.cancelUrl || `${FAL_QUEUE_BASE}/${falAppPath(FAL_VIDEO_MODEL)}/requests/${jobId}/cancel`),
-    poll: (jobId, ref) =>
-      pollFal<{ video?: { url?: string } }>(client, jobId, ref, FAL_VIDEO_MODEL, (out) => (typeof out.video?.url === "string" ? out.video.url : null)),
-    download: (url) => client.download(url),
-  };
-}
 
 export type FalImageOptions = {
   client: FalClient;

@@ -5,7 +5,6 @@ export type AgentsSection =
   | "ads"
   | "boss"
   | "orders"
-  | "montage"
   | "analyses"
   | "qualite"
   | "prospection"
@@ -18,7 +17,6 @@ export type AgentsSection =
  * journal, réglages (administrateurs seulement). Phase 24 : « Agent Ads » (`/agents/ads`), rattaché au Grand Chef,
  * n'est pas une équipe : il a son entrée à lui. Phase 26 : « Kevin » (`/agents/boss`), le bot à qui l'on parle.
  * Phase 33 : « Ordres » (`/agents/orders`), les ordres donnés aux équipes par Kevin.
- * Phase 28 : « Montage » (`/agents/montage`), les vidéos longues découpées en shorts et leur médiathèque.
  * Phase 29 : « Analyses » (`/agents/analyses`), la veille du marché, les règles publicitaires, les rapports et sources.
  * Phase 30 : « Qualité » (`/agents/qualite`), le contrôle qualité global : ce qui a été vérifié, accepté ou refusé.
  * Phase 31 : « Prospection » (`/agents/prospection`), les canaux casino et paris à proposer comme affiliés.
@@ -30,7 +28,6 @@ export function agentsSections(isAdmin: boolean, pending = 0): TabNavItem[] {
     { key: "ads", href: "/agents/ads", label: "Agent Ads", short: "Pubs" },
     { key: "boss", href: "/agents/boss", label: "Kevin" },
     { key: "orders", href: "/agents/orders", label: "Ordres" },
-    { key: "montage", href: "/agents/montage", label: "Montage" },
     { key: "analyses", href: "/agents/analyses", label: "Analyses" },
     { key: "qualite", href: "/agents/qualite", label: "Qualité" },
     { key: "prospection", href: "/agents/prospection", label: "Prospection" },

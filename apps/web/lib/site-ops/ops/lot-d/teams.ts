@@ -1,21 +1,20 @@
 /**
  * Phase 34, lot D — cœurs des fiches d'équipe (`/agents`, `/agents/<équipe>`) : mission de test, réglages de l'équipe,
- * plan d'un canal, post de test Rencontres, banc d'essai. Appelés par les actions du site (formulaire tel quel) et par
+ * plan d'un canal, post de test Rencontres. Appelés par les actions du site (formulaire tel quel) et par
  * Kevin (paramètres convertis en formulaire, valeurs actuelles gardées pour ce qu'il ne change pas).
  */
-import { createTestMission, createTestPostMission, startBench } from "@linkaffipro/agents";
+import { createTestMission, createTestPostMission } from "@linkaffipro/agents";
 import { audit, prisma } from "@linkaffipro/db";
 import { parseCasinoPlanThemesForm, parseCasinoTeamForm } from "@/lib/agents/casino";
 import { readCasinoSettingsRaw, writeCasinoSettings } from "@/lib/agents/casino-save";
-import { parseDatingSettingsForm, parseTestPostForm } from "@/lib/agents/dating";
-import { loadMediaKeys } from "@/lib/agents/dating-queries";
+import { parseTestPostForm } from "@/lib/agents/dating";
 import { buildAgentsDeps } from "@/lib/agents/deps";
 import { parseChannelPlanForm, parseTeamSettingsForm } from "@/lib/agents/forms";
-import { saveChannelPlan, saveDatingMediaSettings, saveTeamSettings } from "@/lib/agents/save";
+import { saveChannelPlan, saveTeamSettings } from "@/lib/agents/save";
 import { parseSportsSettingsForm } from "@/lib/agents/sports";
 import { writeSportsSettings } from "@/lib/agents/sports-save";
 import { PROVIDER_LABELS, TEAM_PROVIDERS, TEST_MISSION_TEAMS, parseTeamParam, teamName } from "@/lib/agents/teams";
-import { errorText, fail, forbidden, formOf, listText, ok, preview, str, truthy, uid, type CoreRun, type SiteOpResult } from "./kit";
+import { errorText, fail, formOf, listText, ok, preview, str, truthy, uid, type CoreRun, type SiteOpResult } from "./kit";
 import { resolveCampaign, resolveChannel, resolvePersona, resolveTeam } from "./resolve";
 
 // ------------------------------------------------------------------------------------------------- mission de test
@@ -44,7 +43,7 @@ const SETTINGS_OK = "Réglages de l'équipe enregistrés : le Grand Chef les app
 
 /**
  * Réglages d'une équipe : consignes, mots interdits, longueur, heures calmes (ADMIN et MANAGER) ; plafonds et, pour
- * Rencontres, fournisseur et résolution des vidéos, Casino (seuil, rotation), Paris sportifs (passages, écart, délai,
+ * Casino (seuil, rotation), Paris sportifs (passages, écart, délai,
  * appels) : ADMIN seulement (ignorés pour un responsable, comme sur le site).
  */
 export const runSaveTeamSettings: CoreRun = async (fd, actor, opts = {}) => {
@@ -53,8 +52,6 @@ export const runSaveTeamSettings: CoreRun = async (fd, actor, opts = {}) => {
   const isAdmin = actor.role === "ADMIN";
   const parsed = parseTeamSettingsForm(fd, isAdmin ? TEAM_PROVIDERS[team] : [], PROVIDER_LABELS);
   if (!parsed.ok) return fail(parsed.error);
-  const video = isAdmin && team === "dating" ? parseDatingSettingsForm(fd) : null;
-  if (video && !video.ok) return fail(video.error);
   const casino = isAdmin && team === "casino" ? parseCasinoTeamForm(fd) : null;
   if (casino && !casino.ok) return fail(casino.error);
   const sports = isAdmin && team === "sports" ? parseSportsSettingsForm(fd) : null;
@@ -78,7 +75,6 @@ export const runSaveTeamSettings: CoreRun = async (fd, actor, opts = {}) => {
   }
   try {
     await saveTeamSettings(team, { ...parsed.data, budgets: isAdmin ? parsed.data.budgets : null }, uid(actor), actor.via);
-    if (video?.ok) await saveDatingMediaSettings(video.data, uid(actor), actor.via);
     if (casino?.ok) {
       const { settings } = await readCasinoSettingsRaw();
       if (settings.lowStock !== casino.data.lowStock || settings.rotationDays !== casino.data.rotationDays)
@@ -103,6 +99,11 @@ export const runSaveChannelPlan: CoreRun = async (fd, actor, opts = {}) => {
   if (!team) return fail("Équipe inconnue.", "invalid", "team");
   const parsed = parseChannelPlanForm(fd);
   if (!parsed.ok) return fail(parsed.error);
+  // Rencontres : plus de vidéos IA depuis le 29 octobre 2026 (part de vidéos ramenée à 0).
+  if (team === "dating") {
+    parsed.data.mix = { ...parsed.data.mix, video: 0 };
+    if (parsed.data.mix.photo + parsed.data.mix.text === 0) return fail("Mélange : donnez une part aux photos ou aux textes (l'équipe Rencontres ne fait plus de vidéos).");
+  }
   if (team === "casino") {
     const { settings } = await readCasinoSettingsRaw();
     const themes = parseCasinoPlanThemesForm(fd, settings.themes);
@@ -152,38 +153,6 @@ export const runCreateTestPost: CoreRun = async (fd, actor, opts = {}) => {
   );
 };
 
-// --------------------------------------------------------------------------------------------------- banc d'essai
-
-/** « Banc d'essai » d'une persona (ADMIN) : rien ne part sans clé fal.ai ou Magic Hour (message clair). */
-export const runStartBench: CoreRun = async (fd, actor, opts = {}) => {
-  if (actor.role !== "ADMIN") return forbidden("Le banc d'essai est réservé aux administrateurs.");
-  const personaId = str(fd.get("personaId"));
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(personaId)) return fail("Choisissez la persona.", "invalid", "personaId");
-  const keys = await loadMediaKeys();
-  if (!keys.fal && !keys.magichour)
-    return fail(
-      "Banc d'essai impossible sans clé : collez d'abord la clé fal.ai (ou Magic Hour) dans Réglages des agents, puis cliquez sur « Vérifier ».",
-      "unavailable",
-    );
-  if (opts.dryRun) return preview("Banc d'essai vidéo de la persona : quelques euros chez le fournisseur vidéo, dans le plafond du mois.");
-  let message = "";
-  try {
-    const r = await startBench(buildAgentsDeps(), { personaId, byUserId: actor.userId });
-    await audit({
-      userId: actor.userId,
-      action: "agents.bench_requested",
-      entityType: "Persona",
-      entityId: personaId,
-      metadata: { ok: r.ok, keys, via: actor.via },
-    });
-    if (!r.ok) return fail(r.message, "conflict");
-    message = r.message;
-  } catch (err) {
-    return fail(`Banc d'essai impossible : ${errorText(err)}.`, "unavailable");
-  }
-  return ok(message || "Banc d'essai lancé : les résultats arrivent sur Telegram.");
-};
-
 // ------------------------------------------------------------------------------------------- entrées de Kevin
 
 type In = Record<string, unknown>;
@@ -213,15 +182,10 @@ export async function kevinTestPostForm(input: In): Promise<Prepared> {
   return { ok: true, fd: formOf({ format, personaId }) };
 }
 
-export async function kevinBenchForm(input: In): Promise<Prepared> {
-  const p = await resolvePersona(input.persona ?? input.personaId);
-  return p.ok ? { ok: true, fd: formOf({ personaId: p.id }) } : p;
-}
-
 /**
  * Réglages d'une équipe par Kevin : on part des valeurs actuelles (formulaire tel que la page le montre) et on ne
  * change que ce qu'il donne. Mots interdits : `forbiddenWords` remplace la liste, `addForbiddenWords` /
- * `removeForbiddenWords` ajoutent ou retirent. Plafonds : `budgets` en euros par poste (`video`, `image`, `llm`…).
+ * `removeForbiddenWords` ajoutent ou retirent. Plafonds : `budgets` en euros par poste (`image`, `llm`…).
  */
 export async function kevinTeamSettingsForm(input: In): Promise<Prepared> {
   const t = await teamKeyOf(input);
@@ -249,12 +213,6 @@ export async function kevinTeamSettingsForm(input: In): Promise<Prepared> {
     const cur = cfg.budgets[p];
     if (given !== undefined && given !== null && given !== "") form[`budget_${p}`] = given;
     else if (cur !== undefined) form[`budget_${p}`] = cur / 100;
-  }
-  if (team === "dating") {
-    const { loadDatingSettings } = await import("@/lib/agents/dating-queries");
-    const v = await loadDatingSettings();
-    form.videoProvider = input.videoProvider ?? v.videoProvider;
-    form.videoResolution = input.videoResolution ?? v.videoResolution;
   }
   if (team === "casino") {
     const { settings } = await readCasinoSettingsRaw();
@@ -301,7 +259,7 @@ export async function kevinChannelPlanForm(input: In): Promise<Prepared> {
     (team === "dating" ? DATING_DEFAULT_MIX : team === "casino" ? CASINO_DEFAULT_MIX : { video: 0, photo: 0, text: 1 });
   const mixIn = input.mix && typeof input.mix === "object" ? (input.mix as Record<string, unknown>) : {};
   const mix = {
-    video: mixIn.video ?? curMix.video ?? 0,
+    video: team === "dating" ? 0 : (mixIn.video ?? curMix.video ?? 0),
     photo: mixIn.photo ?? curMix.photo ?? 0,
     text: mixIn.text ?? mixIn.texte ?? curMix.text ?? 0,
   };

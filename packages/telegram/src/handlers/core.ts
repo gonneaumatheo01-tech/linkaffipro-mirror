@@ -15,7 +15,6 @@ import { registerCustomEmojiHandlers } from "./custom-emoji";
 import { RecentKeys, registerForwardHandlers } from "./forward";
 import { registerAdminDialogFallback, registerAgentsAdminHandlers } from "./agents-admin";
 import { registerBossGroupHandlers } from "./boss-group";
-import { registerBossMontageHandlers } from "./boss-montage";
 import { registerBossProspectionHandlers } from "./boss-prospection";
 import { registerMediaInboxHandlers } from "./media-inbox";
 import { registerHumanOddsHandlers } from "./human-odds";
@@ -205,9 +204,6 @@ function registerBossCore(bot: Bot, identity: BotIdentity, deps: TelegramDeps): 
   // 28 octobre 2026 : capture d'un pari (question « capture et cote »), en privé comme dans le groupe de l'équipe.
   registerHumanOddsHandlers(bot, identity, deps);
   registerBossGroupHandlers(bot, identity, deps);
-  // Phase 28 : vidéos de l'admin pour le montage et boutons des aperçus (avant le dialogue : une vidéo transférée sans
-  // demande de montage y continue).
-  registerBossMontageHandlers(bot, identity, deps);
   // Phase 31 : boutons sous les prospects (`prospect:<id>:<action>`), avant le dialogue admin.
   registerBossProspectionHandlers(bot, identity, deps);
   registerAgentsAdminHandlers(bot, identity, deps);

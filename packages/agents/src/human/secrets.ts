@@ -10,10 +10,9 @@ import type { ActorRef } from "../admin/team";
 import { agentAudit, agentEvent, nowOf } from "../admin/journal";
 import { last4 } from "./answer";
 
-/** Clés connues (fal, Magic Hour, cotes, API-Football). */
+/** Clés connues (fal, cotes, API-Football ; Magic Hour retirée avec les vidéos IA le 29 octobre 2026). */
 export const SECRET_KEYS = [
   "providers.fal.apiKey",
-  "providers.magichour.apiKey",
   "providers.odds.apiKey",
   // 28 octobre 2026 : statistiques des matchs (paris par capture).
   "providers.apifootball.apiKey",

@@ -30,7 +30,7 @@ export type AdminVoiceJob = Extract<AgentsOrchestratorJob, { type: "admin-voice"
 
 /** Biais de vocabulaire des vocaux de l'admin : les commandes du dialogue des agents. */
 export const ADMIN_STT_PROMPT =
-  "Commandes vocales en français pour le bot des agents : agents, demandes, pause dating, reprends casino, ok 12, non 12, vrai dating, niveau dating 1, budget vidéo 100, plus tard, oui, non.";
+  "Commandes vocales en français pour le bot des agents : agents, demandes, pause dating, reprends casino, ok 12, non 12, vrai dating, niveau dating 1, plus tard, oui, non.";
 
 /** Limite de la transcription (au-delà, rien n'est envoyé au fournisseur). */
 const MAX_VOICE_BYTES = 2 * 1024 * 1024;

@@ -1,3 +1,25 @@
+# Statut — 29 octobre 2026 : retrait du Montage et des vidéos IA
+
+## Fait
+- ✅ Agents → **Montage** retiré : plus de découpe de vidéos longues en shorts, de commandes de Kevin, de file `agents-montage` ni de verrou QA des shorts. Les 4 montages et le short déjà en base dorment ; un ancien short est refusé s'il est choisi pour un message (jamais envoyé vide).
+- ✅ **Vidéos IA** retirées (« swap IA ») : Kevin ne remplace plus la personne d'une vidéo, l'équipe Rencontres ne fabrique plus de vidéos (plus de fal.ai Wan Animate, de Magic Hour, de banc d'essai, de demandes de vidéos sources). Elle garde les photos IA et les textes ; mélange par défaut 3 photos / 1 texte, repli photo → texte.
+- ✅ Données gardées en base (aucune migration) ; `/agents/montage` → `/agents` ; au démarrage, le worker efface les planifications du montage, vide sa file et clôt les questions au client devenues sans objet.
+- ✅ Image du worker allégée (polices des sous-titres retirées ; ffmpeg gardé pour les vocaux).
+- ✅ Vérifié en local : typage et lint verts partout ; tests unitaires verts (agents 1 547, site 3 537, Telegram 592, worker 494, cœur 420, chat 595, files 42, userbot 27) ; parité de Kevin : 237 actions, 0 manquante.
+
+## Reste
+- Mise en ligne (site puis worker) après la vérification GitHub.
+
+## Test de 5 minutes (après la mise en ligne)
+1. Ouvrir Agents : l'onglet « Montage » a disparu.
+2. Ouvrir Agents → Rencontres → « Produire un post de test » : seuls « photo » et « texte » sont proposés ; le post arrive sur le canal Test après validation.
+3. Écrire à Kevin « aide » : plus aucune commande de montage ni de remplacement de personne.
+
+## Problèmes et actions humaines
+- Aucune. La clé Magic Hour reste chiffrée en base, sans usage (effaçable sur demande).
+
+---
+
 # Statut — 28 octobre 2026 (nuit) : retrait des parties « Bookmakers » et « Inspiration » des agents
 
 ## Fait

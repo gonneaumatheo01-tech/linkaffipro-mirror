@@ -136,13 +136,11 @@ export const runSaveBudgets: CoreRun = async (fd, actor, opts = {}) => {
 type In = Record<string, unknown>;
 type Prepared = { ok: true; fd: FormData } | { ok: false; result: Fail };
 
-/** Noms courants des clés (« fal », « magic hour », « cotes ») → clé enregistrée. */
+/** Noms courants des clés (« fal », « cotes ») → clé enregistrée. */
 const SECRET_ALIASES: Record<string, string> = {
   fal: "providers.fal.apiKey",
   "fal.ai": "providers.fal.apiKey",
   falai: "providers.fal.apiKey",
-  magichour: "providers.magichour.apiKey",
-  "magic hour": "providers.magichour.apiKey",
   cotes: "providers.odds.apiKey",
   odds: "providers.odds.apiKey",
   sportsgameodds: "providers.odds.apiKey",
@@ -163,7 +161,7 @@ export function secretKeyOf(raw: unknown): string | null {
 
 export function kevinSecretForm(input: In, withValue: boolean): Prepared {
   const key = secretKeyOf(input.key ?? input.cle ?? input.fournisseur);
-  if (!key) return { ok: false, result: fail("Quelle clé ? fal.ai, Magic Hour ou cotes sportives.", "invalid", "key") };
+  if (!key) return { ok: false, result: fail("Quelle clé ? fal.ai ou cotes sportives.", "invalid", "key") };
   return { ok: true, fd: formOf({ key, ...(withValue ? { value: str(input.value) } : {}) }) };
 }
 
@@ -209,13 +207,15 @@ const PROVIDER_ALIASES: Record<string, ProviderKey> = {
 };
 
 /**
- * « Monte le budget vidéo à 80 € » : formulaire complet de la page (plafonds actuels de toutes les équipes) avec le
- * seul poste demandé changé. `equipe` facultative quand le poste n'existe que dans une équipe (vidéo → Rencontres).
+ * « Monte le budget photo à 20 € » : formulaire complet de la page (plafonds actuels de toutes les équipes) avec le
+ * seul poste demandé changé. `equipe` facultative quand le poste n'existe que dans une équipe (photo → Rencontres).
  * `euros` vide ou null = plafond retiré.
  */
 export async function kevinBudgetsForm(input: In): Promise<Prepared> {
   const provider = PROVIDER_ALIASES[str(input.poste ?? input.provider).trim().toLowerCase()];
-  if (!provider) return { ok: false, result: fail("Quel poste ? vidéo, photo, IA d'écriture, cotes ou captures.", "invalid", "poste") };
+  if (!provider) return { ok: false, result: fail("Quel poste ? photo, IA d'écriture, cotes ou captures.", "invalid", "poste") };
+  // Vidéos IA retirées le 29 octobre 2026 : plus de plafond vidéo.
+  if (provider === "video") return { ok: false, result: fail("Les vidéos IA ne sont plus produites : il n'y a plus de plafond vidéo.", "invalid", "poste") };
   let team: TeamKey | null = null;
   if (input.equipe ?? input.team) {
     const t = await resolveTeam(input.equipe ?? input.team);

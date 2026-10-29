@@ -122,7 +122,7 @@ async function advanceMediaRequest(
   return { progress: null, closed: false };
 }
 
-/** Images de référence gardées par persona (la première sert au remplacement vidéo). */
+/** Images de référence gardées par persona (la première sert de modèle aux photos). */
 export const MAX_REFERENCE_IMAGES = 3;
 
 /** Met l'image en tête des images de référence de la persona (la plus récente d'abord, 3 au plus). */
@@ -141,7 +141,7 @@ export async function storeLibraryMedia(
 ): Promise<StoreLibraryMediaResult> {
   const personas = await deps.prisma.persona.findMany({ select: { id: true, name: true } });
   const parsed = parseLibraryCaption(input.caption, personas as { id: string; name: string }[]);
-  if (!parsed) return { ok: false, line: "Aucun mot-clé de médiathèque (#casino, #dating #source #lea, #photo…)." };
+  if (!parsed) return { ok: false, line: "Aucun mot-clé de médiathèque (#casino, #dating #reference #lea, #photo…)." };
   const isCasino = parsed.teamKey === "casino";
   // Casino (phase 22) : la nature suit le fichier (vidéo → SOURCE, image → PHOTO), jamais de persona.
   const kind = isCasino ? defaultKindFor(input.mimeType) : (parsed.kind ?? defaultKindFor(input.mimeType));

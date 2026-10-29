@@ -231,7 +231,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
     label: "Fiche d'une persona",
     sections: [
       "Personas",
-      "Équipe Rencontres : vidéos, photos et banc d'essai",
+      "Équipe Rencontres : photos des personas",
       "Réglages → IA de conversation",
     ],
   },
@@ -268,7 +268,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
     label: "Équipe Rencontres",
     sections: [
       "Fiche d'une équipe",
-      "Équipe Rencontres : vidéos, photos et banc d'essai",
+      "Équipe Rencontres : photos des personas",
       "Envoyer des médias au bot",
       "Simulation, niveaux et pause",
     ],
@@ -321,17 +321,6 @@ export const PAGE_HELP: readonly PageHelp[] = [
     path: "/agents/orders/:id",
     label: "Fiche d'un ordre",
     sections: ["Donner un ordre à une équipe", "Simulation, niveaux et pause"],
-  },
-  // Phase 28 : équipe Montage (travaux, fiche d'un travail, médiathèque des shorts).
-  {
-    path: "/agents/montage",
-    label: "Montage",
-    sections: [intro("Montage vidéo"), "Envoyer une vidéo à Kevin", "Les consignes possibles", "Où retrouver les shorts"],
-  },
-  {
-    path: "/agents/montage/:id",
-    label: "Fiche d'un montage",
-    sections: ["Le plan de coupe", "Les aperçus et les boutons", "Modifier un short"],
   },
   // Phase 29 : équipe Analystes (veille du marché, règles publicitaires, rapports, sources, recommandations).
   {

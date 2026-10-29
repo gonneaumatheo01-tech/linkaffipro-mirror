@@ -15,12 +15,13 @@ export const LEGACY_PREFIXES: ReadonlyArray<readonly [from: string, to: string]>
 ];
 
 /**
- * Rubriques retirées (28 octobre 2026 : canal d'inspiration et lecture des sites des bookmakers) : l'ancienne adresse
+ * Rubriques retirées (28 octobre 2026 : canal d'inspiration, lecture des sites des bookmakers, montage) : l'ancienne adresse
  * et tout ce qui est dessous vont vers une page qui existe (paramètres abandonnés).
  */
 export const REMOVED_PREFIXES: ReadonlyArray<readonly [from: string, to: string]> = [
   ["/agents/inspiration", "/agents"],
   ["/agents/bookmakers", "/agents/sports"],
+  ["/agents/montage", "/agents"],
 ];
 
 /**

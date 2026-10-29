@@ -13,7 +13,7 @@ import { proposeRecommendation } from "../../agents/synthese/proposals";
 import { createTestPostMission } from "../../missions/test-post";
 import { loadTeamSettings } from "../../missions/settings";
 import { checkBudgets } from "../../orchestrator/budgets";
-import { falImageCents, falVideoCents } from "../../providers/costs";
+import { falImageCents } from "../../providers/costs";
 import { TEAM_LABELS, type AgentsDeps, type ProviderKey } from "../../types";
 import type { Alternative, Capability, CapabilityCheck, CapabilityPlanContext, OrderRow, OrderStep } from "../contract";
 import {
@@ -120,7 +120,11 @@ async function defaultPersona(deps: AgentsDeps, channels: readonly ScopeChannel[
   return (refs.find((r) => r.universe === "DATING" || r.universe === "dating") ?? refs[0])?.id ?? null;
 }
 
-const VIDEO_ESTIMATE_CENTS = falVideoCents(8, 30, "580p");
+/** Vidéos : Casino seulement (médias du client) ; les Rencontres n'ont plus de vidéos IA depuis le 29 octobre 2026. */
+const allowsVideo = (T: PostsTeamKey) => T !== "dating";
+const formatValues = (T: PostsTeamKey) => (allowsVideo(T) ? ["video", "photo", "texte"] : ["photo", "texte"]);
+const formatLabel = (T: PostsTeamKey) => (allowsVideo(T) ? "video, photo ou texte" : "photo ou texte");
+
 const PHOTO_ESTIMATE_CENTS = falImageCents(1, "portrait");
 
 export function programPosts(team: PostsTeam): Capability<ProgramPostsP> {
@@ -141,8 +145,8 @@ export function programPosts(team: PostsTeam): Capability<ProgramPostsP> {
       jours: F.jours,
       debut: F.debut,
       posts_par_jour: { kind: "int", description: "Posts par jour (ramené au maximum réglé)", min: 1, max: 500, optional: true },
-      format: { kind: "enum", description: "Un seul format : video, photo ou texte", values: ["video", "photo", "texte"], optional: true },
-      video: { kind: "int", description: "Part de vidéos du mélange", min: 0, max: 100, optional: true },
+      format: { kind: "enum", description: `Un seul format : ${formatLabel(T)}`, values: formatValues(T), optional: true },
+      ...(allowsVideo(T) ? { video: { kind: "int" as const, description: "Part de vidéos du mélange", min: 0, max: 100, optional: true } } : {}),
       photo: { kind: "int", description: "Part de photos du mélange", min: 0, max: 100, optional: true },
       texte: { kind: "int", description: "Part de textes du mélange", min: 0, max: 100, optional: true },
       ...(team.usesPersona ? { persona: { kind: "string" as const, description: "Prénom de la persona", optional: true, maxLength: 60 } } : {}),
@@ -162,6 +166,11 @@ export function programPosts(team: PostsTeam): Capability<ProgramPostsP> {
     async check(deps, p) {
       const scope = await resolveScope(deps, p, T, replayOf(p));
       if (!scope.ok) return refuse(scope.reason, scope.alternatives);
+      if (!allowsVideo(T) && (p.format === "video" || (p.video ?? 0) > 0))
+        return refuse("L'équipe Rencontres ne fait plus de vidéos : photos ou textes seulement.", [
+          alt("des photos à la place", T, "programmer_posts", { ...p, format: "photo", video: undefined }),
+          alt("des posts texte seulement", T, "programmer_posts", { ...p, format: "texte", video: undefined }),
+        ]);
       const mix = wantedMix(p) ?? team.defaultMix;
       const needsMedia = mix.video + mix.photo > 0;
       let personaId: string | null = null;
@@ -179,7 +188,7 @@ export function programPosts(team: PostsTeam): Capability<ProgramPostsP> {
         }
         personaId = r.persona?.id ?? (await defaultPersona(deps, scope.channels));
         if (needsMedia && !personaId)
-          return refuse("Les photos et vidéos Rencontres ont besoin d'une persona, et il n'y en a aucune (Conversations → Personas).", [
+          return refuse("Les photos Rencontres ont besoin d'une persona, et il n'y en a aucune (Conversations → Personas).", [
             alt("des posts texte seulement", T, "programmer_posts", { ...p, format: "texte", video: undefined, photo: undefined, texte: undefined }),
           ]);
       }
@@ -191,16 +200,12 @@ export function programPosts(team: PostsTeam): Capability<ProgramPostsP> {
         ]);
       const th = await team.themes(deps, p);
       if (!th.ok) return th.check;
-      // Plafonds de dépense (Rencontres : vidéo et photo générées).
-      if (T === "dating" && needsMedia && (await deps.prisma.agentTeamConfig.findUnique({ where: { teamKey: T } }))) {
+      // Plafond de dépense (Rencontres : photos générées).
+      if (T === "dating" && mix.photo > 0 && (await deps.prisma.agentTeamConfig.findUnique({ where: { teamKey: T } }))) {
         const settings = await loadTeamSettings(deps.prisma, T);
-        const providers: ProviderKey[] = [...(mix.video ? (["video"] as const) : []), ...(mix.photo ? (["image"] as const) : [])];
+        const providers: ProviderKey[] = ["image"];
         const over = await checkBudgets(deps, settings, providers, nowOf(deps));
-        if (over)
-          return refuse(over.reason ?? "Plafond de dépense atteint.", [
-            ...(mix.video && over.reason?.includes("vidéo") ? [alt("des photos à la place des vidéos", T, "programmer_posts", { ...p, format: "photo" })] : []),
-            alt("des posts texte seulement", T, "programmer_posts", { ...p, format: "texte" }),
-          ]);
+        if (over) return refuse(over.reason ?? "Plafond de dépense atteint.", [alt("des posts texte seulement", T, "programmer_posts", { ...p, format: "texte" })]);
       }
       if (team.extraCheck) {
         const bounds = await readAlgoBounds(deps);
@@ -259,7 +264,6 @@ async function planPosts(deps: AgentsDeps, team: PostsTeam, p: ProgramPostsP, ct
   if (realChannels.length && simulated) clamped.push(`pour de faux : les posts partent sur le canal Test, ${channelsLabel(realChannels)} garde son plan habituel`);
   if (realChannels.length && !simulated && settings.autonomyLevel === 0) clamped.push("niveau 0 : chaque post attend ta validation avant de partir");
   const overrides: NonNullable<OrderStep["overrides"]> = [];
-  let videos = 0;
   let photos = 0;
   for (const ch of scope.channels) {
     let mix: Mix | null = wanted;
@@ -281,7 +285,6 @@ async function planPosts(deps: AgentsDeps, team: PostsTeam, p: ProgramPostsP, ct
     if (format === null && !mix && ch.isTest) mix = { ...team.defaultMix };
     const m = mix ?? team.defaultMix;
     const total = per.value * period.days;
-    videos += format === "video" ? total : format ? 0 : Math.round(total * share(m, "video"));
     photos += format === "photo" ? total : format ? 0 : Math.round(total * share(m, "photo"));
     overrides.push({
       channelId: ch.id,
@@ -298,8 +301,8 @@ async function planPosts(deps: AgentsDeps, team: PostsTeam, p: ProgramPostsP, ct
       isTest: ch.isTest || simulated,
     });
   }
-  // Rencontres : vidéos et photos générées (estimation) ; Casino : médias du client, aucune dépense.
-  const costCents = T === "dating" ? videos * VIDEO_ESTIMATE_CENTS + photos * PHOTO_ESTIMATE_CENTS : 0;
+  // Rencontres : photos générées (estimation) ; Casino : médias du client, aucune dépense.
+  const costCents = T === "dating" ? photos * PHOTO_ESTIMATE_CENTS : 0;
   const what = p.format ? ({ video: "vidéos", photo: "photos", texte: "textes" } as const)[p.format] : "posts";
   return [
     {
@@ -325,10 +328,10 @@ export function postUnique(team: PostsTeam): Capability<OnePostP> {
   return defineCapability<OnePostP>({
     teamKey: T,
     key: "post_unique",
-    description: `Produire un seul post de test ${TEAM_LABELS[T]} tout de suite sur le canal Test (vidéo, photo ou texte)`,
+    description: `Produire un seul post de test ${TEAM_LABELS[T]} tout de suite sur le canal Test (${allowsVideo(T) ? "vidéo, photo ou texte" : "photo ou texte"})`,
     agents: team.agents,
     spec: {
-      format: { kind: "enum", description: "video, photo ou texte", values: ["video", "photo", "texte"], optional: true },
+      format: { kind: "enum", description: formatLabel(T), values: formatValues(T), optional: true },
       ...(team.usesPersona ? { persona: { kind: "string" as const, description: "Prénom de la persona (facultatif)", optional: true, maxLength: 60 } } : {}),
     },
     limits: { maxDays: 1, maxPerDay: 1, channels: "test", modes: ["simulation"] },
@@ -348,7 +351,7 @@ export function postUnique(team: PostsTeam): Capability<OnePostP> {
       return ok();
     },
     async plan(_deps, p) {
-      return [{ stepKey: "post_unique", capability: "post_unique", teamKey: T, summary: `un post de test${p.format ? ` (${p.format})` : ""} sur le canal Test, pour de faux`, touches: { channelIds: [], testOnly: true }, params: { format: p.format ?? null, persona: p.persona ?? null }, costCents: T === "dating" && p.format === "video" ? VIDEO_ESTIMATE_CENTS : T === "dating" && p.format === "photo" ? PHOTO_ESTIMATE_CENTS : 0 }];
+      return [{ stepKey: "post_unique", capability: "post_unique", teamKey: T, summary: `un post de test${p.format ? ` (${p.format})` : ""} sur le canal Test, pour de faux`, touches: { channelIds: [], testOnly: true }, params: { format: p.format ?? null, persona: p.persona ?? null }, costCents: T === "dating" && p.format === "photo" ? PHOTO_ESTIMATE_CENTS : 0 }];
     },
     async run(deps, order, step) {
       const already = await stepMission(deps, order.id, step.stepKey);
@@ -412,7 +415,7 @@ export function changePlan(team: PostsTeam): Capability<PlanChangeP> {
       canal: { kind: "string", description: "Titre du canal", maxLength: 80 },
       actif: { kind: "bool", description: "true = agents activés sur le canal", optional: true },
       posts_par_jour: { kind: "int", description: "Posts par jour", min: 0, max: 500, optional: true },
-      video: { kind: "int", description: "Part de vidéos", min: 0, max: 100, optional: true },
+      ...(allowsVideo(T) ? { video: { kind: "int" as const, description: "Part de vidéos", min: 0, max: 100, optional: true } } : {}),
       photo: { kind: "int", description: "Part de photos", min: 0, max: 100, optional: true },
       texte: { kind: "int", description: "Part de textes", min: 0, max: 100, optional: true },
       ...(team.usesPersona ? { persona: { kind: "string" as const, description: "Prénom de la persona", optional: true, maxLength: 60 } } : {}),
@@ -431,6 +434,7 @@ export function changePlan(team: PostsTeam): Capability<PlanChangeP> {
       const scope = await channelOf(deps, p);
       if (!scope.ok) return refuse(scope.reason, scope.alternatives.filter((a) => !a.capability?.params.test));
       if (scope.channels.every((c) => c.isTest)) return refuse("Le canal Test n'a pas de plan durable : un ordre « comme si » suffit.", [alt("programmer des posts sur le canal Test", T, "programmer_posts", { test: true, jours: 1 })]);
+      if (!allowsVideo(T) && (p.video ?? 0) > 0) return refuse("L'équipe Rencontres ne fait plus de vidéos : photos ou textes seulement.", [alt("sans part de vidéos", T, "changer_plan", { ...p, video: undefined })]);
       if (team.usesPersona && p.persona) {
         const r = await resolvePersonaParam(deps, p.persona);
         if (!r.ok) return refuse(`Je ne trouve pas la persona « ${p.persona} ».`, (await personaRefs(deps)).slice(0, 3).map((x) => alt(`avec ${x.name}`, T, "changer_plan", { ...p, persona: x.name })));

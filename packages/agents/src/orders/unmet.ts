@@ -55,7 +55,7 @@ export function groupUnmet(rows: readonly UnmetRow[]): UnmetGroup[] {
   return [...groups.values()].sort((a, b) => b.count - a.count);
 }
 
-/** Ligne d'un groupe (« 3 fois : programmer des shorts → l'équipe Montage, à venir »), pur. */
+/** Ligne d'un groupe (« 3 fois : prospecter des affiliés → l'équipe Prospection, à venir »), pur. */
 export function unmetGroupLine(g: UnmetGroup): string {
   const team = g.teamKey ? (FUTURE_TEAMS[g.teamKey] ? `${FUTURE_TEAMS[g.teamKey]}, à venir` : `l'équipe ${orderTeamLabel(g.teamKey)}`) : null;
   return `${g.count} fois : ${g.label}${team ? ` → ${team}` : ""}`;

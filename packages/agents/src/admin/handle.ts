@@ -43,6 +43,9 @@ export type AdminTextInput = {
 /** « bookmaker <nom> <identifiant> <mot de passe> » : plus rien n'est gardé (lecture des sites retirée). */
 export const BOOKMAKER_CREDENTIALS_REFUSAL = "Je ne lis plus les sites des bookmakers, je n'ai donc plus besoin de leurs identifiants : je n'ai rien gardé.";
 
+/** « budget vidéo … » depuis le retrait des vidéos IA (29 octobre 2026). */
+export const VIDEO_BUDGET_REMOVED = "Les vidéos IA ne sont plus produites : il n'y a plus de plafond vidéo à régler.";
+
 export const VOICE_SECRET_REFUSAL =
   "🔒 Une clé doit arriver par écrit : je n'enregistre jamais une clé dictée. Colle-la en réponse au message de la question.";
 
@@ -210,8 +213,8 @@ async function runCommand(
       // Les sites des bookmakers ne sont plus lus (28 octobre 2026) : identifiants jamais gardés (message effacé).
       return { handled: true, reply: BOOKMAKER_CREDENTIALS_REFUSAL, secret: true, deleteMessage: true };
     case "budget":
-      // Les vidéos IA sont produites par l'équipe Dating : hausse → confirmation du Boss, baisse → immédiate.
-      return viaBossAction(deps, "plafond", { equipe: "dating", poste: "video", euros: cmd.euros }, actor, chat);
+      // Les vidéos IA ne sont plus produites (29 octobre 2026) : plus de plafond vidéo à régler.
+      return { handled: true, reply: VIDEO_BUDGET_REMOVED };
     case "live": {
       const summary = await teamPlanSummary(deps, cmd.team);
       if (!summary.simulation) return { handled: true, reply: `L'équipe ${TEAM_LABELS[cmd.team]} est déjà en vrai.` };

@@ -70,6 +70,7 @@ const TEAM_WORDS: Readonly<Record<string, string>> = {
   sports: "Paris sportifs",
   algo: "Algorithme",
   ads: "Ads",
+  // Montage : retiré le 28 octobre 2026 ; libellé gardé pour les anciens contrôles.
   montage: "Montage",
   analystes: "Analystes",
   inspiration: "Inspiration",
@@ -81,12 +82,11 @@ export function qaTeamWord(teamKey: string): string {
   return TEAM_WORDS[teamKey] ?? teamKey;
 }
 
-/** Type cité par le client (« post », « short », « rapport »…) → type de contenu (pur). */
-export const QA_TYPE_PARAM = ["post", "short", "rapport", "reponse", "recommandation", "alerte", "regle"] as const;
+/** Type cité par le client (« post », « rapport », « alerte »…) → type de contenu (pur). */
+export const QA_TYPE_PARAM = ["post", "rapport", "reponse", "recommandation", "alerte", "regle"] as const;
 export type QaTypeParam = (typeof QA_TYPE_PARAM)[number];
 export const QA_TYPE_OF_PARAM: Readonly<Record<QaTypeParam, QaContentType>> = {
   post: "POST",
-  short: "SHORT",
   rapport: "REPORT",
   reponse: "KEVIN_RESPONSE",
   recommandation: "RECOMMENDATION",
@@ -222,7 +222,7 @@ export const QA_KEVIN_VARIANTS = {
   askDetail: ["Demande « pourquoi le 2 ? » pour le détail d'un refus.", "Pour le détail, dis-moi « pourquoi le 1 ? »."],
   notFound: [
     "Je ne trouve pas de contrôle pour ce contenu. Dis-moi par exemple « pourquoi le post 42 a été refusé ? ».",
-    "Aucun contrôle qualité pour ce contenu. Essaie avec son numéro, par exemple « le short 3 ».",
+    "Aucun contrôle qualité pour ce contenu. Essaie avec son numéro, par exemple « le post 42 ».",
   ],
   noProblem: ["Aucun contenu bloqué en ce moment, rien à expliquer.", "Rien n'a été refusé récemment, tout est passé."],
   timeout: [
@@ -257,7 +257,7 @@ async function rowsSince(deps: Pick<AgentsDeps, "prisma">, since: Date, f: QaRow
   })) as unknown as QaRow[];
 }
 
-/** Nom court d'un contenu vérifié (« le post 42 sur Casino VIP », « le short 3 »), sans jamais son texte. */
+/** Nom court d'un contenu vérifié (« le post 42 sur Casino VIP »), sans jamais son texte. */
 export async function contentLabel(deps: Pick<AgentsDeps, "prisma">, row: Pick<QaRow, "contentType" | "contentId" | "teamKey">): Promise<string> {
   const p = deps.prisma;
   try {
@@ -270,10 +270,6 @@ export async function contentLabel(deps: Pick<AgentsDeps, "prisma">, row: Pick<Q
         const channel = channelId ? ((await p.channel.findFirst({ where: { id: channelId } })) as { title: string } | null) : null;
         const head = validation ? `le post ${validation.number}` : "un post";
         return channel ? `${head} sur ${esc(channel.title)}` : `${head} (${qaTeamWord(row.teamKey)})`;
-      }
-      case "SHORT": {
-        const clip = (await p.shortClip.findFirst({ where: { id: row.contentId } })) as { index: number } | null;
-        return clip ? `le short ${clip.index}` : "un short";
       }
       case "REPORT": {
         const rep = (await p.strategyReport.findFirst({ where: { id: row.contentId } })) as { title: string } | null;
@@ -366,7 +362,7 @@ export async function qaHistoryReply(deps: AgentsDeps, chatKey: string | null, p
 
 export type QaDetailParams = { type?: QaTypeParam | null; numero?: number | null; rang?: number | null };
 
-/** Retrouve le contenu visé : numéro de la dernière liste, post N (numéro de validation), short N, sinon le dernier refus. */
+/** Retrouve le contenu visé : numéro de la dernière liste, post N (numéro de validation), sinon le dernier refus. */
 async function findTarget(deps: AgentsDeps, chatKey: string | null, p: QaDetailParams): Promise<QaRow | null> {
   const prisma = deps.prisma;
   const type = p.type ? QA_TYPE_OF_PARAM[p.type] : null;
@@ -381,10 +377,6 @@ async function findTarget(deps: AgentsDeps, chatKey: string | null, p: QaDetailP
     const id = ids[rank - 1];
     const row = id ? ((await prisma.qaCheck.findFirst({ where: { id } })) as unknown as QaRow | null) : null;
     return row ? ((await latestOf(row.contentType, [row.contentId])) ?? row) : null;
-  }
-  if (p.numero && (type === "SHORT")) {
-    const clips = (await prisma.shortClip.findMany({ where: { index: p.numero }, orderBy: { createdAt: "desc" }, take: 20 })) as Array<{ id: string }>;
-    return latestOf("SHORT", clips.map((c) => c.id));
   }
   if (p.numero && (type === "POST" || !type)) {
     const v = (await prisma.agentValidation.findFirst({ where: { number: p.numero } })) as { missionId: string } | null;

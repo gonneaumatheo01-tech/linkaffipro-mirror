@@ -60,10 +60,6 @@ export const LOT_D_IMPL: SiteOpImpl[] = [
     const m = await teams();
     return { prepare: m.kevinTestPostForm, core: m.runCreateTestPost };
   }),
-  op("agents.banc_essai", async () => {
-    const m = await teams();
-    return { prepare: m.kevinBenchForm, core: m.runStartBench };
-  }),
   // ------------------------------------------------------------------------------------ réglages des agents
   op("agents.budget_fournisseur", async () => {
     const m = await settings();

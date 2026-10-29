@@ -148,7 +148,7 @@ export function ChannelPlanForm({
           </legend>
           <p className="text-note text-muted-foreground">
             {personaRequired
-              ? "Par exemple 1 vidéo, 2 photos et 1 texte par jour. Sans vidéo source neuve ou plafond atteint, une vidéo devient une photo, puis un texte."
+              ? "Par exemple 3 photos pour 1 texte par jour. Sans fichier du personnage ou plafond atteint, une photo devient un texte."
               : isCasino
                 ? "Par exemple 2 vidéos, 1 image et 1 texte par jour. Seulement vos vidéos et images : sans vidéo neuve du bon thème, l'équipe prend un autre thème du canal, puis une image, puis un texte."
                 : "Par exemple 2 photos pour 1 texte. Une vidéo ou une photo n'est utilisée que si la médiathèque en a."}
@@ -156,7 +156,8 @@ export function ChannelPlanForm({
           <div className="grid gap-4 sm:grid-cols-3">
             {(
               [
-                ["video", "Vidéo"],
+                // Rencontres : plus de vidéos IA depuis le 29 octobre 2026.
+                ...(team === "dating" ? [] : ([["video", "Vidéo"]] as const)),
                 ["photo", isCasino ? "Image" : "Photo"],
                 ["text", "Texte"],
               ] as const

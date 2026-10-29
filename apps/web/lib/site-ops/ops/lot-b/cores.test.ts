@@ -402,11 +402,10 @@ describe("messages du bot (séquences)", () => {
 });
 
 describe("messages de canal", () => {
-  it("short du montage pas encore validé : refusé dès la programmation (phase 28)", async () => {
-    db.answers.set("mediaAsset.findMany", [{ id: "sh1", kind: "SHORT", mimeType: "video/mp4" }]);
-    db.answers.set("shortClip.findMany", []);
+  it("vidéo du montage retiré : refusée dès la programmation", async () => {
+    db.answers.set("mediaAsset.findMany", [{ id: "sh1", kind: "SHORT", storage: "telegram", mimeType: "video/mp4" }]);
     const r = await posts.postSchedule({ channelIds: ["ch1"], text: "Regarde ça", mediaAssetIds: ["sh1"], scheduledAt: soon() }, MANAGER, { dryRun: true });
-    expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/pas encore validé/) });
+    expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/montage, qui n'existe plus/) });
   });
 
   const EMOJI = '<tg-emoji emoji-id="5368324170671202286">🔥</tg-emoji>';

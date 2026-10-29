@@ -212,15 +212,15 @@ export function experimentProposals(plan: PlanRow, opts: { formatsInsufficient: 
   if (opts.formatsInsufficient) {
     // Mélange effectif de l'équipe (Casino non réglé = 2 / 1 / 1) ; 10 points au plus par test.
     const mix = effectiveMix(plan.teamKey, plan.mix);
-    const toward = plan.teamKey === "dating" ? "video" : "photo";
-    const shifted = shiftMix(mix, toward, Math.min(MAX_MIX_POINTS_PER_PROPOSAL, opts.settings.maxMixShiftPoints));
+    // Toujours vers les photos (les Rencontres n'ont plus de vidéos IA depuis le 29 octobre 2026).
+    const shifted = shiftMix(mix, "photo", Math.min(MAX_MIX_POINTS_PER_PROPOSAL, opts.settings.maxMixShiftPoints));
     if (JSON.stringify(shifted) !== JSON.stringify(mix))
       out.push({
         teamKey: plan.teamKey,
         channelId: plan.channelId,
         kind: "MELANGE",
-        hypothesis: `Plus de ${toward === "video" ? "vidéos" : "photos"} fait plus cliquer.`,
-        variants: { A: { label: "mélange actuel", mix }, B: { label: `plus de ${toward === "video" ? "vidéos" : "photos"}`, mix: shifted } },
+        hypothesis: "Plus de photos fait plus cliquer.",
+        variants: { A: { label: "mélange actuel", mix }, B: { label: "plus de photos", mix: shifted } },
         metric: "offer_ctr",
       });
   }

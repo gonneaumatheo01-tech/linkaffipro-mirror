@@ -3,7 +3,7 @@
  *
  * Les étapes suivent l'ordre de `docs/A-FAIRE-HUMAIN.md` (« Mettre les agents en route ») et chacune est calculée
  * depuis les DONNÉES (aucune case à cocher) : bot Boss, rapport du matin, clé fal.ai, médias de chaque persona
- * Rencontres, plafond vidéo, plan Rencontres, vidéos et plan Casino (seulement s'il existe un canal casino), clé des
+ * Rencontres, plan Rencontres, vidéos et plan Casino (seulement s'il existe un canal casino), clé des
  * cotes, catégories de paris, niveau de l'équipe Algorithme, seuils et dépenses pub ; le passage en
  * vrai d'une équipe est facultatif et ne compte pas dans l'avancement.
  *
@@ -15,11 +15,8 @@
 import { agentEvent, esc } from "../admin/journal";
 import { askHuman, currentHumanRequest, formatQuestion, type AskHumanInput } from "../human/requests";
 import {
-  BUDGET_OPTIONS,
   datingPersonas,
-  DEFAULT_VIDEO_BUDGET_EUROS,
   FAL_SECRET_KEY,
-  SOURCE_VIDEOS_WANTED,
 } from "../human/dating-setup";
 import { DAILY_REPORT_KEY, DAILY_REPORT_QUESTION } from "../human/site";
 import { secretSummary } from "../human/secrets";
@@ -49,13 +46,13 @@ export const GUIDE_VARIANTS = {
   nextReal: voiceTemplate([{ howTo: "Écris-moi « passe le casino en vrai »." }], (p: { howTo: string }) => [`La suite : ${p.howTo}`, `Prochaine étape si tu veux : ${p.howTo}`]),
   nextLevel: ["Tu peux monter un niveau : écris « niveau casino 1 ».", "Prochaine étape possible : « niveau casino 1 » pour lui laisser plus de marge."],
   progress: voiceTemplate([{ progress: "3/14" }], (p: { progress: string }) => [`Tu en es à ${p.progress}.`, `Avancement : ${p.progress}.`, `On en est à ${p.progress}.`]),
-  startWith: voiceTemplate([{ label: "la clé fal.ai", why: "Elle sert à fabriquer les vidéos." }], (p: { label: string; why: string }) => [
+  startWith: voiceTemplate([{ label: "la clé fal.ai", why: "Elle sert à fabriquer les photos." }], (p: { label: string; why: string }) => [
     `On commence par ${p.label} ? ${p.why}`,
     `On s'attaque à ${p.label} ? ${p.why}`,
   ]),
   howTo: voiceTemplate([{ howTo: "Sur le site : Agents → Équipe Casino → Plan par canal → Enregistrer." }], (p: { howTo: string }) => [`Comment faire : ${p.howTo}`, `Pour ça : ${p.howTo}`]),
   howToDefault: ["Regarde la page Agents du site.", "Ça se fait sur la page Agents du site."],
-  meanwhile: voiceTemplate([{ label: "le plafond vidéo du mois" }], (p: { label: string }) => [`En attendant, on peut régler ${p.label}.`, `Pendant ce temps, voyons ${p.label}.`]),
+  meanwhile: voiceTemplate([{ label: "le plan des canaux Rencontres" }], (p: { label: string }) => [`En attendant, on peut régler ${p.label}.`, `Pendant ce temps, voyons ${p.label}.`]),
   alreadyAsked: ["Je te l'ai déjà demandé, je te la remets :", "Je t'ai déjà posé la question, la revoilà :"],
   currentFirst: [
     "D'abord, la question en cours (je pose la suivante juste après) :",
@@ -89,10 +86,6 @@ export type BossGuideDeps = AgentsDeps;
 
 const ANSWERED = ["ANSWERED", "SKIPPED"] as const;
 
-function record(v: unknown): Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-}
-
 function idsOf(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
@@ -104,7 +97,6 @@ async function closedRequest(deps: BossGuideDeps, key: string): Promise<boolean>
 /** Questions des médias d'une persona Rencontres (mêmes clés et suites que `ensureDatingSetupQuestions`). */
 function personaAsks(
   p: { id: string; name: string; loraUrl: string | null; loraTrigger: string | null; referenceImageIds: unknown },
-  sources: number,
 ): AskHumanInput[] {
   const tag = personaTagOf(p.name);
   const out: AskHumanInput[] = [];
@@ -129,17 +121,8 @@ function personaAsks(
       teamKey: "dating",
       kind: "MEDIA",
       key: `persona.${p.id}.referenceImages`,
-      question: `Envoie 1 à 3 photos de ${p.name} avec la légende #dating #reference #${tag} (la première sert de modèle pour les vidéos). Réponds « plus tard » pour passer.`,
+      question: `Envoie 1 à 3 photos de ${p.name} avec la légende #dating #reference #${tag} (la première sert de modèle). Réponds « plus tard » pour passer.`,
       expected: { count: 1, tags: ["dating", "reference", tag] },
-      onAnswer: { resume: false },
-    });
-  if (sources < SOURCE_VIDEOS_WANTED)
-    out.push({
-      teamKey: "dating",
-      kind: "MEDIA",
-      key: `persona.${p.id}.sourceVideos`,
-      question: `Envoie 5 à 10 vidéos sources pour ${p.name} avec la légende #dating #source #${tag} (une personne bien visible, en entier). Réponds « plus tard » pour passer.`,
-      expected: { count: SOURCE_VIDEOS_WANTED, tags: ["dating", "source", tag] },
       onAnswer: { resume: false },
     });
   return out;
@@ -174,13 +157,12 @@ async function adsAsks(deps: BossGuideDeps): Promise<AskHumanInput[] | null> {
 export async function bossSetupSteps(deps: BossGuideDeps): Promise<BossGuideStep[]> {
   const p = deps.prisma;
   const name = await readBossName(deps);
-  const [bossBot, dailyReport, falKey, personas, datingConfig, datingPlans, casinoChannels, casinoPlans, oddsKey] =
+  const [bossBot, dailyReport, falKey, personas, datingPlans, casinoChannels, casinoPlans, oddsKey] =
     await Promise.all([
       p.bot.findFirst({ where: { role: "ADMIN", isActive: true }, select: { id: true, username: true } }),
       p.setting.findUnique({ where: { key: DAILY_REPORT_KEY } }),
       secretSummary(p, FAL_SECRET_KEY),
       datingPersonas(deps),
-      p.agentTeamConfig.findUnique({ where: { teamKey: "dating" } }),
       p.channelAgentPlan.count({ where: { teamKey: "dating", enabled: true } }),
       p.channel.count({ where: { vertical: "CASINO", isActive: true, isTest: false } }),
       p.channelAgentPlan.count({ where: { teamKey: "casino", enabled: true } }),
@@ -215,7 +197,7 @@ export async function bossSetupSteps(deps: BossGuideDeps): Promise<BossGuideStep
     team: "dating",
     short: "clé",
     done: falKey.set,
-    why: "Elle sert à fabriquer les vidéos et les photos de l'équipe Rencontres. Colle la clé en réponse ; j'efface ton message.",
+    why: "Elle sert à fabriquer les photos de l'équipe Rencontres. Colle la clé en réponse ; j'efface ton message.",
     asks: [
       {
         teamKey: "dating",
@@ -238,37 +220,17 @@ export async function bossSetupSteps(deps: BossGuideDeps): Promise<BossGuideStep
       howTo: "Sur le site : Conversations → Personas → Nouvelle persona → remplis le prénom et le ton → coche Activée → Enregistrer.",
     });
   for (const persona of personas) {
-    const sources = await p.mediaAsset.count({ where: { personaId: persona.id, kind: "SOURCE" } });
-    const asks = personaAsks(persona, sources);
+    const asks = personaAsks(persona);
     steps.push({
       key: `persona.${persona.id}.media`,
       label: `les médias de ${persona.name}`,
       team: "dating",
       short: "médias",
       done: asks.length === 0,
-      why: `Sans son fichier LoRA, ses photos et ses vidéos sources, je ne peux pas fabriquer les vidéos de ${persona.name}.`,
+      why: `Sans son fichier LoRA et ses photos de référence, je ne peux pas fabriquer les photos de ${persona.name}.`,
       asks,
     });
   }
-  const datingBudgets = record(datingConfig?.monthlyBudgetCents);
-  steps.push({
-    key: "dating.videoBudget",
-    label: "le plafond vidéo du mois",
-    team: "dating",
-    short: "plafond vidéo",
-    done: typeof datingBudgets.video === "number" || (await closedRequest(deps, "agents.team.dating.videoBudget")),
-    why: `Les vidéos IA coûtent : je ne dépasse jamais ce plafond. Réponds 1, 2, 3 ou un montant (${DEFAULT_VIDEO_BUDGET_EUROS} € si « plus tard »).`,
-    asks: [
-      {
-        teamKey: "dating",
-        kind: "CHOICE",
-        key: "agents.team.dating.videoBudget",
-        question: `Plafond des vidéos IA par mois pour l'équipe Rencontres : réponds 1, 2 ou 3, ou écris un montant (ex. 75). « plus tard » = ${DEFAULT_VIDEO_BUDGET_EUROS} €.`,
-        options: BUDGET_OPTIONS,
-        onAnswer: { action: "dating-video-budget", skipAnswer: `${DEFAULT_VIDEO_BUDGET_EUROS} €`, resume: false },
-      },
-    ],
-  });
   steps.push({
     key: "dating.plan",
     label: "le plan des canaux Rencontres",

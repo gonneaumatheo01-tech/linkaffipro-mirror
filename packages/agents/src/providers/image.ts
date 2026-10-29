@@ -1,6 +1,9 @@
 /**
  * Fournisseur d'images (phase 20) : photos neuves du personnage générées avec son LoRA (fal.ai Flux + LoRA).
  */
+/** Fichier échangé avec un fournisseur : octets d'un `MediaAsset` (envoyés sur son propre stockage, jamais notre site). */
+export type ProviderFile = { bytes: Uint8Array; mimeType: string; filename: string };
+
 export type ImageAspect = "portrait" | "square" | "landscape";
 
 export type ImageGenerateInput = {
@@ -31,5 +34,5 @@ export type ImageProvider = {
   name: "fal" | "fake";
   estimateCents(input: Pick<ImageGenerateInput, "count" | "aspect">): number;
   generate(input: ImageGenerateInput, opts?: ImageGenerateOptions): Promise<ImageGenerateResult>;
-  download(url: string): Promise<{ bytes: Uint8Array; mimeType: string; filename: string }>;
+  download(url: string): Promise<ProviderFile>;
 };

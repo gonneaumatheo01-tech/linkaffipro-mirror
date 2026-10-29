@@ -94,8 +94,8 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     kind: "agent",
     teams: ["dating", "casino"],
     chief: "chef-dating",
-    role: "Range tes vidéos et photos, choisit le prochain média pas encore utilisé et te demande des vidéos quand il en manque.",
-    synonyms: ["mediatheque", "bibliotheque", "videotheque", "celui qui range les videos", "celui des medias", "stock de medias", "videos"],
+    role: "Range tes vidéos et photos, choisit le prochain média pas encore utilisé et te demande des médias quand il en manque.",
+    synonyms: ["mediatheque", "bibliotheque", "videotheque", "celui qui range les videos", "celui des medias", "stock de medias", "videos", "photos"],
   }),
   e({
     key: "media-ia",
@@ -103,8 +103,8 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     kind: "agent",
     teams: ["dating"],
     chief: "chef-dating",
-    role: "Fabrique les vidéos et photos du personnage (Rencontres seulement), dans le plafond du mois.",
-    synonyms: ["media ia", "medias ia", "videos ia", "photos ia", "celui qui fait les videos", "celui qui fabrique les photos", "face swap", "faceswap", "videos"],
+    role: "Fabrique les photos du personnage (Rencontres seulement), dans le plafond du mois.",
+    synonyms: ["media ia", "medias ia", "photos ia", "celui qui fabrique les photos", "photos"],
   }),
   e({
     key: "redaction",
@@ -222,61 +222,6 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     chief: "chef-algo",
     role: "Transforme les analyses en réglages concrets par canal, chiffres à l'appui, et écrit le rapport « Ce qui marche ».",
     synonyms: ["synthese", "synthese et reglages", "reglages", "celui qui regle", "celui des reglages", "rapport de la semaine"],
-  }),
-  // Phase 28 : équipe Montage (vidéo longue du client → shorts, chaque short validé par le client avant tout envoi).
-  e({
-    key: "chef-montage",
-    label: "Chef Montage",
-    kind: "chef",
-    teams: ["montage"],
-    chief: "grand-chef",
-    role: "Fait passer chaque vidéo que tu m'envoies par la découpe, le montage, l'habillage et le contrôle, puis t'envoie chaque short à valider.",
-    synonyms: ["chef montage", "chef du montage", "montage", "equipe montage", "l'equipe montage", "shorts", "reels", "montage video"],
-  }),
-  e({
-    key: "montage-reception",
-    label: "Réception",
-    kind: "agent",
-    teams: ["montage"],
-    chief: "chef-montage",
-    role: "Reçoit la vidéo que tu m'envoies, note sa durée et sa qualité, et lit tes consignes (durée, format, cam, sous-titres).",
-    synonyms: ["reception", "reception video", "reception des videos", "celui qui recoit les videos", "celui qui lit les consignes"],
-  }),
-  e({
-    key: "montage-decoupe",
-    label: "Découpe",
-    kind: "agent",
-    teams: ["montage"],
-    chief: "chef-montage",
-    role: "Regarde la vidéo image par image et propose le plan de coupe : les moments les plus forts, avec une note sur 10.",
-    synonyms: ["decoupe", "decoupe ia", "decoupeur", "plan de coupe", "celui qui choisit les moments", "celui qui decoupe"],
-  }),
-  e({
-    key: "montage-monteur",
-    label: "Monteur",
-    kind: "agent",
-    teams: ["montage"],
-    chief: "chef-montage",
-    role: "Monte chaque short en un seul passage : coupe, cam incrustée, format vertical ou carré, vitesse, sans perte de qualité.",
-    synonyms: ["monteur", "monteuse", "celui qui monte les videos", "celui qui monte les shorts", "montage des shorts"],
-  }),
-  e({
-    key: "montage-habillage",
-    label: "Habillage",
-    kind: "agent",
-    teams: ["montage"],
-    chief: "chef-montage",
-    role: "Écrit les sous-titres d'après le son, les fait relire mot à mot, te demande en cas de doute, et ajoute le texte demandé.",
-    synonyms: ["habillage", "habilleur", "sous-titres", "sous titres", "celui des sous-titres", "celui qui met les sous-titres", "texte incruste"],
-  }),
-  e({
-    key: "montage-controle",
-    label: "Contrôle qualité montage",
-    kind: "agent",
-    teams: ["montage"],
-    chief: "chef-montage",
-    role: "Vérifie chaque short avant de te l'envoyer : durée, qualité 1080p, écrans noirs, son, lisibilité des sous-titres, poids.",
-    synonyms: ["controle qualite montage", "controle montage", "qc montage", "controle des shorts", "celui qui verifie les shorts"],
   }),
   // Phase 29 : équipe Analystes (marché externe : veille, règles des plateformes pub, stratégie, rapports). Elle
   // recommande seulement ; l'Agent Ads, lui, lit les chiffres des pubs du client.
@@ -499,7 +444,6 @@ export function findAgent(text: string): FindAgentResult {
 /** Libellé de l'équipe (« Rencontres », « Ads », « transverse »). */
 export function orderTeamLabel(t: OrderTeamKey): string {
   if (t === "ads") return "Ads";
-  if (t === "montage") return "Montage";
   if (t === "analystes") return "Analystes";
   if (t === "qa") return "Contrôle qualité";
   if (t === "prospection") return "Prospection";
@@ -566,17 +510,6 @@ export async function agentCard(deps: AgentsDeps, agentKey: string, opts: AgentC
     const lines = [`${agent.label}${chief ? ` (sous le ${chief.label})` : ""} : ${agent.role}`, ...card.lines];
     lines.push("Tu peux par exemple me demander « montre-moi les refus de cette semaine » ou « pourquoi ce post a été refusé ? ».");
     return { agent, facts: { agent: agent.label, equipes: teamText, chef: chief?.label ?? null, ...card.facts, peutFaire: abilities }, lines };
-  }
-  // Phase 28 : l'équipe Montage travaille sur des montages (pas des posts) : sa fiche vient de ses montages et shorts.
-  if (agent.teams.includes("montage")) {
-    const { isMontageAgentKey, montageAgentCard } = await import("../montage/kevin-view");
-    if (isMontageAgentKey(agent.key)) {
-      const card = await montageAgentCard(deps, agent.key, opts.day ?? null);
-      const abilities = agentAbilities(agent.key).map((c) => c.description);
-      const lines = [`${agent.label}${teamText ? ` (${teamText}${chief ? `, sous le ${chief.label}` : ""})` : ""} : ${agent.role}`, ...card.lines];
-      if (abilities.length) lines.push(`Tu peux par exemple lui demander de ${lowerFirst(shortAbility(abilities[0]!))}.`);
-      return { agent, facts: { agent: agent.label, equipes: teamText, chef: chief?.label ?? null, ...card.facts, peutFaire: abilities }, lines };
-    }
   }
   const now = nowOf(deps);
   const day = opts.day ?? parisDay(now);
@@ -726,7 +659,7 @@ async function agentSettingsLines(deps: AgentsDeps, agent: AgentEntry, channelId
       if (team) {
         const b = team.settings.monthlyBudgetCents;
         facts.plafonds = b;
-        lines.push(`Plafonds du mois : vidéo ${euros(b.video)}, photo ${euros(b.image)}.`);
+        lines.push(`Plafond photo du mois : ${euros(b.image)}.`);
       }
       break;
     }

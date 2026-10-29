@@ -4,10 +4,9 @@
  */
 import type { AgentsDeps, EngineDeps } from "@linkaffipro/agents";
 import { prisma } from "@linkaffipro/db";
-import { createAgentsEnqueue, createAnalystsEnqueue, createMontageEnqueue, createProspectionEnqueue } from "@linkaffipro/queue";
+import { createAgentsEnqueue, createAnalystsEnqueue, createProspectionEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger, createBossMediaIngest } from "@linkaffipro/telegram";
 import { logger } from "../logger";
-import { createFrameExtractor } from "./frames";
 import { createRedisOddsCache } from "./odds-cache";
 import { siteOpsClientFromEnv } from "./site-ops-client";
 
@@ -24,8 +23,6 @@ export function workerAgentsDeps(): EngineDeps {
       warn: (o, m) => logger.warn(o, m),
       error: (o, m) => logger.error(o, m),
     },
-    // Contrôle qualité des vidéos produites (phase 20) : ffmpeg est dans l'image du worker.
-    frames: createFrameExtractor(),
     // Cotes (phase 23) : cache partagé dans Redis.
     oddsCache: createRedisOddsCache(),
   };
@@ -35,12 +32,6 @@ export function workerAgentsDeps(): EngineDeps {
   // Phase 34 : médias d'un message transféré à Kevin rangés dans la médiathèque avant l'essai à blanc.
   const ingest = createBossMediaIngest();
   deps.ingestForwardedMedia = (content) => ingest(deps, content);
-  // Phase 28 : Kevin lance un montage, valide un plan ou fait refaire un short depuis le worker (vocal, interprète,
-  // ordres) : la chaîne met ses tâches dans la file `agents-montage`.
-  (deps as EngineDeps & { montage?: { enqueue: ReturnType<typeof createMontageEnqueue> } }).montage = { enqueue: createMontageEnqueue() };
-  // Phase 28 : Kevin (tâche `boss-text`) lance et retouche les montages : mise en file `agents-montage` (la chaîne
-  // elle-même tourne avec `workerMontageDeps`).
-  (deps as EngineDeps & { montage?: { enqueue: ReturnType<typeof createMontageEnqueue> } }).montage = { enqueue: createMontageEnqueue() };
   // Phase 29 : Kevin (tâche `boss-text`, ordres) range les questions longues sur le marché dans la file
   // `agents-analystes` (réponse envoyée par le worker dans la minute).
   (deps as EngineDeps & { analysts?: { enqueue: ReturnType<typeof createAnalystsEnqueue> } }).analysts = { enqueue: createAnalystsEnqueue() };

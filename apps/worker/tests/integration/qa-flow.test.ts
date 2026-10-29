@@ -1,26 +1,21 @@
 /**
  * Phase 30 — QA Global (« dernier verrou ») de bout en bout, sur base réelle (`linkaffipro_test`), sans réseau :
  * - fausse IA du QA SCRIPTÉE (`createFakeQaLlm({ respond })`) qui juge d'après le type, le CONTENU et le CONTEXTE croisé
- *   reçus (mot interdit, sous-titre faux, chiffre inventé, hallucination, règle publicitaire contredite, faux positif),
+ *   reçus (mot interdit, chiffre inventé, hallucination, règle publicitaire contredite, faux positif),
  *   en panne (`qaUnavailable`) ou trop lente (délai de 1 s posé dans `qa.timeout_ms`) ;
  * - fausse IA des équipes (Rédaction casino scriptée, relecture qui accepte), fausse IA de Kevin (`createFakeBossLlm`),
  *   faux Telegram (`installFakeTelegram`) pour le bot du canal Test et pour Kevin ;
- * - VRAIS processeurs : `telegram-send` (avec le vrai verrou d'envoi `passesQaGate`), `agents-montage` (aperçu des
- *   shorts), `agents-analystes` (rapport de la semaine), `agents-algo` (`qa-sweep`, `qa-alerts`), tâche `boss-text`
+ * - VRAIS processeurs : `telegram-send` (avec le vrai verrou d'envoi `passesQaGate`), `agents-analystes` (rapport de la semaine), `agents-algo` (`qa-sweep`, `qa-alerts`), tâche `boss-text`
  *   de Kevin, handlers grammY de Kevin (`handleUpdate` : OUI, boutons `agh:`), chaîne des missions (`runNextStep`).
  *
  * Scénarios : post casino → QA → publié sur le canal Test ; mot interdit → refusé → Rédaction avec corrections →
- * corrigé → publié ; post modifié après approbation → revérifié au point d'envoi ; short au sous-titre faux → refusé →
- * Habillage → corrigé → aperçu ; rapport au chiffre inventé → refusé → réécrit → envoyé ; réponse de Kevin hallucinée →
+ * corrigé → publié ; post modifié après approbation → revérifié au point d'envoi ; rapport au chiffre inventé → refusé → réécrit → envoyé ; réponse de Kevin hallucinée →
  * refusée → régénérée → envoyée ; recommandation contraire à une règle publicitaire → refusée, jamais montrée ni
  * appliquée ; alerte faux positif → annulée, journalisée ; 3 refus → Kevin demande (boutons) → choix appliqué ; QA en
  * panne → rien ne sort, jamais approuvé, Kevin prévient ; délai dépassé → TIMEOUT ; post de l'équipe humaine et textes
  * fixes de Kevin jamais retenus ; « combien de refus cette semaine ? » juste ; chaque vérification a son `QaCheck`
  * (Fable 5.1, empreinte, contenu masqué).
  */
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Job } from "bullmq";
 import type { Update } from "grammy/types";
@@ -50,16 +45,13 @@ import {
   type FakeQaStep,
   type HumanRequestRow,
   type LlmRequest,
-  type MontagePipelineDeps,
-  type MontageQueueJob,
   type QaDeps,
 } from "@linkaffipro/agents";
 import { createAdminMessengerWith, createBot, prismaTelegramDeps, realBossEngine, type MessengerApi, type TelegramDeps } from "@linkaffipro/telegram";
-import type { AgentsAnalystesJob, AgentsMontageJob } from "@linkaffipro/queue";
+import type { AgentsAnalystesJob } from "@linkaffipro/queue";
 import { QA_PAUSED_TEXT, QA_REC_REFUSED_TEXT } from "../../../../packages/agents/src/boss/qa-gate-texts";
 import { processAgentsAlgo } from "../../src/processors/agents-algo";
 import { processAgentsAnalystes } from "../../src/processors/agents-analystes";
-import { processAgentsMontage } from "../../src/processors/agents-montage";
 import { processScheduler } from "../../src/processors/scheduler";
 import { processTelegramSend } from "../../src/processors/telegram-send";
 import { prismaBossTurnFor, processBossText, type BossTextDeps } from "../../src/agents/boss-text";
@@ -108,10 +100,6 @@ function judge(req: FakeQaCall): FakeQaStep {
       if (/jackpot assuré/i.test(text)) return reject("GAIN_PROMISE", "Promesse de gain : « jackpot assuré ».", "text", "Aucune promesse de gain.");
       return APPROVE;
     }
-    case "SHORT":
-      return /Bienvenu /.test(String(content.subtitlesSrt ?? ""))
-        ? reject("SUBTITLE_ERROR", "Sous-titre faux : « Bienvenu » au lieu de « Bienvenue ».", "subtitlesSrt", "Corrige « Bienvenu » en « Bienvenue ».")
-        : APPROVE;
     case "REPORT":
       return /87 %/.test(String(content.text ?? ""))
         ? reject("INVENTED_NUMBER", "Chiffre inventé : « 87 % » ne vient d'aucune source.", "text", "Retire le chiffre ou cite sa source.")
@@ -183,12 +171,10 @@ const fakeBossLlm = createFakeBossLlm(
 const steps: AgentStepJob[] = [];
 /** Étapes remises à plus tard (QA indisponible : relecture dans 5 minutes) : jamais rejouées tout de suite. */
 const delayed: Array<{ job: AgentStepJob; delayMs: number }> = [];
-const montageQueue: Array<{ job: MontageQueueJob; jobId?: string }> = [];
 const analystsQueue: Array<{ job: AnalystsQueueJob; jobId?: string }> = [];
 const orchestratorJobs: AgentsOrchestratorJob[] = [];
-const previews: Array<{ clipId: string; srt: string | null }> = [];
 
-let deps: EngineDeps & QaDeps & MontagePipelineDeps & AnalystsKevinDeps;
+let deps: EngineDeps & QaDeps & AnalystsKevinDeps;
 
 async function drain(limit = 60): Promise<string[]> {
   const out: string[] = [];
@@ -267,12 +253,9 @@ const unescape = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").re
 // ------------------------------------------------------------------------------------------------ mise en place
 
 const ids = { bot: "", test: "", casino: "", kevin: "", user: "", entry: "", source: "", rule: "" };
-let workDir = "";
 
 async function cleanQa() {
   await prisma.qaCheck.deleteMany();
-  await prisma.shortClip.deleteMany();
-  await prisma.montageJob.deleteMany();
   await prisma.mediaAsset.deleteMany({ where: { filename: { startsWith: "it-qa-" } } });
   await prisma.complianceRule.deleteMany();
   await prisma.strategyReport.deleteMany();
@@ -288,7 +271,6 @@ beforeAll(async () => {
   await resetDb();
   await cleanQa();
   await prisma.user.deleteMany({ where: { email: "qa-flow@linkaffipro.internal" } });
-  workDir = await mkdtemp(join(tmpdir(), "lap-qa-montage-"));
   // Questions de mise en route des équipes déjà posées : la file des demandes ne contient que celles du QA.
   for (const key of ["agents.dailyReportAsked", "agents.datingSetupAsked", "agents.algoSetupAsked", "agents.sportsSetupAsked", "agents.adsSetupAsked", "agents.casinoSetupAsked"])
     await prisma.setting.create({ data: { key, value: "2026-10-01T00:00:00.000Z" } });
@@ -335,19 +317,6 @@ beforeAll(async () => {
         analystsQueue.push({ job, jobId: o.jobId });
       },
     },
-    montage: {
-      workDir,
-      async enqueue(job: MontageQueueJob, o: { jobId?: string } = {}) {
-        if (o.jobId && montageQueue.some((q) => q.jobId === o.jobId)) return;
-        montageQueue.push({ job, jobId: o.jobId });
-      },
-      hooks: {
-        async onPreviewReady(_d: unknown, _job: unknown, clip: { id: string; subtitlesSrt: string | null }) {
-          previews.push({ clipId: clip.id, srt: clip.subtitlesSrt });
-          return { messageId: 7000 + previews.length };
-        },
-      },
-    },
   } as unknown as typeof deps;
   // Les processeurs du worker (envoi des posts, agents-algo) utilisent ces mêmes dépendances (fausse IA du QA comprise).
   setWorkerAgentsDeps(deps);
@@ -365,7 +334,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   setWorkerAgentsDeps(null);
-  await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
   await cleanQa();
 });
 
@@ -517,58 +485,6 @@ describe("QA Global de bout en bout (base réelle, fausse IA du QA, faux Telegra
     expect(sent).toHaveLength(1);
     expect(String(sent[0]!.payload.text)).toContain("jackpot assuré");
     expect(await prisma.event.count({ where: { type: "qa.gate.client_approved" } })).toBeGreaterThanOrEqual(1);
-  });
-
-  it("short au sous-titre faux → refusé → retour à l'Habillage → corrigé → repasse → aperçu envoyé", async () => {
-    const source = await prisma.mediaAsset.create({
-      data: { filename: "it-qa-source.mp4", mimeType: "video/mp4", size: 1, sha256: "it-qa-source", bytes: Buffer.alloc(0), storage: "telegram", kind: "LONG_VIDEO", teamKey: "montage", telegramRef: { chatId: "-1009999", messageId: 1 } },
-    });
-    const v1 = await prisma.mediaAsset.create({
-      data: { filename: "it-qa-short-v0.mp4", mimeType: "video/mp4", size: 3_000_000, sha256: "it-qa-short-v0", bytes: Buffer.alloc(0), storage: "telegram", kind: "SHORT", teamKey: "montage", width: 1080, height: 1920, telegramRef: { chatId: "-1009999", messageId: 2, fileId: "f-v0", fileUniqueId: "u-v0" } },
-    });
-    const job = await prisma.montageJob.create({
-      data: { sourceAssetId: source.id, instructions: { theme: "roulette", subtitles: true, format: "VERTICAL_9_16", durationTarget: 15 }, status: "QC", planApprovedAt: new Date(), sourceMeta: { durationMs: 60_000, width: 1920, height: 1080 } },
-    });
-    const clip = await prisma.shortClip.create({
-      data: {
-        montageJobId: job.id,
-        index: 1,
-        startMs: 0,
-        endMs: 15_000,
-        durationMs: 15_000,
-        subtitles: true,
-        subtitlesSrt: "1\n00:00:00,000 --> 00:00:03,000\nBienvenu à la table de roulette\n",
-        status: "QC",
-        assetId: v1.id,
-        qc: { ok: true, problems: [] },
-      },
-    });
-    const run = (j: MontageQueueJob) => processAgentsMontage(fakeJob(j, `montage-${j.type}`) as unknown as Job<AgentsMontageJob>, deps);
-    const r1 = (await run({ type: "montage.preview", montageJobId: job.id, shortClipId: clip.id })) as { outcome: string };
-    expect(r1.outcome).toMatch(/retour à l'Habillage/);
-    expect(previews).toHaveLength(0);
-    const redone = await prisma.shortClip.findUniqueOrThrow({ where: { id: clip.id } });
-    expect(redone).toMatchObject({ status: "REDO", redoCount: 1, assetId: null, subtitlesSrt: null });
-    expect(redone.clientFeedback).toContain("Bienvenue");
-    // L'Habillage repart (refabrication en file) : la chaîne refait le short avec le sous-titre corrigé.
-    expect(montageQueue.some((q) => q.job.type === "montage.cut" && q.job.shortClipId === clip.id)).toBe(true);
-    const v2 = await prisma.mediaAsset.create({
-      data: { filename: "it-qa-short-v1.mp4", mimeType: "video/mp4", size: 3_100_000, sha256: "it-qa-short-v1", bytes: Buffer.alloc(0), storage: "telegram", kind: "SHORT", teamKey: "montage", width: 1080, height: 1920, telegramRef: { chatId: "-1009999", messageId: 3, fileId: "f-v1", fileUniqueId: "u-v1" } },
-    });
-    await prisma.shortClip.update({
-      where: { id: clip.id },
-      data: { subtitlesSrt: "1\n00:00:00,000 --> 00:00:03,000\nBienvenue à la table de roulette\n", status: "QC", assetId: v2.id, qc: { ok: true, problems: [] } },
-    });
-    const r2 = (await run({ type: "montage.preview", montageJobId: job.id, shortClipId: clip.id })) as { outcome: string };
-    expect(r2.outcome).toBe("aperçu envoyé");
-    expect(previews).toEqual([{ clipId: clip.id, srt: expect.stringContaining("Bienvenue à la table") }]);
-    expect((await prisma.shortClip.findUniqueOrThrow({ where: { id: clip.id } })).status).toBe("PREVIEW_SENT");
-    const rows = await qaRows(clip.id);
-    expect(rows.map((r) => [r.contentType, r.verdict])).toEqual([
-      ["SHORT", "REJECTED"],
-      ["SHORT", "APPROVED"],
-    ]);
-    expect((rows[0]!.reasons as Array<{ code: string }>)[0]!.code).toBe("SUBTITLE_ERROR");
   });
 
   it("rapport des Analystes avec un chiffre inventé (et un jeton glissé) → refusé → réécrit → repasse → envoyé", async () => {
@@ -785,7 +701,7 @@ describe("QA Global de bout en bout (base réelle, fausse IA du QA, faux Telegra
   it("« Kevin, combien de refus cette semaine ? » → réponse juste (lue en base)", async () => {
     const all = await prisma.qaCheck.findMany();
     const refused = all.filter((r) => r.verdict === "REJECTED").length;
-    expect(refused).toBeGreaterThanOrEqual(10);
+    expect(refused).toBeGreaterThanOrEqual(9);
     const n = all.length;
     const reply = unescape(await say("Kevin, combien de refus cette semaine ?"));
     expect(reply).toContain(`Sur 7 jours : ${refused} refus sur ${n} contenus vérifiés.`);
@@ -795,7 +711,7 @@ describe("QA Global de bout en bout (base réelle, fausse IA du QA, faux Telegra
 
   it("chaque vérification a son QaCheck : Fable 5.1, empreinte, contenu masqué sans secret", async () => {
     const rows = await prisma.qaCheck.findMany();
-    expect(rows.length).toBeGreaterThan(15);
+    expect(rows.length).toBeGreaterThan(13);
     for (const r of rows) {
       expect(r.modelUsed).toBe("claude-fable-5-1");
       expect(r.contentHash).toMatch(/^[0-9a-f]{64}$/);
@@ -815,6 +731,6 @@ describe("QA Global de bout en bout (base réelle, fausse IA du QA, faux Telegra
     // Le journal du QA ne contient jamais le texte vérifié.
     const events = await prisma.event.findMany({ where: { type: { startsWith: "qa." } } });
     expect(events.length).toBeGreaterThan(0);
-    for (const e of events) expect(JSON.stringify(e.payload)).not.toMatch(/argent facile|jackpot assuré|Bienvenu |87 %/);
+    for (const e of events) expect(JSON.stringify(e.payload)).not.toMatch(/argent facile|jackpot assuré|87 %/);
   });
 });

@@ -4,9 +4,8 @@
  * JSON valide ; texte choisi par une empreinte du message, donc stable pour une même demande.
  */
 import type { LlmRequest, LlmResponse } from "../types";
-import type { ImageGenerateInput, ImageProvider } from "./image";
+import type { ImageGenerateInput, ImageProvider, ProviderFile } from "./image";
 import type { AgentLlmProvider } from "./llm";
-import type { ProviderFile, ReplaceInput, VideoProvider } from "./video";
 
 const HOOKS = [
   "Ce soir, on ne fait pas les choses à moitié 🔥",
@@ -104,9 +103,6 @@ export type FakeAssetLoader = (assetId: string) => Promise<ProviderFile | null>;
 
 export type FakeMediaOptions = {
   loadAsset?: FakeAssetLoader;
-  /** Délai simulé avant que la vidéo soit « prête » (0 = tout de suite). */
-  delayMs?: number;
-  now?: () => Date;
   /** Échecs simulés aux N premières soumissions (tests). */
   failFirst?: number;
 };
@@ -120,38 +116,6 @@ async function fakeDownload(url: string, memory: Map<string, ProviderFile>, load
     if (file) return { ...file, filename: `simulation-${file.filename}` };
   }
   throw new Error("Faux fournisseur : fichier introuvable");
-}
-
-/** Faux remplacement : renvoie la vidéo source telle quelle (marquée « simulation » au rangement), coût 0. */
-export function createFakeVideoProvider(opts: FakeMediaOptions = {}): VideoProvider & { submitted: ReplaceInput[] } {
-  const memory = new Map<string, ProviderFile>();
-  const submitted: ReplaceInput[] = [];
-  const clock = opts.now ?? (() => new Date());
-  let failures = opts.failFirst ?? 0;
-  let n = 0;
-  return {
-    name: "fake",
-    submitted,
-    estimateCents: () => 0,
-    async startReplace(input) {
-      submitted.push(input);
-      if (failures > 0) {
-        failures--;
-        throw new Error("Panne simulée du faux fournisseur vidéo");
-      }
-      const readyAt = clock().getTime() + (opts.delayMs ?? 0);
-      const url = input.sourceAssetId ? `${FAKE_ASSET_URL}${input.sourceAssetId}` : `fake://memory/${++n}`;
-      if (!input.sourceAssetId) memory.set(url, { ...input.sourceVideo, filename: `simulation-${input.sourceVideo.filename}` });
-      return { jobId: `fake-${readyAt}`, estimatedCents: 0, ref: { responseUrl: url } };
-    },
-    async poll(jobId, ref) {
-      const readyAt = Number(/^fake-(\d+)$/.exec(jobId)?.[1] ?? 0);
-      if (clock().getTime() < readyAt) return { status: "running" };
-      if (!ref?.responseUrl) return { status: "failed", error: "Faux fournisseur : travail inconnu" };
-      return { status: "done", outputUrl: ref.responseUrl, actualCents: 0 };
-    },
-    download: (url) => fakeDownload(url, memory, opts.loadAsset),
-  };
 }
 
 /** Fausse photo : la première image de référence de la persona, sinon une image de test ; coût 0. */
