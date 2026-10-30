@@ -1125,3 +1125,9 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
 
 - Demande du client : Mehdi (VIP_MANAGER, univers sports) doit pouvoir être relié à un vrai compte Telegram, comme Léa (GIRL, univers dating). La restriction précédente (univers dating uniquement) est assouplie : dating ET sports sont acceptés. Seul l'univers casino reste interdit sur un vrai compte.
 - `apps/web/lib/accounts/persona-choice.ts` : `ACCOUNT_PERSONA_UNIVERSES = ["dating", "sports"]`, filtre Prisma `{ universe: { in: [...] } }`.
+
+## Image Railway du site : typage sauté pendant le build (30 octobre 2026)
+
+- Constat : depuis le 29 octobre après-midi, chaque build de l'image du site s'arrête net à l'étape « Running TypeScript » de `next build` (code 1, aucun message), alors que le code est correct. Le typage du site demande 8 Go (`apps/web` `typecheck` : `--max-old-space-size=8192`), la machine de build de Railway n'en donne pas autant. Railway gardait l'ancienne version en ligne, d'où « rien ne change » après chaque déploiement.
+- Choix : `next.config.ts` saute la vérification des types quand `NEXT_SKIP_TYPECHECK=1`, posé uniquement dans `apps/web/Dockerfile` (déclaré dans `turbo.json`, tâche `build`, sinon Turbo le filtre). Les types restent vérifiés par la CI à chaque envoi (`pnpm typecheck`, 8 Go) et par `pnpm build` partout ailleurs. Plutôt que relever encore la mémoire : le typage grossit avec le projet, la limite de la machine de build ne bouge pas.
+- Le service `web` de Railway est relié au dépôt GitHub (branche `main`) depuis le 29 octobre au soir : un envoi sur `main` déclenche un déploiement du site.
