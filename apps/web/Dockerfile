@@ -6,10 +6,9 @@ RUN mkdir -p /app && chown node:node /app
 WORKDIR /app
 COPY --chown=node:node . .
 USER node
-# Toutes les dépendances (dev comprises) sont nécessaires pour construire. Le typage du site demande 8 Go, plus que
-# la machine de build de Railway (builds arrêtés net depuis le 29 octobre 2026) : il est sauté ici
-# (NEXT_SKIP_TYPECHECK, lu par next.config.ts) et vérifié par la CI à chaque envoi.
-RUN export NODE_OPTIONS=--max-old-space-size=6144 NEXT_SKIP_TYPECHECK=1 \
+# Toutes les dépendances (dev comprises) sont nécessaires pour construire. Phase 26 : la vérification des types du
+# site dépasse la mémoire par défaut de Node (manque de mémoire constaté en local) : 6 Go pour le build seulement (4 Go ne suffisent plus depuis le 29 octobre 2026).
+RUN export NODE_OPTIONS=--max-old-space-size=6144 \
   && pnpm install --frozen-lockfile --prod=false \
   && pnpm db:generate \
   && pnpm exec turbo run build --filter=web \

@@ -5,7 +5,6 @@
     "db:generate": { "cache": false },
     "build": {
       "dependsOn": ["^build", "^db:generate"],
-      "env": ["NEXT_SKIP_TYPECHECK"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "typecheck": { "dependsOn": ["^db:generate"] },
