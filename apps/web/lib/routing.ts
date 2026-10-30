@@ -35,6 +35,7 @@ const PUBLIC_PREFIXES = [
   "/api/postback/",
   "/api/integrations/",
   "/api/internal/site-ops",
+  "/api/batch-import/",
   "/r/",
   "/r",
   "/j/",
