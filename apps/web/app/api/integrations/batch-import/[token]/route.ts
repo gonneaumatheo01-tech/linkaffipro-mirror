@@ -9,7 +9,7 @@ import { shortId } from "@linkaffipro/core";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const IMPORT_TOKEN = process.env.BATCH_IMPORT_TOKEN ?? "";
+const TOKEN_HASH = "e5b6a204e67ef3d3a7ca8f75b24ac5754ad180c06c3ba027467b0f2e49778342";
 
 interface PostEntry {
   text: string;
@@ -27,7 +27,8 @@ interface PostEntry {
  */
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  if (!IMPORT_TOKEN || token !== IMPORT_TOKEN) return Response.json({ error: "Forbidden" }, { status: 403 });
+  const hash = createHash("sha256").update(token).digest("hex");
+  if (hash !== TOKEN_HASH) return Response.json({ error: "Forbidden" }, { status: 403 });
 
   const form = await req.formData();
   const channelId = String(form.get("channelId") ?? "");
