@@ -884,6 +884,7 @@ model MediaAsset {
   broadcasts       Broadcast[]
   outboundMessages OutboundMessage[]
   personas         Persona[]
+  flirtMedia       PersonaFlirtMedia[]
   /// Phase 28 : où vivent les octets. "db" (défaut, colonne `bytes`) ou "telegram" (vidéo longue et shorts : `bytes`
   /// vide, fichier gardé dans Telegram ; `telegramRef` = { chatId, messageId, botId?, fileId?, fileUniqueId?, via }).
   storage          String                   @default("db")
@@ -2013,6 +2014,8 @@ model Persona {
   illusion                Boolean            @default(false)
   /// Exemples de registre (échanges courts « lui: / moi: ») imités par le modèle, jamais recopiés.
   styleExamples           String?            @db.Text
+  /// Photos de chauffe envoyees en DM, a un emplacement fixe de 1 a 5.
+  flirtMedia              PersonaFlirtMedia[]
   /// Médias du personnage (phase 20) : 1 à 3 images de référence (`MediaAsset`, la première sert au remplacement
   /// vidéo), fichier LoRA (adresse), mot déclencheur et poids, consignes de tenue / d'ambiance.
   referenceImageIds       Json               @default("[]")
@@ -2074,6 +2077,24 @@ model PersonaBookmaker {
 
 /// Conversation privée entre un bot ASSISTANT et une personne qui lui a écrit d'elle-même (une par bot et par membre).
 /// Supprimée avec le membre ou le bot ; `/reset` efface les messages, le résumé, les faits et le style.
+/// Photo de chauffe envoyée en DM, à un emplacement fixe (1 à 5) : 1 à 3 partent dans la conversation, 4 et 5
+/// seulement si la personne refuse l'app. La description sert à écrire une accroche qui colle à l'image.
+model PersonaFlirtMedia {
+  id          String     @id @default(cuid())
+  personaId   String
+  persona     Persona    @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  /// Emplacement : 1 ensemble, 2 à quatre pattes, 3 torse nu, 4 sans bas, 5 nue de dos.
+  slot        Int
+  assetId     String
+  asset       MediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  /// Description factuelle de l'image (tenue, position, décor), donnée au modèle pour l'accroche.
+  description String
+  createdAt   DateTime   @default(now())
+
+  @@unique([personaId, slot])
+  @@index([personaId])
+}
+
 model Conversation {
   id               String             @id @default(cuid())
   botId            String
