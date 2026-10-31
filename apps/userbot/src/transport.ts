@@ -7,6 +7,7 @@ import type { ChatCapabilities, ChatSender, SendOptions, SendResult } from "@lin
 import { prisma, toJsonValue } from "@linkaffipro/db";
 import { Api, type TelegramClient } from "telegram";
 import { logger } from "./logger";
+import { CustomFile } from "telegram/client/uploads.js";
 
 /** Pair accepte par GramJS (identifiant, nom d'utilisateur ou entite deja resolue). */
 export type TransportPeer = Parameters<TelegramClient["sendMessage"]>[0];
@@ -59,10 +60,16 @@ export function createMtprotoTransport(ctx: TransportContext): ChatSender {
   // Rang des parties du tour : avance seulement sur un envoi reussi (aucun trou si un envoi echoue).
   let partIndex = 0;
 
-  async function persist(text: string, telegramMessageId: number, opts?: SendOptions) {
+  async function persist(
+    text: string,
+    telegramMessageId: number,
+    opts?: SendOptions,
+    mediaAssetId?: string | null,
+  ) {
     const meta: Record<string, unknown> = {};
     if (opts?.offerSubId) meta.offerSubId = opts.offerSubId;
     if (opts?.fixedKey) meta.fixedKey = opts.fixedKey;
+    if (mediaAssetId) meta.mediaAssetId = mediaAssetId;
     try {
       await prisma.conversationMessage.create({
         data: {
@@ -102,6 +109,44 @@ export function createMtprotoTransport(ctx: TransportContext): ChatSender {
     }
   }
 
+  /**
+   * Photo avec legende. Un media absent ou illisible ne perd pas le message : la legende part seule en texte.
+   */
+  async function sendPhoto(
+    mediaAssetId: string | null | undefined,
+    caption: string,
+    opts?: SendOptions,
+  ): Promise<SendResult> {
+    if (!mediaAssetId) return send(caption, opts);
+    let asset: { bytes: Uint8Array; filename: string } | null = null;
+    try {
+      asset = await prisma.mediaAsset.findUnique({
+        where: { id: mediaAssetId },
+        select: { bytes: true, filename: true },
+      });
+    } catch (err) {
+      logger.warn(
+        { media: mediaAssetId, err: err instanceof Error ? err.message : String(err) },
+        "media illisible",
+      );
+    }
+    if (!asset) return send(caption, opts);
+    try {
+      const buffer = Buffer.from(asset.bytes);
+      const file = new CustomFile(asset.filename, buffer.byteLength, "", buffer);
+      const sent = await ctx.client.sendFile(ctx.peer, { file, caption, forceDocument: false });
+      await persist(caption, sent.id, opts, mediaAssetId);
+      return { ok: true, telegramMessageId: sent.id };
+    } catch (err) {
+      const result = classifySendError(err);
+      logger.warn(
+        { conversation: ctx.conversationId, media: mediaAssetId, err: result.error },
+        "photo refusee",
+      );
+      return result;
+    }
+  }
+
   return {
     capabilities: CAPABILITIES,
     async sendTyping() {
@@ -118,8 +163,7 @@ export function createMtprotoTransport(ctx: TransportContext): ChatSender {
       }
     },
     sendText: (text, opts) => send(text, opts),
-    // Le visuel viendra plus tard : la legende part seule, en texte.
-    sendMedia: (_media, caption, opts) => send(caption, opts),
+    sendMedia: (media, caption, opts) => sendPhoto(media.mediaAssetId, caption, opts),
     async markRead() {
       try {
         await ctx.client.markAsRead(ctx.peer);
