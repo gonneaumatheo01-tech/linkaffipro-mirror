@@ -6,6 +6,7 @@ import {
   type PersonaFaqEntry,
 } from "@linkaffipro/core";
 import type { StyleProfile } from "./style";
+import type { FlirtStep } from "./flirt";
 import type {
   ChatLang,
   ConversationStage,
@@ -91,6 +92,8 @@ export type PersonaInput = {
   hasOffer: boolean;
   /** Visuel de l'app envoyé avec le lien (photo + légende). */
   offerMediaAssetId: string | null;
+  /** Photos de chauffe (emplacement 1 à 5) : média à envoyer et description factuelle pour l'accroche. */
+  flirtPhotos?: { slot: number; assetId: string; description: string }[];
   /** Titre du canal dont la persona est l'assistante (facultatif, pour la présentation). */
   channelTitle?: string | null;
   /** Nom du bot (facultatif). */
@@ -164,6 +167,8 @@ export type ConversationState = {
   lastAssistantAt?: Date | null;
   /** Dernier message « Je reviens vers toi dans un instant » envoyé (au plus un par heure). */
   lastNeutralAt?: Date | null;
+  /** Série de photos de chauffe (voir flirt.ts) : étape courante et accroches faites sans réponse. */
+  flirt?: { step: FlirtStep; teases: number };
 };
 
 export type TurnKind = "reply" | "follow_up";
@@ -295,6 +300,10 @@ export type TurnResult = {
   /** Parties réellement envoyées, dans l'ordre. */
   sent: SentPart[];
   newStage: ConversationStage;
+  /** Nouvelle étape de la série de photos (à persister par l'appelant ; absente = inchangée). */
+  newFlirtStep?: FlirtStep;
+  /** Accroches faites sans réponse à la nouvelle étape. */
+  flirtTeases?: number;
   stageChanges: StageChange[];
   style: StyleProfile;
   facts: string[];

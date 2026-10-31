@@ -20,6 +20,7 @@ import {
   typingDelayMs,
   withTyping,
 } from "./rhythm";
+import { flirtAction, hasStarted, offerAllowed, type FlirtDecision } from "./flirt";
 import { turnOutputJsonSchema, type TurnOutput } from "./schema";
 import { mergeStyle, replyLanguage } from "./style";
 import { fixedText, type FixedTextKey } from "./texts";
@@ -96,6 +97,8 @@ type Run = {
   /** Messages de la personne arrivés pendant la préparation et regroupés dans ce tour. */
   extraMemberMessages: number;
   startedAt: Date;
+  /** Décision de la série de photos pour ce tour (calculée une fois). */
+  flirt?: FlirtDecision;
 };
 
 function purposeOf(input: TurnInput, summary = false): UsagePurpose {
@@ -232,6 +235,11 @@ function buildRequest(
       : null,
     retryCodes,
     memberAskedOffer: memberAskedOffer(run, inbound),
+    flirt: {
+      directive: run.flirt?.directive ?? "none",
+      slot: run.flirt?.sendPhoto ?? null,
+      photo: input.persona.flirtPhotos?.find((x) => x.slot === run.flirt?.sendPhoto)?.description ?? null,
+    },
   });
   return {
     model,
@@ -598,6 +606,8 @@ async function sendParts(
   opts: {
     withOffer: boolean;
     fixedKey: FixedTextKey | null;
+    /** Photo de la serie de chauffe a joindre au dernier message. */
+    photoAssetId?: string | null;
     /** Phase 36 : clé du bookmaker partenaire (Paris sportifs VIP). */
     bookKey?: string | null;
     /** Phase 36 : lien du canal VIP à envoyer en bouton (après dépôt confirmé). */
@@ -684,7 +694,12 @@ async function sendParts(
       : [link?.url, vipLink].filter((u): u is string => Boolean(u));
     const outgoing = inlineUrls.length > 0 ? `${text}\n\n${inlineUrls.join("\n")}` : text;
     const sendOpts = { buttons, fixedKey: opts.fixedKey, offerSubId: link?.subId ?? null };
-    const mediaAssetId = link && persona.offerMediaAssetId ? persona.offerMediaAssetId : null;
+    const mediaAssetId =
+      link && persona.offerMediaAssetId
+        ? persona.offerMediaAssetId
+        : isLast && opts.photoAssetId
+          ? opts.photoAssetId
+          : null;
     const r = await safeSend(() =>
       mediaAssetId
         ? deps.sender.sendMedia({ mediaAssetId }, outgoing, sendOpts)
@@ -809,6 +824,21 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   const run = newRun(input, deps);
   let inbound: TurnInbound[] = input.kind === "reply" ? [...input.inbound] : [];
 
+  const recents = [
+    ...input.history.filter((m) => m.direction === "IN" && m.author === "MEMBER").map((m) => m.text),
+    ...input.inbound.map((m) => m.text),
+  ];
+  const flirt = (run.flirt = flirtAction({
+    step: conv.flirt?.step ?? "NONE",
+    recent: recents.slice(-4, -1),
+    text: recents[recents.length - 1] ?? "",
+    teases: conv.flirt?.teases ?? 0,
+  }));
+  const photoAssetId = flirt.sendPhoto
+    ? (input.persona.flirtPhotos?.find((x) => x.slot === flirt.sendPhoto)?.assetId ?? null)
+    : null;
+  const lienLibre = !hasStarted(flirt.step) || offerAllowed(flirt.step);
+
   // Jamais de réponse à une conversation fermée ou à un mineur (l'appelant ne devrait pas appeler).
   if (conv.isMinor || conv.stage === "CLOSED")
     return { ...baseResult(run, inbound), outcome: "aborted" };
@@ -918,7 +948,11 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     memberAskedOffer: memberAskedOffer(run, inbound),
   };
   const withOffer =
-    output && !needsHuman ? canSendOffer(offerConv, input.persona, output, input.kind) : false;
+    output && !needsHuman
+      ? flirt.directive === "link"
+        ? input.persona.hasOffer
+        : canSendOffer(offerConv, input.persona, output, input.kind) && lienLibre
+      : false;
 
   // Phase 25 bis : bookmaker partenaire (Paris sportifs VIP) et lien VIP.
   const selectedBook = pickBook(input.persona, output?.selected_book, withOffer);
@@ -942,6 +976,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   const sending = await sendParts(run, texts, {
     withOffer,
     fixedKey,
+    photoAssetId,
     bookKey: selectedBook,
     vipLink,
   });
@@ -1003,6 +1038,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     outcome: anySent ? "replied" : "failed",
     sent: sending.sent,
     newStage,
+    newFlirtStep: flirt.step,
+    flirtTeases: flirt.teases,
     stageChanges: stage.changes,
     style: output ? mergeStyle(conv.style, output.style_update, now) : conv.style,
     facts: output ? mergeFacts(conv.facts, output.memory_facts) : conv.facts,
