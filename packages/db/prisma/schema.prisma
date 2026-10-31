@@ -2096,6 +2096,10 @@ model PersonaFlirtMedia {
 }
 
 model Conversation {
+  /// Série de photos de chauffe (voir packages/chat/src/flirt.ts) ; NONE = aucune série, l'autre script s'applique.
+  flirtStep   String @default("NONE")
+  /// Accroches faites sans réponse à l'étape courante (patience).
+  flirtTeases Int    @default(0)
   id               String             @id @default(cuid())
   botId            String
   bot              Bot                @relation(fields: [botId], references: [id], onDelete: Cascade)

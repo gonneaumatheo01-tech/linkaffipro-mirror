@@ -21,6 +21,7 @@
  * (jamais un message reçu traité comme une relance). Âge déclaré : aussi cherché dans les messages réclamés quand le
  * contrôle avant l'appel échoue (filet de la détection faite à la réception).
  */
+import type { FlirtStep } from "@linkaffipro/chat";
 import {
   HISTORY_LIMIT,
   clampMaxTokens,
@@ -785,6 +786,7 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
       offerSends: conv.offerSends,
       followUpCount: args.followUpCountBefore,
       isMinor: conv.isMinor,
+      flirt: { step: conv.flirtStep as FlirtStep, teases: conv.flirtTeases },
       isFirstAssistantTurn: conv.assistantTurns === 0,
       memberLanguageCode: conv.member.languageCode,
       lastInboundAt: conv.lastInboundAt,

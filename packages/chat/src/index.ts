@@ -27,3 +27,4 @@ export * from "./prompt-universe";
 export * from "./turn-types";
 export * from "./engine";
 export * from "./fake";
+export * from "./flirt";

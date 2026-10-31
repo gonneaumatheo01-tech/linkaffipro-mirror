@@ -5,6 +5,7 @@
  * Hors perimetre pour l'instant : relances, limites du jour, reprise par l'equipe, resume roulant,
  * regroupement des messages arrives pendant la preparation.
  */
+import type { FlirtStep } from "@linkaffipro/chat";
 import { randomUUID } from "node:crypto";
 import {
   HISTORY_LIMIT,
@@ -318,6 +319,7 @@ async function runConversationTurn(
       followUpCount: conv.followUpCount,
       isMinor: conv.isMinor,
       appRefused: conv.appRefusedAt !== null,
+      flirt: { step: conv.flirtStep as FlirtStep, teases: conv.flirtTeases },
       isFirstAssistantTurn: conv.assistantTurns === 0,
       memberLanguageCode: conv.member.languageCode,
       lastInboundAt: conv.lastInboundAt,
