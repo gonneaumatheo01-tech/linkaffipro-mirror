@@ -14,7 +14,8 @@
     "agents:upload-lora": "node --env-file-if-exists=../../.env.local --import tsx scripts/upload-lora.ts",
     "agents:report-now": "node --env-file-if-exists=../../.env.local --import tsx scripts/report-now.ts",
     "boss:unmet": "node --env-file-if-exists=../../.env.local --import tsx scripts/boss-unmet.ts",
-    "agents:status": "node --env-file-if-exists=../../.env.local --import tsx scripts/agents-status.ts"
+    "agents:status": "node --env-file-if-exists=../../.env.local --import tsx scripts/agents-status.ts",
+    "flirt:import": "node dist/scripts/import-flirt.js"
   },
   "dependencies": {
     "@linkaffipro/agents": "workspace:*",
