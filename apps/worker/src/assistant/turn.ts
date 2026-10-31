@@ -94,6 +94,7 @@ import {
   type LiveWrites,
   type PrecheckResult,
 } from "./rules";
+import { loadFlirtPhotos } from "./flirt-photos";
 import { chatRuntime } from "./runtime";
 import { createWorkerChatSender, type SenderContext, type SentRow } from "./sender";
 import { loadAssistantSettings, type AssistantSettings } from "./settings";
@@ -768,7 +769,10 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
   const modelId = persona.model?.trim() || cfg.defaultModel;
   const input: TurnInput = {
     kind: args.kind,
-    persona: toPersonaInput(persona, { offerUsable, channelTitle, botName: conv.bot.name }),
+    persona: {
+      ...toPersonaInput(persona, { offerUsable, channelTitle, botName: conv.bot.name }),
+      flirtPhotos: await loadFlirtPhotos(persona.id),
+    },
     settings: {
       defaultModel: cfg.defaultModel,
       fallbackModel: cfg.fallbackModel,
@@ -909,6 +913,8 @@ function toConversationUpdate(p: ConversationPatch): Prisma.ConversationUpdateIn
   if (p.nextFollowUpAt !== undefined) data.nextFollowUpAt = p.nextFollowUpAt;
   if (p.retryAt !== undefined) data.retryAt = p.retryAt;
   if (p.isMinor !== undefined) data.isMinor = p.isMinor;
+  if (p.flirtStep !== undefined) data.flirtStep = p.flirtStep;
+  if (p.flirtTeases !== undefined) data.flirtTeases = p.flirtTeases;
   if (p.status !== undefined) data.status = p.status;
   if (p.closedAt !== undefined) data.closedAt = p.closedAt;
   if (p.closedReason !== undefined) data.closedReason = p.closedReason;

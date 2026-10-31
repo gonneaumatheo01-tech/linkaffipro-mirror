@@ -1,0 +1,34 @@
+[
+  {
+    "text": "la voila, rouge et blanc",
+    "scheduledAt": "2026-11-02T19:15:00.000Z",
+    "mediaFilenames": [
+      "selfie_52.png"
+    ],
+    "_file": "selfie_52.png"
+  },
+  {
+    "text": "dos nu, jme sens bien la",
+    "scheduledAt": "2026-11-03T19:45:00.000Z",
+    "mediaFilenames": [
+      "selfie_45.png"
+    ],
+    "_file": "selfie_45.png"
+  },
+  {
+    "text": "blanc et rose pastel",
+    "scheduledAt": "2026-11-13T11:20:00.000Z",
+    "mediaFilenames": [
+      "selfie_21.png"
+    ],
+    "_file": "selfie_21.png"
+  },
+  {
+    "text": "asymetrique blanc, jupe",
+    "scheduledAt": "2026-11-27T19:50:00.000Z",
+    "mediaFilenames": [
+      "selfie_70.png"
+    ],
+    "_file": "selfie_70.png"
+  }
+]

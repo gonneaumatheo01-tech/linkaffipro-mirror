@@ -477,6 +477,9 @@ export type ConversationPatch = {
   nextFollowUpAt?: Date | null;
   retryAt?: Date | null;
   isMinor?: boolean;
+  /** Série de photos de chauffe : étape et accroches (voir packages/chat/src/flirt.ts). */
+  flirtStep?: string;
+  flirtTeases?: number;
   /** Passage à un humain (Casino / Paris) : motif à fusionner avec l'état relu sous verrou (`mergeNeedsHuman`). */
   needsHuman?: NeedsHumanReason;
   status?: "CLOSED";
@@ -549,6 +552,11 @@ export function planTurnPersistence(input: {
   if (stage !== before.stage) patch.stage = stage;
   if (anySent && !live?.lastSentAt) patch.lastAssistantAt = now;
   if (r.outcome === "replied" && !live?.assistantTurnCounted) patch.assistantTurnsIncrement = 1;
+  // Série de photos : l'étape n'avance que si quelque chose est réellement parti.
+  if (anySent && r.newFlirtStep) {
+    patch.flirtStep = r.newFlirtStep;
+    patch.flirtTeases = r.flirtTeases ?? 0;
+  }
   if (r.offerSent && !(live && live.offerSends > 0)) patch.offerSendsIncrement = 1;
 
   const releaseIds = r.deferredInbound.map((m) => m.id).filter((id): id is string => Boolean(id));
@@ -695,6 +703,9 @@ export function reconcileTurnPlan(
     delete patch.language;
     delete patch.assistantTurnsIncrement;
     delete patch.followUpCount;
+    // Mémoire effacée : la série de photos repart de zéro, c'est le /reset qui a posé la nouvelle étape.
+    delete patch.flirtStep;
+    delete patch.flirtTeases;
   }
   if (!stageOurs) delete patch.stage;
   if (!open || cur.reset) {

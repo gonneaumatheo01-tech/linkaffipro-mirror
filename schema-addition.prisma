@@ -1,0 +1,39 @@
+// ──────────────────────────────────────────────────────────────
+// À AJOUTER dans schema.prisma
+// ──────────────────────────────────────────────────────────────
+
+// 1. Ajouter cette ligne dans le model Persona, après la ligne `accounts TelegramUserAccount[]` :
+//    bookmakers    PersonaBookmaker[]
+
+// 2. Ajouter cette ligne dans le model AffiliateCampaign (relations) :
+//    personaBookmakers PersonaBookmaker[]
+
+// 3. Ajouter cette ligne dans le model InviteLink (relations) :
+//    personaBookmakers PersonaBookmaker[]
+
+// 4. Ajouter ce nouveau model (après Persona, avant Conversation) :
+
+/// Bookmakers proposés par une persona VIP (paris sportifs, phase 25 bis) : chaque entrée lie un bookmaker à sa campagne
+/// d'affiliation et au lien d'invitation du canal VIP correspondant. L'ordre (priority) détermine la proposition :
+/// Celsius (1) → Bet Portal (2) → Sportaza (3).
+model PersonaBookmaker {
+  id                  String             @id @default(cuid())
+  personaId           String
+  persona             Persona            @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  /// Clé du BookmakerSite : "celsius", "betportal", "sportaza".
+  bookmakerKey        String
+  /// Nom lisible du bookmaker pour le prompt : "Celsius Casino", "Bet Portal", "Sportaza".
+  label               String             @default("")
+  /// Campagne d'affiliation pour ce bookmaker (lien d'inscription).
+  affiliateCampaignId String?
+  affiliateCampaign   AffiliateCampaign? @relation(fields: [affiliateCampaignId], references: [id], onDelete: SetNull)
+  /// Lien d'invitation du canal VIP pour ce bookmaker (envoyé après vérification du dépôt).
+  inviteLinkId        String?
+  inviteLink          InviteLink?        @relation(fields: [inviteLinkId], references: [id], onDelete: SetNull)
+  /// Ordre de proposition (1 = proposé en premier).
+  priority            Int                @default(0)
+  createdAt           DateTime           @default(now())
+
+  @@unique([personaId, bookmakerKey])
+  @@index([personaId])
+}

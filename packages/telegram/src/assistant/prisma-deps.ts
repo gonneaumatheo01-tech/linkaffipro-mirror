@@ -514,6 +514,9 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
               facts: [],
               styleProfile: {},
               language: null,
+              // La série de photos repart de zéro : « j'ai tout oublié » vaut aussi pour elle.
+              flirtStep: "NONE",
+              flirtTeases: 0,
               stage: toStage,
               memberMessages: kept.filter((m) => !isCommandMeta(m.meta)).length,
               assistantTurns: 0,

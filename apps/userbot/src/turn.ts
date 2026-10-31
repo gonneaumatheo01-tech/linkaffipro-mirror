@@ -30,7 +30,7 @@ import { logger } from "./logger";
 import { loadUserbotSettings } from "./settings";
 import { createOfferLink, dropUnsentOfferLink } from "./offer-link";
 import { createMtprotoTransport, type TransportPeer } from "./transport";
-import { personaSkipReason, toPersonaInput } from "./persona";
+import { loadFlirtPhotos, personaSkipReason, toPersonaInput } from "./persona";
 
 export type TurnAccount = {
   id: string;
@@ -300,7 +300,10 @@ async function runConversationTurn(
   const modelId = persona.model?.trim() || cfg.defaultModel;
   const input: TurnInput = {
     kind: "reply",
-    persona: toPersonaInput(persona, account.label),
+    persona: {
+      ...toPersonaInput(persona, account.label),
+      flirtPhotos: await loadFlirtPhotos(persona.id),
+    },
     settings: {
       defaultModel: cfg.defaultModel,
       fallbackModel: cfg.fallbackModel,
@@ -437,6 +440,11 @@ function turnPatch(result: TurnResult, now: Date): Prisma.ConversationUpdateInpu
     data.lastAssistantAt = now;
   }
   if (result.offerSent) data.offerSends = { increment: 1 };
+  // Série de photos : l'étape n'avance que si quelque chose est réellement parti.
+  if (replied && result.newFlirtStep) {
+    data.flirtStep = result.newFlirtStep;
+    data.flirtTeases = result.flirtTeases ?? 0;
+  }
   // Mineur, compte bloque ou injoignable : conversation fermee, plus aucune reponse.
   if (result.closeReason) {
     data.status = "CLOSED";

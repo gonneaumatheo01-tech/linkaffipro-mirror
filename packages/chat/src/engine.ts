@@ -837,7 +837,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   const photoAssetId = flirt.sendPhoto
     ? (input.persona.flirtPhotos?.find((x) => x.slot === flirt.sendPhoto)?.assetId ?? null)
     : null;
-  const lienLibre = !hasStarted(flirt.step) || offerAllowed(flirt.step);
+  const lienLibre =
+    !hasStarted(flirt.step) || flirt.step === "LOCKED" || offerAllowed(flirt.step);
 
   // Jamais de réponse à une conversation fermée ou à un mineur (l'appelant ne devrait pas appeler).
   if (conv.isMinor || conv.stage === "CLOSED")
