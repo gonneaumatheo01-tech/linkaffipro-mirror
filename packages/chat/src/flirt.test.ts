@@ -1,179 +1,192 @@
+// Série de photos de chauffe : ce qui est permis à chaque tour, et l'état après une action réellement partie.
 import { describe, expect, it } from "vitest";
 import {
+  applyAction,
   asksPhoto,
-  flirtAction,
-  hasStarted,
-  isEngaged,
-  isHot,
+  decideFlirt,
+  decodeState,
+  encodeProgress,
   isRefusal,
   isSexTalk,
-  offerAllowed,
-  PATIENCE,
+  MAX_PHOTOS,
+  MIN_ECHANGES_APRES_REFUS,
+  MIN_ECHANGES_ENTRE_PHOTOS,
   type FlirtInput,
-  type FlirtStep,
+  type FlirtPhase,
 } from "./flirt";
 
-const tour = (step: FlirtStep, text: string, teases = 0, recent: string[] = []): FlirtInput => ({
+const photos = [1, 2, 3, 4, 5];
+
+const tour = (
+  step: FlirtPhase,
+  text: string,
+  teases = 0,
+  hasPhotos: number[] = photos,
+): FlirtInput => ({
   step,
-  text,
   teases,
-  recent,
+  recent: [],
+  text,
+  hasPhotos,
 });
 
-describe("detection", () => {
-  it("reconnait le sexe, meme sans accents", () => {
-    expect(isSexTalk("j'ai trop envie de me faire bz")).toBe(true);
-    expect(isSexTalk("tu me fais bander")).toBe(true);
-    expect(isSexTalk("jsuis toute trempee")).toBe(true);
-    expect(isSexTalk("il fait beau aujourd'hui")).toBe(false);
-  });
+/** Progressions lisibles : `PHOTOS` avec 2 photos déjà parties. */
+const apres = (phase: FlirtPhase, lastPhoto: number, exchanges: number) =>
+  lastPhoto * 100 + exchanges;
 
-  it("deux mots doux suffisent a rendre la conversation chaude, un seul non", () => {
-    expect(isHot(["t'es jolie"], "j'ai chaud")).toBe(true);
-    expect(isHot([], "j'ai chaud")).toBe(false);
-  });
-
-  it("un ok seul n'est pas un engagement, une question ou trois mots oui", () => {
-    expect(isEngaged("ok")).toBe(false);
-    expect(isEngaged("t'es de ou toi ?")).toBe(true);
-    expect(isEngaged("jvais pas tarder a dormir")).toBe(true);
-  });
-
-  it("reconnait un refus", () => {
-    expect(isRefusal("non pas envie")).toBe(true);
-    expect(isRefusal("la flemme la")).toBe(true);
-    expect(isRefusal("vas y")).toBe(false);
-  });
-
-  it("reconnait une demande de photo", () => {
+describe("lecture du message", () => {
+  it("reconnaît le sexe et les demandes de photo", () => {
+    expect(isSexTalk("j'ai envie de me branler")).toBe(true);
+    expect(isSexTalk("ça va et toi")).toBe(false);
     expect(asksPhoto("envoie une photo")).toBe(true);
-    expect(asksPhoto("montre toi")).toBe(true);
-    expect(asksPhoto("tu fais quoi")).toBe(false);
+    expect(isRefusal("non je reste ici")).toBe(true);
   });
 });
 
-describe("demarrage", () => {
-  it("ne demarre pas sur une conversation normale", () => {
-    const d = flirtAction(tour("NONE", "tu fais quoi de beau"));
-    expect(d.step).toBe("NONE");
-    expect(d.sendPhoto).toBeNull();
+describe("état rangé dans deux colonnes", () => {
+  it("aller-retour sans perte", () => {
+    const s = { phase: "PHOTOS" as const, lastPhoto: 2, exchanges: 1 };
+    expect(decodeState(s.phase, encodeProgress(s))).toEqual(s);
   });
 
-  it("fait genre quand il demande une photo sans chauffer", () => {
-    const d = flirtAction(tour("NONE", "envoie une photo"));
-    expect(d.step).toBe("LOCKED");
+  it("valeur inconnue ramenée à NONE", () => {
+    expect(decodeState("BIDULE", 0).phase).toBe("NONE");
+  });
+});
+
+describe("démarrage", () => {
+  it("rien ne démarre sans sexe", () => {
+    const d = decideFlirt(tour("NONE", "ça va et toi"));
+    expect(d.allow).toEqual(["rien"]);
+    expect(d.photoSlot).toBeNull();
+  });
+
+  it("une demande de photo seule fait genre", () => {
+    const d = decideFlirt(tour("NONE", "envoie une photo"));
     expect(d.directive).toBe("play_hard");
-    expect(d.sendPhoto).toBeNull();
+    expect(d.allow).toEqual(["rien"]);
   });
 
-  it("demarre des le premier mot de sexe, sur une accroche", () => {
-    const d = flirtAction(tour("NONE", "j'ai envie de te bz"));
-    expect(d.step).toBe("TEASE1");
-    expect(d.directive).toBe("tease");
-    expect(d.sendPhoto).toBeNull();
+  it("le sexe démarre la série et arme la photo 1", () => {
+    const d = decideFlirt(tour("NONE", "j'ai envie de toi"));
+    expect(d.state.phase).toBe("PHOTOS");
+    expect(d.allow).toContain("photo");
+    expect(d.photoSlot).toBe(1);
   });
 
-  it("une fois verrouille, il chauffe et la serie demarre", () => {
-    const d = flirtAction(tour("LOCKED", "j'ai trop envie la", 1));
-    expect(d.step).toBe("TEASE1");
-    expect(d.directive).toBe("tease");
+  it("sans photo disponible, elle accroche quand même", () => {
+    const d = decideFlirt(tour("NONE", "j'ai envie de toi", 0, []));
+    expect(d.allow).toEqual(["rien"]);
+    expect(d.photoSlot).toBeNull();
   });
 });
 
-describe("envoi des photos", () => {
-  it("un ok sec n'envoie rien, il compte une accroche", () => {
-    const d = flirtAction(tour("TEASE1", "ok"));
-    expect(d.sendPhoto).toBeNull();
-    expect(d.teases).toBe(1);
-    expect(d.directive).toBe("tease");
+describe("une photo tous les deux échanges", () => {
+  it("un seul échange après la photo 1 : rien", () => {
+    const d = decideFlirt(tour("PHOTOS", "ptn t'es bonne", apres("PHOTOS", 1, 0)));
+    expect(d.allow).toEqual(["rien"]);
+    expect(d.state.exchanges).toBe(1);
   });
 
-  it("envoie la photo 1 quand il repond vraiment", () => {
-    const d = flirtAction(tour("TEASE1", "vas y montre"));
-    expect(d.sendPhoto).toBe(1);
-    expect(d.step).toBe("TEASE2");
-    expect(d.teases).toBe(0);
+  it("deux échanges : la photo 2 est armée", () => {
+    const d = decideFlirt(tour("PHOTOS", "j'adore", apres("PHOTOS", 1, 1)));
+    expect(d.allow).toContain("photo");
+    expect(d.photoSlot).toBe(2);
   });
 
-  it("envoie quand meme au bout de la patience", () => {
-    const d = flirtAction(tour("TEASE2", "ok", PATIENCE - 1));
-    expect(d.sendPhoto).toBe(2);
-    expect(d.step).toBe("TEASE3");
+  it("jamais plus de 3 photos gratuites", () => {
+    const d = decideFlirt(tour("PHOTOS", "encore", apres("PHOTOS", 3, 5)));
+    expect(d.photoSlot).toBeNull();
   });
 
-  it("une seule photo par tour", () => {
-    let etape: FlirtStep = "TEASE1";
-    const vues: number[] = [];
-    for (const texte of ["oui", "oui", "oui"]) {
-      const d = flirtAction(tour(etape, texte));
-      etape = d.step;
-      if (d.sendPhoto) vues.push(d.sendPhoto);
-    }
-    expect(vues).toEqual([1, 2, 3]);
+  it("la photo 3 fait passer en attente de lien", () => {
+    expect(applyAction({ phase: "PHOTOS", lastPhoto: 2, exchanges: 2 }, "photo").phase).toBe(
+      "OFFER",
+    );
   });
+});
 
 describe("le lien", () => {
-  it("apres la photo 3, on parle encore, sans lien", () => {
-    const d = flirtAction(tour("TEASE3", "oui"));
-    expect(d.sendPhoto).toBe(3);
-    expect(d.step).toBe("OFFER_PENDING");
-    expect(d.directive).toBe("wait");
+  it("pas de lien sur un ok sec", () => {
+    const d = decideFlirt(tour("OFFER", "ok", 0));
+    expect(d.allow).toEqual(["rien"]);
   });
 
-  it("le lien ne part pas sur un ok sec", () => {
-    const d = flirtAction(tour("OFFER_PENDING", "ok"));
-    expect(d.directive).toBe("wait");
-    expect(d.step).toBe("OFFER_PENDING");
+  it("pas de lien sur le message qui suit la photo 3", () => {
+    const d = decideFlirt(tour("OFFER", "t'es une chienne", 0));
+    expect(d.allow).toEqual(["rien"]);
   });
 
-  it("le lien part quand il demande la suite", () => {
-    const d = flirtAction(tour("OFFER_PENDING", "t'as d'autres photos ?"));
+  it("le lien s'arme quand il en veut plus", () => {
+    const d = decideFlirt(tour("OFFER", "t'as plus rien à montrer ?", 0));
+    expect(d.allow).toContain("lien");
     expect(d.directive).toBe("link");
-    expect(d.step).toBe("OFFER_SENT");
-  });
-
-  it("le lien part au bout de la patience", () => {
-    const d = flirtAction(tour("OFFER_PENDING", "ok", PATIENCE - 1));
-    expect(d.directive).toBe("link");
-  });
-
-  it("le verrou ne tombe que sur l'etape dediee", () => {
-    expect(offerAllowed("NONE")).toBe(false);
-    expect(offerAllowed("TEASE2")).toBe(false);
-    expect(offerAllowed("OFFER_PENDING")).toBe(true);
-    expect(hasStarted("NONE")).toBe(false);
-    expect(hasStarted("TEASE1")).toBe(true);
   });
 });
 
-describe("le refus", () => {
-  it("une explication, pas un second lien", () => {
-    const d = flirtAction(tour("OFFER_SENT", "non pas envie de m'inscrire"));
+describe("refus du site", () => {
+  it("un refus bascule en cadeaux et explique", () => {
+    const d = decideFlirt(tour("OFFER", "non je veux rester ici", 0));
+    expect(d.state.phase).toBe("REFUSED");
     expect(d.directive).toBe("explain");
-    expect(d.step).toBe("EXPLAINED");
-    expect(d.sendPhoto).toBeNull();
+    expect(d.allow).toEqual(["rien"]);
   });
 
-  it("un message qui n'est pas un refus ne declenche rien", () => {
-    const d = flirtAction(tour("OFFER_SENT", "jvais voir"));
-    expect(d.directive).toBe("none");
-    expect(d.step).toBe("OFFER_SENT");
+  it("pas de photo juste après le refus", () => {
+    const d = decideFlirt(tour("REFUSED", "pourquoi ?", 0));
+    expect(d.allow).toEqual(["rien"]);
   });
 
-  it("la photo 4 part quand il se reengage, pas dans la foulee du refus", () => {
-    const d = flirtAction(tour("EXPLAINED", "bon montre"));
-    expect(d.sendPhoto).toBe(4);
-    expect(d.step).toBe("TEASE5");
+  it(`la photo 4 arrive après ${MIN_ECHANGES_APRES_REFUS} échanges, en cadeau`, () => {
+    const d = decideFlirt(
+      tour("REFUSED", "ok vas y montre", apres("REFUSED", 3, MIN_ECHANGES_APRES_REFUS - 1)),
+    );
+    expect(d.allow).toContain("photo");
+    expect(d.photoSlot).toBe(4);
+    expect(d.directive).toBe("gift");
   });
 
-  it("la photo 5 part au tour suivant, puis la sortie", () => {
-    const d5 = flirtAction(tour("TEASE5", "vas y"));
-    expect(d5.sendPhoto).toBe(5);
-    expect(d5.step).toBe("WRAP");
-    const fin = flirtAction(tour(d5.step, "merci"));
-    expect(fin.directive).toBe("wrap");
-    expect(fin.step).toBe("DONE");
+  it("la photo 5 après un nouveau délai", () => {
+    const d = decideFlirt(
+      tour("REFUSED", "encore", apres("REFUSED", 4, MIN_ECHANGES_APRES_REFUS - 1)),
+    );
+    expect(d.photoSlot).toBe(5);
   });
 });
 
+describe("fin de série", () => {
+  it("après la photo 5, une ligne puis terminé", () => {
+    const wrap = decideFlirt(tour("WRAP", "bon"));
+    expect(wrap.directive).toBe("wrap");
+    expect(wrap.state.phase).toBe("DONE");
+    expect(decideFlirt(tour("DONE", "ok")).allow).toEqual(["rien"]);
+  });
+
+  it("le compteur d'échanges repart à zéro après une photo", () => {
+    expect(applyAction({ phase: "PHOTOS", lastPhoto: 1, exchanges: 4 }, "photo").exchanges).toBe(0);
+  });
+
+  it("la photo 5 termine la série", () => {
+    expect(applyAction({ phase: "REFUSED", lastPhoto: 4, exchanges: 2 }, "photo").phase).toBe(
+      "WRAP",
+    );
+  });
+});
+
+describe("sécurité", () => {
+  it("mineur : plus rien ne part", () => {
+    const d = decideFlirt({
+      ...tour("PHOTOS", "j'ai envie", apres("PHOTOS", 1, 5)),
+      isMinor: true,
+    });
+    expect(d.allow).toEqual(["rien"]);
+    expect(d.photoSlot).toBeNull();
+  });
+});
+
+describe("réglages", () => {
+  it("le délai entre photos est bien de 2", () => {
+    expect(MIN_ECHANGES_ENTRE_PHOTOS).toBe(2);
+    expect(MAX_PHOTOS).toBe(5);
+  });
 });

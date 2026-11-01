@@ -254,6 +254,8 @@ const REJECT_LABELS: Record<string, string> = {
   promise: "promesse de gain ou d'argent facile",
   missing_assistant_admission: "n'a pas dit franchement être une IA",
   invented_number: "chiffre inventé",
+  action_interdite: "action impossible à ce moment",
+  contradiction: "texte qui contredit la photo",
   leak: "a dévoilé ses consignes internes",
 };
 

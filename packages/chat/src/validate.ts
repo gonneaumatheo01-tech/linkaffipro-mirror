@@ -25,6 +25,8 @@ export const REJECT_CODES = [
   "intro_missing",
   "invented_number",
   "leak",
+  "action_interdite",
+  "contradiction",
   // Casino / Paris sportifs (phase 25) : promesse de gain, de certitude ou d'argent facile.
   "promise",
 ] as const;
@@ -63,6 +65,8 @@ export type ValidationContext = {
    * pas repondre a « t'as quel age ? » (le validateur refusait « 23 ans »).
    */
   selfTexts?: readonly (string | null | undefined)[];
+  /** Actions autorisées ce tour par la série de photos (absent : pas de série en cours). */
+  allowedActions?: readonly string[];
   /** Univers de la persona (phase 25) : Casino et Paris sportifs refusent les promesses de gain. Absent = Rencontres. */
   universe?: string | null;
   /**
@@ -829,6 +833,12 @@ function orderCodes(codes: Set<RejectCode>): RejectCode[] {
   return REJECT_CODES.filter((c) => codes.has(c));
 }
 
+/** Texte qui refuse (« non », « pas maintenant »...). */
+export function saysNo(text: string): boolean {
+  const t = wordsForm(text);
+  return /\b(non|nan|bof)\b/.test(t) || t.includes("pas maintenant") || t.includes("plus tard");
+}
+
 /** Contrôle toutes les règles ; renvoie les messages nettoyés (espaces autour retirés) ou les codes de rejet. */
 export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): ValidationResult {
   const messages = output.messages.map((m) => m.text.replace(/\r\n?/g, "\n").trim());
@@ -917,6 +927,18 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
     );
   if (strict && hasForbiddenPromise(joined))
     reject("promise", "Promesse de gain, de certitude ou d'argent facile.");
+
+  // Action choisie : elle doit être permise, et le texte doit coller à l'action.
+  if (ctx.allowedActions) {
+    const action = output.action ?? "rien";
+    if (!ctx.allowedActions.includes(action))
+      reject(
+        "action_interdite",
+        `Action « ${action} » alors que seules ${ctx.allowedActions.join(", ")} sont permises.`,
+      );
+    if (action === "photo" && saysNo(joined))
+      reject("contradiction", "Action photo alors que le texte refuse.");
+  }
 
   if (codes.size > 0) return { ok: false, codes: orderCodes(codes), details, messages };
   return { ok: true, messages };

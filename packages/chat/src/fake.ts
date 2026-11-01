@@ -41,6 +41,7 @@ export function fakeOutput(over: FakeOutputInput = {}): TurnOutput {
     },
     stage: over.stage ?? "CHAT",
     send_offer: over.send_offer ?? false,
+    action: over.action ?? "rien",
     memory_facts: over.memory_facts ?? [],
     minor_suspected: over.minor_suspected ?? false,
     app_refused: over.app_refused ?? false,

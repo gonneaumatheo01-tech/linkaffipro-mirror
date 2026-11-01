@@ -7,6 +7,7 @@ import {
   type NeedsHumanReason,
 } from "@linkaffipro/core";
 import { CHAT_LANGS, CONVERSATION_STAGES, type ChatLang, type ConversationStage } from "./types";
+import { FLIRT_ACTIONS, type FlirtAction } from "./flirt";
 
 export const STYLE_LENGTHS = ["short", "medium", "long"] as const;
 export const STYLE_EMOJIS = ["none", "few", "many"] as const;
@@ -35,6 +36,8 @@ export type TurnOutput = {
   style_update: StyleUpdate;
   stage: ConversationStage;
   send_offer: boolean;
+  /** Action du tour : rien, photo (celle armée) ou lien. */
+  action: FlirtAction;
   memory_facts: string[];
   minor_suspected: boolean;
   app_refused: boolean;
@@ -63,6 +66,7 @@ const TURN_OUTPUT_FIELDS = [
   "style_update",
   "stage",
   "send_offer",
+  "action",
   "memory_facts",
   "minor_suspected",
   "app_refused",
@@ -107,6 +111,7 @@ export const TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
     },
     stage: stringEnum(CONVERSATION_STAGES),
     send_offer: { type: "boolean" },
+    action: stringEnum(FLIRT_ACTIONS),
     memory_facts: { type: "array", items: { type: "string" } },
     minor_suspected: { type: "boolean" },
     app_refused: { type: "boolean" },
@@ -235,6 +240,7 @@ export function checkTurnOutput(value: unknown): TurnOutputCheck {
   if (!stage) errors.push(`stage : ${CONVERSATION_STAGES.join(" | ")} attendu.`);
 
   if (typeof value.send_offer !== "boolean") errors.push("send_offer : vrai ou faux attendu.");
+  const action = enumValue(FLIRT_ACTIONS, value.action) ?? "rien";
 
   let facts: string[] = [];
   if (value.memory_facts !== undefined) {
@@ -264,6 +270,7 @@ export function checkTurnOutput(value: unknown): TurnOutputCheck {
       style_update: style,
       stage,
       send_offer: value.send_offer === true,
+      action,
       memory_facts: facts,
       minor_suspected: value.minor_suspected === true,
       app_refused: value.app_refused === true,

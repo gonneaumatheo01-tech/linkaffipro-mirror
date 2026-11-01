@@ -1,92 +1,182 @@
 /**
- * Série de photos de chauffe en DM (persona fille). Le moteur n'envoie rien parce qu'un seuil est atteint : il arme une
- * intention, et l'intention ne part qu'a une porte franchie. Tant que la porte n'est pas la, chaque reponse est une
- * accroche. Au bout de PATIENCE tours sans porte, elle propose d'elle-meme, une seule fois.
+ * Série de photos de chauffe en DM (persona fille).
  *
- * Aucune dependance a la base, au reseau ou a l'horloge : tout est calcule ici, l'appelant persiste l'etape et envoie.
+ * Le code décide de ce qui est PERMIS à ce tour (rien / photo n / lien) à partir d'une petite machine à états ; le
+ * prompt dit au modèle ce qui est permis ; le modèle choisit son action et écrit le texte en conséquence. Une action
+ * interdite est refusée et le message est régénéré, et un texte qui refuse alors que la photo part est refusé aussi :
+ * le texte colle donc toujours à ce qui part réellement.
+ *
+ * Aucune dépendance à la base, au réseau ou à l'horloge : l'appelant persiste l'état et envoie.
  */
 
-/** Etapes de la serie. `SENTn` = photo n envoyee ; `TEASEn` = accroche pour la photo n, on attend sa reponse. */
-export const FLIRT_STEPS = [
+// ------------------------------------------------------------------
+// RÉGLAGES (tout se change ici)
+// ------------------------------------------------------------------
+
+/** Échanges minimum avant la toute première photo. 1 = il a chauffé, elle peut envoyer tout de suite après. */
+export const MIN_ECHANGES_AVANT_PREMIERE = 1;
+/** Échanges minimum entre deux photos : elle attend qu'il réagisse avant de renvoyer. */
+export const MIN_ECHANGES_ENTRE_PHOTOS = 2;
+/** Nombre de photos de la série. */
+export const MAX_PHOTOS = 5;
+/** Dernière photo « gratuite » : au-delà, on ne montre la suite que par l'app. */
+export const DERNIERE_PHOTO_GRATUITE = 3;
+/** Échanges minimum après un refus du site avant le cadeau suivant. */
+export const MIN_ECHANGES_APRES_REFUS = 2;
+
+// ------------------------------------------------------------------
+// État
+// ------------------------------------------------------------------
+
+/** Phases. `PHOTOS` = série en cours, `OFFER` = la 3 est partie, on attend qu'il en veuille plus. */
+export const FLIRT_PHASES = [
   "NONE",
-  "LOCKED",
-  "TEASE1",
-  "SENT1",
-  "TEASE2",
-  "SENT2",
-  "TEASE3",
-  "SENT3",
-  "OFFER_PENDING",
-  "OFFER_SENT",
-  "EXPLAINED",
-  "TEASE4",
-  "SENT4",
-  "TEASE5",
-  "SENT5",
+  "PHOTOS",
+  "OFFER",
+  "LINKED",
+  "REFUSED",
   "WRAP",
   "DONE",
 ] as const;
-export type FlirtStep = (typeof FLIRT_STEPS)[number];
+export type FlirtPhase = (typeof FLIRT_PHASES)[number];
+/** Ancien nom, gardé pour les types de l'appelant. */
+export type FlirtStep = FlirtPhase;
 
-/** Ce que la reponse doit porter. */
+/** Actions possibles d'un tour. */
+export const FLIRT_ACTIONS = ["rien", "photo", "lien"] as const;
+export type FlirtAction = (typeof FLIRT_ACTIONS)[number];
+
+export type FlirtState = {
+  phase: FlirtPhase;
+  /** Dernière photo envoyée (0 : aucune). */
+  lastPhoto: number;
+  /** Messages de la personne depuis la dernière photo (ou depuis le début). */
+  exchanges: number;
+};
+
+/** Consigne de rédaction pour ce tour (voir `flirtPromptBlock`). */
 export type FlirtDirective =
-  | "none"
-  /** « j'envoie pas de photos ici d'habitude » : il demande une photo, elle fait genre. */
-  | "play_hard"
-  /** Une accroche sur la photo armee, sans l'envoyer. */
-  | "tease"
-  /** Repondre normalement, sans parler de l'appli : la serie est finie, on laisse venir. */
-  | "wait"
-  /** Le pretexte du pas securise, puis le lien. */
-  | "link"
-  /** Il a refuse : une explication, pas un second lien, puis le tease de la 4. */
-  | "explain"
-  /** « bon je reponds que la-bas ». */
-  | "wrap";
+  "none" | "play_hard" | "tease" | "wait" | "link" | "explain" | "gift" | "wrap";
+
+export type FlirtDecision = {
+  /** État mis à jour (échanges comptés). */
+  state: FlirtState;
+  /** Actions autorisées ce tour, dans l'ordre de préférence. */
+  allow: FlirtAction[];
+  /** Photo armée si l'action « photo » est permise. */
+  photoSlot: number | null;
+  directive: FlirtDirective;
+};
 
 export type FlirtInput = {
-  step: FlirtStep;
-  /** Messages entrants recents, du plus ancien au plus recent (3 suffisent). */
+  step: string;
+  teases: number;
+  /** Messages entrants récents, du plus ancien au plus récent. */
   recent: readonly string[];
   /** Message de ce tour. */
   text: string;
-  /** Accroches deja faites a cette etape. */
-  teases: number;
+  /** Emplacements de photos réellement disponibles. */
+  hasPhotos: readonly number[];
+  isMinor?: boolean;
 };
 
-export type FlirtDecision = {
-  step: FlirtStep;
-  /** Photo a envoyer maintenant (1 a 5), ou null. */
-  sendPhoto: number | null;
-  directive: FlirtDirective;
-  teases: number;
-};
+/** Nombre d'accroches sans envoi avant de forcer (compatibilité). */
+export const PATIENCE = MIN_ECHANGES_ENTRE_PHOTOS;
 
-/** Nombre d'accroches sans reponse avant qu'elle envoie d'elle-meme. */
-export const PATIENCE = 3;
+/** État rangé dans deux colonnes : la phase dans `flirtStep`, `lastPhoto * 100 + exchanges` dans `flirtTeases`. */
+export function decodeState(step: string, teases: number): FlirtState {
+  const phase = (FLIRT_PHASES as readonly string[]).includes(step) ? (step as FlirtPhase) : "NONE";
+  const n = Number.isFinite(teases) && teases > 0 ? Math.floor(teases) : 0;
+  return {
+    phase,
+    lastPhoto: Math.min(MAX_PHOTOS, Math.floor(n / 100)),
+    exchanges: Math.min(99, n % 100),
+  };
+}
+
+export function encodeProgress(state: FlirtState): number {
+  return state.lastPhoto * 100 + Math.min(99, Math.max(0, state.exchanges));
+}
+
+/** Une photo est-elle déjà partie ? À partir de là, le lien n'est plus posé par les règles générales. */
+export function hasStarted(phase: FlirtPhase): boolean {
+  return phase !== "NONE";
+}
+
+// ------------------------------------------------------------------
+// Lecture du message
+// ------------------------------------------------------------------
 
 const FORTS = [
-  "bz", "bais", "niqu", "bite", "queue", "doigt", "tremp", "mouill", "bander", "bande",
-  "sucer", "suce", "seins", "nichons", "foutre", "jouir", "orgasme", "chatte", "a poil",
-  "a poils", "nue", "nu ", "excite", "excitant", "bandante", "levrette", "penetr",
+  "bz",
+  "bais",
+  "niqu",
+  "bite",
+  "queue",
+  "doigt",
+  "tremp",
+  "mouill",
+  "bander",
+  "bande",
+  "sucer",
+  "suce",
+  "seins",
+  "nichons",
+  "foutre",
+  "jouir",
+  "orgasme",
+  "chatte",
+  "a poil",
+  "a poils",
+  "nue",
+  "nu ",
+  "excite",
+  "excitant",
+  "bandante",
+  "levrette",
+  "envie de toi",
+  "penetr",
+  "branl",
 ];
 
 const DOUX = [
-  "chaud", "chaude", "envie", "corps", "peau", "caresse", "caresser", "embrass",
-  "langue", "collant", "collante", "bonne", "jolie", "sexy", "desirable",
+  "chaud",
+  "chaude",
+  "envie",
+  "corps",
+  "peau",
+  "caresse",
+  "caresser",
+  "embrass",
+  "langue",
+  "collant",
+  "collante",
+  "bonne",
+  "jolie",
+  "sexy",
+  "desirable",
 ];
 
-const OUI = [
-  "oui", "ouais", "vas y", "vas-y", "montre", "envoie", "balance", "fais voir",
-  "jveux voir", "je veux voir", "go", "carrement", "grave",
-];
+const OUI = ["oui", "ouais", "vas y", "vas-y", "go", "carrement", "grave", "ok"];
 
 const NON = [
-  "non", "nan", "pas envie", "jveux pas", "je veux pas", "pas maintenant",
-  "plus tard", "la flemme", "pas besoin", "bof", "pas chaud",
+  "non",
+  "nan",
+  "pas envie",
+  "jveux pas",
+  "je veux pas",
+  "pas maintenant",
+  "plus tard",
+  "la flemme",
+  "pas besoin",
+  "bof",
+  "pas chaud",
+  "rester ici",
 ];
 
-const PHOTO = ["photo", "photos", "pic", "image", "selfie", "montre toi", "montre-moi toi", "tu ressembles"];
+const PHOTO = ["photo", "photos", "pic", "image", "selfie", "montre", "montrer", "envoie"];
+
+const SUITE = ["suite", "apres", "autres", "plus", "reste", "encore", "d autres"];
 
 /** Minuscules sans accents, pour comparer sans se soucier de la saisie. */
 export function normalize(text: string): string {
@@ -127,93 +217,157 @@ export function isRefusal(text: string): boolean {
   return has(text, NON);
 }
 
-/** Reponse qui montre qu'il suit : une question, ou trois mots. Un « ok » seul ne suffit pas. */
+/** Il en veut plus : il réclame une photo ou la suite. */
+export function wantsMore(text: string): boolean {
+  return asksPhoto(text) || has(text, SUITE) || isYes(text);
+}
+
+/** Réponse qui montre qu'il suit : une question, ou trois mots. */
 export function isEngaged(text: string): boolean {
   const t = normalize(text);
   return t.includes("?") || t.split(" ").filter(Boolean).length >= 3;
 }
 
-/** Une photo est-elle deja partie ? A partir de la, l'offre n'est plus decidee par les regles generales. */
-export function hasStarted(step: FlirtStep): boolean {
-  return step !== "NONE";
+// ------------------------------------------------------------------
+// Décision
+// ------------------------------------------------------------------
+
+/** Permissions d'un tour. Le modèle choisit dans `allow`, jamais en dehors. */
+export function decideFlirt(input: FlirtInput): FlirtDecision {
+  const state = decodeState(input.step, input.teases);
+  const photo = (n: number) => input.hasPhotos.includes(n);
+  const rien = (directive: FlirtDirective = "none", s: FlirtState = state): FlirtDecision => ({
+    state: s,
+    allow: ["rien"],
+    photoSlot: null,
+    directive,
+  });
+  const photoDispo = (s: FlirtState, n: number, directive: FlirtDirective): FlirtDecision =>
+    photo(n) ? { state: s, allow: ["photo", "rien"], photoSlot: n, directive } : rien("wait", s);
+
+  // Moins de 18 ans : plus rien ne part, ni photo ni lien.
+  if (input.isMinor) return rien();
+
+  switch (state.phase) {
+    // Rien en cours : la série ne démarre que sur du sexe. Une demande de photo seule laisse jouer l'autre script.
+    case "NONE": {
+      if (isSexTalk(input.text) || isHot(input.recent, input.text)) {
+        const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
+        return photoDispo(s, 1, "tease");
+      }
+      if (asksPhoto(input.text)) return rien("play_hard");
+      return rien();
+    }
+
+    // Série en cours : une photo tous les MIN_ECHANGES_ENTRE_PHOTOS messages, pas plus.
+    case "PHOTOS": {
+      const s: FlirtState = { ...state, exchanges: state.exchanges + 1 };
+      const suivant = state.lastPhoto + 1;
+      const seuil = state.lastPhoto === 0 ? MIN_ECHANGES_AVANT_PREMIERE : MIN_ECHANGES_ENTRE_PHOTOS;
+      if (s.exchanges < seuil) return rien("wait", s);
+      if (suivant > DERNIERE_PHOTO_GRATUITE) return rien("wait", s);
+      return photoDispo(s, suivant, "tease");
+    }
+
+    // La 3 est partie : on parle, on tease, et le lien attend qu'il en veuille vraiment plus.
+    case "OFFER": {
+      if (isRefusal(input.text))
+        return rien("explain", { ...state, phase: "REFUSED", exchanges: 0 });
+      const s: FlirtState = { ...state, exchanges: state.exchanges + 1 };
+      if (s.exchanges >= 1 && (asksPhoto(input.text) || has(input.text, SUITE)))
+        return { state: s, allow: ["lien", "rien"], photoSlot: null, directive: "link" };
+      return rien("wait", s);
+    }
+
+    // Lien parti : on discute. Un refus bascule sur les cadeaux.
+    case "LINKED": {
+      if (isRefusal(input.text))
+        return rien("explain", { ...state, phase: "REFUSED", exchanges: 0 });
+      return rien("none", { ...state, exchanges: state.exchanges + 1 });
+    }
+
+    // Il a refusé le site : on discute d'abord, puis un cadeau, après MIN_ECHANGES_APRES_REFUS.
+    case "REFUSED": {
+      const s: FlirtState = { ...state, exchanges: state.exchanges + 1 };
+      const suivant = state.lastPhoto + 1;
+      if (s.exchanges < MIN_ECHANGES_APRES_REFUS) return rien("wait", s);
+      if (suivant > MAX_PHOTOS) return rien("wait", s);
+      return photoDispo(s, suivant, "gift");
+    }
+
+    // Après la 5 : une ligne pour dire qu'on continue là-bas.
+    case "WRAP":
+      return rien("wrap", { phase: "DONE", lastPhoto: state.lastPhoto, exchanges: 0 });
+
+    default:
+      return rien("none", { ...state, exchanges: state.exchanges + 1 });
+  }
 }
 
-/** Le moteur peut-il poser son lien de lui-meme ? Non des qu'une photo est partie, sauf a l'etape dediee. */
-export function offerAllowed(step: FlirtStep): boolean {
-  return step === "OFFER_PENDING";
+/** État après une action réellement partie. */
+export function applyAction(state: FlirtState, action: FlirtAction): FlirtState {
+  if (action === "photo") {
+    const lastPhoto = Math.min(MAX_PHOTOS, state.lastPhoto + 1);
+    const phase: FlirtPhase =
+      lastPhoto >= MAX_PHOTOS
+        ? "WRAP"
+        : state.phase === "REFUSED"
+          ? "REFUSED"
+          : lastPhoto >= DERNIERE_PHOTO_GRATUITE
+            ? "OFFER"
+            : "PHOTOS";
+    return { phase, lastPhoto, exchanges: 0 };
+  }
+  if (action === "lien") return { phase: "LINKED", lastPhoto: state.lastPhoto, exchanges: 0 };
+  return state;
 }
 
-const TEASE_SUIVANTE: Partial<Record<FlirtStep, FlirtStep>> = {
-  TEASE1: "TEASE2",
-  TEASE2: "TEASE3",
-  TEASE4: "TEASE5",
-  TEASE5: "WRAP",
+// ------------------------------------------------------------------
+// Consignes de prompt
+// ------------------------------------------------------------------
+
+const ACTION_LABEL: Record<FlirtAction, string> = { rien: "rien", photo: "photo", lien: "lien" };
+
+const DIRECTIVE_HINT: Record<FlirtDirective, string> = {
+  none: "",
+  play_hard:
+    "Il demande une photo et la série n'a pas commencé : dis que tu n'envoies pas de photos ici.",
+  tease: "Fais court : tu chauffes, tu annonces, tu ne décris pas tout.",
+  wait: "Rien à envoyer ce tour : réagis à ce qu'il vient de dire et tease, sans promettre de photo tout de suite.",
+  link: "Tu envoies l'app : dis en une ligne que le reste n'est pas ici et que Telegram n'est pas sûr.",
+  explain:
+    "Il a refusé l'app : explique en une ligne pourquoi (n'importe qui peut enregistrer), sans renvoyer de lien, et dis que t'as autre chose à montrer.",
+  gift: "C'est un cadeau : présente la photo comme un petit extra (« bon ok, juste pour toi »).",
+  wrap: "Tu dis que tu continues là-bas, en une ligne, sans renvoyer de lien.",
 };
 
-const SENT_DE: Partial<Record<FlirtStep, number>> = { TEASE1: 1, TEASE2: 2, TEASE3: 3, TEASE4: 4, TEASE5: 5 };
-
-const SUITE = ["suite", "apres", "autres", "plus", "reste", "encore"];
-
-/**
- * Decide de la suite. Regle generale : on n'envoie une photo que si la porte est franchie, sinon on accroche ; au bout de
- * PATIENCE accroches, on envoie quand meme avec une ligne douce.
- */
-export function flirtAction(input: FlirtInput): FlirtDecision {
-  const { step, recent, text } = input;
-  const teases = input.teases;
-  const repondu = isYes(text) || isEngaged(text);
-  const photo = SENT_DE[step] ?? null;
-
-  // Rien en cours : la serie ne demarre que sur du sexe. Une demande de photo seule laisse jouer l'autre script.
-  if (step === "NONE") {
-    if (isSexTalk(text) || isHot(recent, text))
-      return { step: "TEASE1", sendPhoto: null, directive: "tease", teases: 0 };
-    if (asksPhoto(text)) return { step: "LOCKED", sendPhoto: null, directive: "play_hard", teases: 0 };
-    return { step, sendPhoto: null, directive: "none", teases };
+/** Bloc de prompt du tour : ce qui est permis, et comment le dire. */
+export function flirtPromptBlock(d: {
+  allow: readonly FlirtAction[];
+  photoSlot: number | null;
+  directive: FlirtDirective;
+  photo: string | null;
+}): string[] {
+  const lines = ["", "PHOTOS (ce tour)"];
+  const permises = d.allow.map((a) =>
+    a === "photo" && d.photoSlot ? `photo ${d.photoSlot}` : ACTION_LABEL[a],
+  );
+  lines.push(`Actions permises : ${permises.join(" / ")}.`);
+  lines.push(
+    `Tu réponds dans le champ action, une seule valeur, obligatoirement parmi : ${d.allow.join(", ")}.`,
+  );
+  if (d.photoSlot && d.allow.includes("photo") && d.photo) {
+    lines.push(`Photo armée : ${d.photoSlot} (${d.photo}).`);
+    lines.push(
+      `Si tu l'envoies : action "photo", et ton texte annonce la photo en une ligne (« attends », « juste une », « tiens »). Jamais un refus quand la photo part.`,
+    );
   }
-
-  // Il a demande une photo et elle a fait genre : des qu'il chauffe, la serie demarre.
-  if (step === "LOCKED") {
-    if (isSexTalk(text) || isHot(recent, text) || has(text, DOUX))
-      return { step: "TEASE1", sendPhoto: null, directive: "tease", teases: 0 };
-    if (asksPhoto(text) && teases + 1 >= PATIENCE)
-      return { step: "TEASE2", sendPhoto: 1, directive: "tease", teases: 0 };
-    return { step, sendPhoto: null, directive: "play_hard", teases: teases + 1 };
-  }
-
-  // Une photo est armee : elle part sur une porte, sinon on accroche.
-  if (photo !== null) {
-    if (repondu || teases + 1 >= PATIENCE) {
-      const suite = photo === 3 ? "OFFER_PENDING" : (TEASE_SUIVANTE[step] ?? step);
-      return { step: suite, sendPhoto: photo, directive: photo === 3 ? "wait" : "tease", teases: 0 };
-    }
-    return { step, sendPhoto: null, directive: "tease", teases: teases + 1 };
-  }
-
-  // Serie finie : on parle, on ne pousse pas l'appli.
-  if (step === "OFFER_PENDING") {
-    const demande = asksPhoto(text) || has(text, SUITE);
-    if (demande || isSexTalk(text) || teases + 1 >= PATIENCE)
-      return { step: "OFFER_SENT", sendPhoto: null, directive: "link", teases: 0 };
-    return { step, sendPhoto: null, directive: "wait", teases: teases + 1 };
-  }
-
-  // Refus : une explication, pas de second lien, puis le tease de la 4.
-  if (step === "OFFER_SENT") {
-    if (isRefusal(text)) return { step: "EXPLAINED", sendPhoto: null, directive: "explain", teases: 0 };
-    return { step, sendPhoto: null, directive: "none", teases: 0 };
-  }
-
-  if (step === "EXPLAINED") {
-    if (repondu) return { step: "TEASE5", sendPhoto: 4, directive: "tease", teases: 0 };
-    return { step, sendPhoto: null, directive: "tease", teases: teases + 1 };
-  }
-
-  if (step === "WRAP") return { step: "DONE", sendPhoto: null, directive: "wrap", teases: 0 };
-
-  // SENT4 et SENT5 ne durent qu'un tour : on enchaine sur la suite.
-  if (step === "SENT4") return { step: "TEASE5", sendPhoto: null, directive: "tease", teases: 0 };
-  if (step === "SENT5") return { step: "WRAP", sendPhoto: null, directive: "none", teases: 0 };
-
-  return { step, sendPhoto: null, directive: "none", teases };
+  if (d.allow.includes("lien"))
+    lines.push(
+      `Si tu envoies l'app : action "lien", une phrase qui l'amène, le lien est ajouté par le système.`,
+    );
+  if (d.allow.length === 1) lines.push(`N'envoie rien : action "rien".`);
+  const hint = DIRECTIVE_HINT[d.directive];
+  if (hint) lines.push(hint);
+  return lines;
 }

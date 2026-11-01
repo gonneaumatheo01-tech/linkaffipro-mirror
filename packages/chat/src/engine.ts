@@ -20,7 +20,13 @@ import {
   typingDelayMs,
   withTyping,
 } from "./rhythm";
-import { flirtAction, hasStarted, offerAllowed, type FlirtDecision } from "./flirt";
+import {
+  applyAction,
+  decideFlirt,
+  encodeProgress,
+  type FlirtAction,
+  type FlirtDecision,
+} from "./flirt";
 import { turnOutputJsonSchema, type TurnOutput } from "./schema";
 import { mergeStyle, replyLanguage } from "./style";
 import { fixedText, type FixedTextKey } from "./texts";
@@ -235,11 +241,16 @@ function buildRequest(
       : null,
     retryCodes,
     memberAskedOffer: memberAskedOffer(run, inbound),
-    flirt: {
-      directive: run.flirt?.directive ?? "none",
-      slot: run.flirt?.sendPhoto ?? null,
-      photo: input.persona.flirtPhotos?.find((x) => x.slot === run.flirt?.sendPhoto)?.description ?? null,
-    },
+    flirt: run.flirt
+      ? {
+          allow: run.flirt.allow,
+          photoSlot: run.flirt.photoSlot,
+          directive: run.flirt.directive,
+          photo:
+            input.persona.flirtPhotos?.find((x) => x.slot === run.flirt?.photoSlot)?.description ??
+            null,
+        }
+      : undefined,
   });
   return {
     model,
@@ -326,6 +337,7 @@ async function checkResponse(
     faqTexts: faqTexts(input),
     isFirstAssistantMessage: conv.isFirstAssistantTurn,
     privateTexts: [input.persona.extraPrompt, input.persona.personality, input.persona.tone],
+    allowedActions: run.flirt?.allow,
     identity: personaIdentity(input.persona),
     illusion: personaIllusion(input.persona),
     vipManager: input.persona.vipManager === true && input.persona.universe === "sports",
@@ -825,20 +837,22 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   let inbound: TurnInbound[] = input.kind === "reply" ? [...input.inbound] : [];
 
   const recents = [
-    ...input.history.filter((m) => m.direction === "IN" && m.author === "MEMBER").map((m) => m.text),
+    ...input.history
+      .filter((m) => m.direction === "IN" && m.author === "MEMBER")
+      .map((m) => m.text),
     ...input.inbound.map((m) => m.text),
   ];
-  const flirt = (run.flirt = flirtAction({
+  const flirt = (run.flirt = decideFlirt({
     step: conv.flirt?.step ?? "NONE",
+    teases: conv.flirt?.teases ?? 0,
     recent: recents.slice(-4, -1),
     text: recents[recents.length - 1] ?? "",
-    teases: conv.flirt?.teases ?? 0,
+    hasPhotos: (input.persona.flirtPhotos ?? []).map((x) => x.slot),
+    isMinor: conv.isMinor,
   }));
-  const photoAssetId = flirt.sendPhoto
-    ? (input.persona.flirtPhotos?.find((x) => x.slot === flirt.sendPhoto)?.assetId ?? null)
-    : null;
+  // Hors série, les règles générales gardent la main sur le lien ; dans la série, c'est l'action qui décide.
   const lienLibre =
-    !hasStarted(flirt.step) || flirt.step === "LOCKED" || offerAllowed(flirt.step);
+    flirt.state.phase === "NONE" || flirt.state.phase === "LINKED" || flirt.state.phase === "DONE";
 
   // Jamais de réponse à une conversation fermée ou à un mineur (l'appelant ne devrait pas appeler).
   if (conv.isMinor || conv.stage === "CLOSED")
@@ -948,10 +962,17 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     isFirstAssistantTurn: conv.isFirstAssistantTurn,
     memberAskedOffer: memberAskedOffer(run, inbound),
   };
+  // Action retenue : celle du modèle si elle est permise, sinon « rien » (repli, panne, texte fixe).
+  const action: FlirtAction =
+    output?.action && flirt.allow.includes(output.action) ? output.action : "rien";
+  const photoAssetId =
+    action === "photo" && flirt.photoSlot
+      ? (input.persona.flirtPhotos?.find((x) => x.slot === flirt.photoSlot)?.assetId ?? null)
+      : null;
   const withOffer =
     output && !needsHuman
-      ? flirt.directive === "link"
-        ? input.persona.hasOffer
+      ? action === "lien" && input.persona.hasOffer
+        ? true
         : canSendOffer(offerConv, input.persona, output, input.kind) && lienLibre
       : false;
 
@@ -982,6 +1003,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     vipLink,
   });
   const anySent = sending.sent.length > 0;
+  // La série n'avance que sur une action réellement partie.
+  const nextFlirt = anySent ? applyAction(flirt.state, action) : flirt.state;
 
   // 5. Étape, événements, style, faits, relance.
   const newStage = anySent
@@ -1039,8 +1062,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     outcome: anySent ? "replied" : "failed",
     sent: sending.sent,
     newStage,
-    newFlirtStep: flirt.step,
-    flirtTeases: flirt.teases,
+    newFlirtStep: nextFlirt.phase,
+    flirtTeases: encodeProgress(nextFlirt),
     stageChanges: stage.changes,
     style: output ? mergeStyle(conv.style, output.style_update, now) : conv.style,
     facts: output ? mergeFacts(conv.facts, output.memory_facts) : conv.facts,
