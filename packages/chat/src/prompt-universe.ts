@@ -251,16 +251,24 @@ export function buildUniverseSystemPrompt(
   );
 
   if (ctx.isFirstAssistantTurn) {
-    const example = fixedText(ctx.lang, "intro", {
-      name: p.name,
-      gender: p.gender,
-      vipManager: vip,
-    });
-    lines.push(
-      "",
-      "PREMIER MESSAGE",
-      `C'est ton premier message dans cette conversation : présente-toi en une phrase naturelle en disant ton prénom et que tu es ${role} du canal (en ${LANGUAGE_NAMES_FR[ctx.lang]}, par exemple : « ${example} »), puis réponds à sa question si la fiche y répond, ou demande-lui simplement ce qu'elle cherche.`,
-    );
+    if (vip) {
+      lines.push(
+        "",
+        "PREMIER MESSAGE",
+        `C'est ton premier message dans cette conversation : ne te présente PAS, ne dis pas ton prénom, ne dis pas ton rôle. Va droit au but : demande-lui directement s'il est là pour le VIP, comme un pote qui parle cash (en ${LANGUAGE_NAMES_FR[ctx.lang]}, par exemple : « yo frero t la pr le vip ? »). Si sa question porte sur autre chose, réponds-y directement sans te présenter.`,
+      );
+    } else {
+      const example = fixedText(ctx.lang, "intro", {
+        name: p.name,
+        gender: p.gender,
+        vipManager: false,
+      });
+      lines.push(
+        "",
+        "PREMIER MESSAGE",
+        `C'est ton premier message dans cette conversation : présente-toi en une phrase naturelle en disant ton prénom et que tu es ${role} du canal (en ${LANGUAGE_NAMES_FR[ctx.lang]}, par exemple : « ${example} »), puis réponds à sa question si la fiche y répond, ou demande-lui simplement ce qu'elle cherche.`,
+      );
+    }
   }
 
   if (ctx.kind === "follow_up") {

@@ -14,6 +14,7 @@ async function main() {
   const accounts = await prisma.telegramUserAccount.findMany({
     where: { isActive: true, status: "ACTIVE" },
     orderBy: { createdAt: "asc" },
+    include: { persona: { select: { name: true } } },
   });
   if (accounts.length === 0) {
     logger.warn("aucun compte actif : connecte un compte depuis /settings/accounts puis relance");
@@ -27,6 +28,7 @@ async function main() {
           phone: account.phone,
           botId: account.botId,
           personaId: account.personaId,
+          desiredFirstName: account.persona?.name ?? null,
         }),
       );
     } catch (err) {
