@@ -190,7 +190,7 @@ describe("lien du canal VIP", () => {
       ...over,
     });
   const vipReply = {
-    messages: ["gg frero 🔥 voilà l'accès au canal VIP"],
+    messages: ["gg frero voilà l'accès au canal VIP"],
     selected_book: "celsius",
     send_vip_link: true,
   };
@@ -242,7 +242,7 @@ describe("lien du canal VIP", () => {
     const { deps } = setup([vipReply], { sender });
     const r = await runTurn(deposited(), deps);
     expect(sender.messages().at(-1)?.text).toBe(
-      `gg frero 🔥 voilà l'accès au canal VIP\n\n${VIP_LINKS.celsius}`,
+      `gg frero voilà l'accès au canal VIP\n\n${VIP_LINKS.celsius}`,
     );
     expect(r.vipLinkSent?.bookmakerKey).toBe("celsius");
   });

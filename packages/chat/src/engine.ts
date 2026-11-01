@@ -341,6 +341,7 @@ async function checkResponse(
     identity: personaIdentity(input.persona),
     illusion: personaIllusion(input.persona),
     vipManager: input.persona.vipManager === true && input.persona.universe === "sports",
+    noEmojis: input.persona.vipManager === true && input.persona.universe === "sports",
     botInsists:
       input.kind === "reply" &&
       botQuestionInsists(
@@ -656,6 +657,7 @@ async function sendParts(
           refused: input.conversation.appRefused === true,
           live: isLive(input),
           followUp: input.kind === "follow_up",
+          personaDelay: persona.responseDelay ?? null,
         },
         deps.random,
       );

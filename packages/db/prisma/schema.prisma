@@ -2026,6 +2026,10 @@ model Persona {
   /// Phase 21 : heures de relance conseillées par l'équipe Algorithme (JSON number[], heure de Paris) ; lues par le
   /// moteur de relances seulement si une recommandation les a appliquées.
   suggestedFollowUpHours  Json?
+  /// Délai de réponse : temps minimum (secondes) avant la première réponse. null = rythme par défaut du moteur.
+  responseDelayMinSec     Int?
+  /// Délai de réponse : temps maximum (secondes) avant la première réponse. null = rythme par défaut du moteur.
+  responseDelayMaxSec     Int?
   /// Phase 25 : univers de la persona (dating, casino, sports). Casino et Paris sportifs : identité assistante imposée.
   universe                String             @default("dating")
   /// Phase 25 : fiche d'informations (JSON `{ q, a }[]`, 40 entrées au plus) : seule source de ce que l'assistante

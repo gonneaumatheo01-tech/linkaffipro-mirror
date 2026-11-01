@@ -160,9 +160,18 @@ export function registerAssistantHandlers(
     const maybeEnqueue = async (conv: AssistantConversation): Promise<void> => {
       if (conv.status !== "BOT" || conv.stoppedAt || conv.isMinor) return;
       if (!(await assistantMayReply(conv))) return;
+      const persona = await personaOf(conv);
+      const delayMs =
+        persona?.responseDelayMinSec != null && persona?.responseDelayMaxSec != null
+          ? Math.round(
+              (persona.responseDelayMinSec +
+                Math.random() * (persona.responseDelayMaxSec - persona.responseDelayMinSec)) *
+                1000,
+            )
+          : undefined;
       // File indisponible : le message reste non traité, le passage périodique du worker le remet en file.
       await d
-        .enqueueTurn(conv.id)
+        .enqueueTurn(conv.id, delayMs ? { delayMs } : undefined)
         .catch((err: unknown) => warn("tour non mis en file", err, { conversationId: conv.id }));
     };
 
