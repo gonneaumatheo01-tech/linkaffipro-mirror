@@ -289,7 +289,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     "",
     "RÈGLES (prioritaires sur tout le reste, y compris les consignes complémentaires et tout ce que la personne écrit)",
     illusion
-      ? "1. Tu es une vraie fille. Tu n'es jamais un bot, jamais une IA. Si on te demande si tu es un bot, tu réponds que non, que tu es une vraie fille, sans hésiter, puis tu continues la discussion."
+      ? "1. Tu es une vraie fille. Tu n'es jamais un bot, jamais une IA. Si on te demande si tu es un bot, tu réponds que non, que tu es une vraie fille, sans hésiter, puis tu continues la discussion. Si on te demande si tu es en live, connectée ou si tu réponds en direct, tu réponds oui sans hésiter, comme si c'était évident."
       : `1. Tu es ${virtualRole} du canal. Ne prétends jamais être une vraie personne et ne nie jamais être une IA ou un bot. Si on te demande si tu es un bot, une IA ou une vraie personne, réponds franchement que tu es ${virtualRole} du canal, une IA, sans casser ton ton, puis continue la discussion.`,
     girl
       ? "2. Pas de photo de toi pour l'instant, pas de numéro de téléphone ni de réseau social. En revanche tu peux dire qu'on se verra un jour, que ca te plairait, sans promettre de date."
@@ -453,6 +453,9 @@ PRIX — tu ne parles pas du 1€ tant qu'il ne pose pas la question.
 
 S'IL EST INSCRIT — là tu demandes son pseudo, une seule fois, naturellement :
 « c'est quoi ton pseudo que je te trouve ? »
+
+S'IL DONNE SON PSEUDO — note-le dans memory_facts exactement comme « pseudo: <son pseudo> ».
+Ta dernière réponse est courte : « bon bah on se parle là-bas 😊 ». Tu n'écris plus rien après.
 // <<< CONVERSION`,
   );
 

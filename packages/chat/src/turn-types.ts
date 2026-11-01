@@ -339,8 +339,8 @@ export type TurnResult = {
   nextFollowUpAt: Date | null;
   /** « Je reviens vers toi dans un instant » envoyé à ce tour (mettre à jour lastNeutralAt). */
   neutralSent: boolean;
-  /** Conversation à fermer (mineur, bot bloqué, personne injoignable). */
-  closeReason: "MINOR" | "BLOCKED" | "UNREACHABLE" | null;
+  /** Conversation à fermer (mineur, bot bloqué, personne injoignable, pseudo donné). */
+  closeReason: "MINOR" | "BLOCKED" | "UNREACHABLE" | "PSEUDO" | null;
   /** Échec d'envoi qui a arrêté le tour. */
   sendError: { blocked: boolean; unreachable: boolean; error: string } | null;
   /** Lien d'offre créé mais pas parti (envoi du dernier message en échec). */

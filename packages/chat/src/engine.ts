@@ -20,6 +20,7 @@ import {
   typingDelayMs,
   withTyping,
 } from "./rhythm";
+import { ARMED_LINK_FACT, announcesLink, extractPseudo } from "./pseudo";
 import {
   applyAction,
   decideFlirt,
@@ -858,6 +859,10 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   if (conv.isMinor || conv.stage === "CLOSED")
     return { ...baseResult(run, inbound), outcome: "aborted" };
 
+  // Pseudo connu (fille, inscription confirmée) : plus de réponse tant que le pseudo est dans les faits.
+  if (personaIdentity(input.persona) === "GIRL" && extractPseudo(conv.facts) !== null)
+    return { ...baseResult(run, inbound), outcome: "aborted" };
+
   // 1. Âge déclaré de moins de 18 ans : arrêt avant tout appel au modèle.
   const minor = detectMinorIn(inbound.map((m) => m.text));
   if (minor.minor) return stopForMinor(run, inbound, "code", minor.age);
@@ -962,19 +967,37 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     isFirstAssistantTurn: conv.isFirstAssistantTurn,
     memberAskedOffer: memberAskedOffer(run, inbound),
   };
-  // Action retenue : celle du modèle si elle est permise, sinon « rien » (repli, panne, texte fixe).
+  // Lien armé au tour précédent (annonce sans envoi) : il part maintenant.
+  const linkWasArmed = conv.facts.includes(ARMED_LINK_FACT);
+  // Action retenue : lien armé → "lien" ; sinon celle du modèle si elle est permise, sinon « rien ».
   const action: FlirtAction =
-    output?.action && flirt.allow.includes(output.action) ? output.action : "rien";
+    linkWasArmed && input.persona.hasOffer
+      ? "lien"
+      : output?.action && flirt.allow.includes(output.action)
+        ? output.action
+        : "rien";
   const photoAssetId =
     action === "photo" && flirt.photoSlot
       ? (input.persona.flirtPhotos?.find((x) => x.slot === flirt.photoSlot)?.assetId ?? null)
       : null;
-  const withOffer =
+  let withOffer =
     output && !needsHuman
       ? action === "lien" && input.persona.hasOffer
         ? true
         : canSendOffer(offerConv, input.persona, output, input.kind) && lienLibre
       : false;
+
+  // Pseudo donné dans ce tour (fille) : message de fin, lien forcé si pas encore parti.
+  let pseudoGiven = false;
+  if (output && personaIdentity(input.persona) === "GIRL") {
+    const candidateFacts = mergeFacts(conv.facts, output.memory_facts);
+    if (extractPseudo(candidateFacts) !== null && extractPseudo(conv.facts) === null) {
+      pseudoGiven = true;
+      texts = ["bon bah on se parle là-bas 😊"];
+      fixedKey = null;
+      if (!withOffer && conv.offerSends === 0 && input.persona.hasOffer) withOffer = true;
+    }
+  }
 
   // Phase 25 bis : bookmaker partenaire (Paris sportifs VIP) et lien VIP.
   const selectedBook = pickBook(input.persona, output?.selected_book, withOffer);
@@ -1006,8 +1029,17 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   // La série n'avance que sur une action réellement partie.
   const nextFlirt = anySent ? applyAction(flirt.state, action) : flirt.state;
 
+  // Lien annoncé dans le texte mais action refusée (pas dans allow) et pas parti : on arme pour le tour suivant.
+  const armLink =
+    !pseudoGiven &&
+    !linkWasArmed &&
+    !sending.offerSent &&
+    input.persona.hasOffer &&
+    personaIdentity(input.persona) === "GIRL" &&
+    announcesLink(texts);
+
   // 5. Étape, événements, style, faits, relance.
-  const newStage = anySent
+  let newStage = anySent
     ? decideStage({
         current: conv.stage,
         proposed: output?.stage ?? null,
@@ -1017,6 +1049,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
         offerSendsBefore: conv.offerSends,
       })
     : conv.stage;
+  if (pseudoGiven && anySent) newStage = "CONVERTED";
   const stage = stageEvents(conv.stage, newStage);
   events.push(...stage.events);
   if (needsHuman && anySent) events.push(needsHumanEvent(needsHuman));
@@ -1032,16 +1065,18 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       ? conv.followUpCount + 1
       : 0
     : conv.followUpCount;
-  const closeReason = sending.sendError?.blocked
-    ? ("BLOCKED" as const)
-    : sending.sendError?.unreachable
-      ? ("UNREACHABLE" as const)
-      : null;
+  const closeReason = pseudoGiven && anySent
+    ? ("PSEUDO" as const)
+    : sending.sendError?.blocked
+      ? ("BLOCKED" as const)
+      : sending.sendError?.unreachable
+        ? ("UNREACHABLE" as const)
+        : null;
   // « Arrête de m'écrire », « unsubscribe »… au milieu d'un message : réponse polie, puis aucune relance.
   const stopAsked = input.kind === "reply" && inbound.some((m) => mentionsStopRequest(m.text));
-  // Conversation passée à l'équipe : aucune relance de l'assistante.
+  // Conversation passée à l'équipe ou pseudo donné : aucune relance de l'assistante.
   const next =
-    anySent && !closeReason && !stopAsked && !needsHuman
+    anySent && !closeReason && !stopAsked && !needsHuman && !pseudoGiven
       ? nextFollowUpAt(
           {
             status: "BOT",
@@ -1066,7 +1101,12 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     flirtTeases: encodeProgress(nextFlirt),
     stageChanges: stage.changes,
     style: output ? mergeStyle(conv.style, output.style_update, now) : conv.style,
-    facts: output ? mergeFacts(conv.facts, output.memory_facts) : conv.facts,
+    facts: (() => {
+      let f = output ? mergeFacts(conv.facts, output.memory_facts) : [...conv.facts];
+      f = f.filter((x) => x !== ARMED_LINK_FACT);
+      if (armLink) f.push(ARMED_LINK_FACT);
+      return f;
+    })(),
     ...(summary ? { summary } : {}),
     offerSent: sending.offerSent
       ? { ...sending.offerSent, ...(selectedBook ? { bookmakerKey: selectedBook } : {}) }
