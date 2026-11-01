@@ -20,6 +20,7 @@ import {
   typingDelayMs,
   withTyping,
 } from "./rhythm";
+import { parisWallClock } from "./paris-time";
 import { ARMED_LINK_FACT, announcesLink, extractPseudo } from "./pseudo";
 import {
   applyAction,
@@ -341,6 +342,7 @@ async function checkResponse(
     allowedActions: run.flirt?.allow,
     identity: personaIdentity(input.persona),
     illusion: personaIllusion(input.persona),
+    interest: input.conversation.style.interest ?? 0,
     vipManager: input.persona.vipManager === true && input.persona.universe === "sports",
     botInsists:
       input.kind === "reply" &&
@@ -625,6 +627,8 @@ async function sendParts(
     bookKey?: string | null;
     /** Phase 36 : lien du canal VIP à envoyer en bouton (après dépôt confirmé). */
     vipLink?: string | null;
+    /** Ne pas séparer le texte du bouton d'offre (fin de conversation par pseudo). */
+    noSplit?: boolean;
   },
 ): Promise<{
   sent: SentPart[];
@@ -657,6 +661,7 @@ async function sendParts(
           refused: input.conversation.appRefused === true,
           live: isLive(input),
           followUp: input.kind === "follow_up",
+          nowHourParis: parisWallClock(deps.now()).hour,
         },
         deps.random,
       );
@@ -664,12 +669,12 @@ async function sendParts(
       if (reste > 0) await deps.sleep(reste);
       await withTyping(
         () => deps.sender.sendTyping(),
-        () => deps.sleep(typingDelayMs(text, isHot(input) || isLive(input))),
+        () => deps.sleep(typingDelayMs(text, isHot(input) || isLive(input), deps.random)),
         deps.timers,
       );
     } else {
       await safeTyping(run);
-      const delay = typingDelayMs(text);
+      const delay = typingDelayMs(text, false, deps.random);
       if (delay > 0) await deps.sleep(delay);
     }
 
@@ -713,24 +718,84 @@ async function sendParts(
         : isLast && opts.photoAssetId
           ? opts.photoAssetId
           : null;
-    const r = await safeSend(() =>
-      mediaAssetId
-        ? deps.sender.sendMedia({ mediaAssetId }, outgoing, sendOpts)
-        : deps.sender.sendText(outgoing, sendOpts),
-    );
-    if (!r.ok) {
-      sendError = { blocked: r.blocked, unreachable: r.unreachable, error: r.error };
-      if (link) unsentOfferSubId = link.subId;
-      break;
+
+    // #2 : photo de chauffe envoyée dans un message séparé (après le texte).
+    // #3 : lien d'offre envoyé dans un message séparé (après le texte), SAUF quand le visuel de l'offre est joint
+    //       ou quand noSplit est demandé (pseudo → fin de conversation, texte et bouton restent ensemble).
+    const splitPhoto = mediaAssetId && !link && outgoing.trim().length > 0;
+    const splitOffer = link && outgoing.trim().length > 0 && !mediaAssetId && !opts.noSplit;
+
+    if (splitPhoto || splitOffer) {
+      // 1) texte seul
+      const textR = await safeSend(() =>
+        deps.sender.sendText(outgoing, { fixedKey: opts.fixedKey, offerSubId: null }),
+      );
+      if (!textR.ok) {
+        sendError = { blocked: textR.blocked, unreachable: textR.unreachable, error: textR.error };
+        if (link) unsentOfferSubId = link.subId;
+        break;
+      }
+      sent.push({
+        index: i,
+        text: outgoing,
+        telegramMessageId: textR.telegramMessageId,
+        offerSubId: null,
+        mediaAssetId: null,
+        fixedKey: opts.fixedKey,
+      });
+
+      // 2) pause + typing avant l'envoi séparé
+      await deps.sleep(pauseBetweenMs(deps.random, isLive(input)));
+      await safeTyping(run);
+      const shortDelay = typingDelayMs("...", false, deps.random);
+      if (shortDelay > 0) await deps.sleep(shortDelay);
+
+      // 3) photo seule ou bouton d'offre seul
+      const splitR = await safeSend(() =>
+        splitPhoto
+          ? deps.sender.sendMedia({ mediaAssetId: mediaAssetId! }, "", {
+              fixedKey: null,
+              offerSubId: null,
+            })
+          : deps.sender.sendText("", sendOpts),
+      );
+      if (!splitR.ok) {
+        sendError = {
+          blocked: splitR.blocked,
+          unreachable: splitR.unreachable,
+          error: splitR.error,
+        };
+        if (link) unsentOfferSubId = link.subId;
+        break;
+      }
+      sent.push({
+        index: i,
+        text: "",
+        telegramMessageId: splitR.telegramMessageId,
+        offerSubId: link?.subId ?? null,
+        mediaAssetId: splitPhoto ? mediaAssetId : null,
+        fixedKey: null,
+      });
+    } else {
+      const r = await safeSend(() =>
+        mediaAssetId
+          ? deps.sender.sendMedia({ mediaAssetId }, outgoing, sendOpts)
+          : deps.sender.sendText(outgoing, sendOpts),
+      );
+      if (!r.ok) {
+        sendError = { blocked: r.blocked, unreachable: r.unreachable, error: r.error };
+        if (link) unsentOfferSubId = link.subId;
+        break;
+      }
+      sent.push({
+        index: i,
+        text: outgoing,
+        telegramMessageId: r.telegramMessageId,
+        offerSubId: link?.subId ?? null,
+        mediaAssetId,
+        fixedKey: opts.fixedKey,
+      });
     }
-    sent.push({
-      index: i,
-      text: outgoing,
-      telegramMessageId: r.telegramMessageId,
-      offerSubId: link?.subId ?? null,
-      mediaAssetId,
-      fixedKey: opts.fixedKey,
-    });
     if (link) offerSent = { subId: link.subId, url: link.url };
     // Compté seulement une fois le message parti (un échec d'envoi ne vaut pas conversion).
     if (vipLink) vipLinkSent = vipLink;
@@ -1024,6 +1089,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     photoAssetId,
     bookKey: selectedBook,
     vipLink,
+    noSplit: pseudoGiven,
   });
   const anySent = sending.sent.length > 0;
   // La série n'avance que sur une action réellement partie.
@@ -1087,6 +1153,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
             lastAssistantAt: now,
           },
           input.persona,
+          deps.random,
         )
       : null;
   const summary =

@@ -67,7 +67,14 @@ export function followUpsAllowed(rules: Pick<FollowUpRules, "followUpsMax">): nu
  * FOLLOW_UP, moins de min(2, followUpsMax) relances. 1re relance : `followUpAfterHours` (au moins 4 h) après le dernier
  * message de l'assistant ; 2e : au moins 24 h après la 1re. Heures calmes → 10 h.
  */
-export function nextFollowUpAt(state: FollowUpState, rules: FollowUpRules): Date | null {
+/** Jitter maximal sur la 2e relance (heures, appliqué en ±). */
+export const FOLLOW_UP_JITTER_HOURS = 2;
+
+export function nextFollowUpAt(
+  state: FollowUpState,
+  rules: FollowUpRules,
+  random?: () => number,
+): Date | null {
   if (state.status !== "BOT" || state.isMinor || state.stoppedAt) return null;
   if (!FOLLOW_UP_STAGES.includes(state.stage)) return null;
   if (!state.lastAssistantAt) return null;
@@ -76,7 +83,13 @@ export function nextFollowUpAt(state: FollowUpState, rules: FollowUpRules): Date
     ? rules.followUpAfterHours
     : MIN_FOLLOW_UP_AFTER_HOURS;
   let hours = Math.max(MIN_FOLLOW_UP_AFTER_HOURS, after);
-  if (state.followUpCount >= 1) hours = Math.max(hours, MIN_HOURS_BETWEEN_FOLLOW_UPS);
+  if (state.followUpCount >= 1) {
+    hours = Math.max(hours, MIN_HOURS_BETWEEN_FOLLOW_UPS);
+    if (random) {
+      const jitter = (random() - 0.5) * 2 * FOLLOW_UP_JITTER_HOURS;
+      hours = Math.max(MIN_HOURS_BETWEEN_FOLLOW_UPS, hours + jitter);
+    }
+  }
   const due = new Date(state.lastAssistantAt.getTime() + hours * HOUR_MS);
   return shiftOutOfQuietHours(shiftToSuggestedHour(due, rules.suggestedFollowUpHours));
 }

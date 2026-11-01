@@ -4,6 +4,14 @@ import { truncateVisible, wordsForm } from "./text-utils";
 export const MAX_FACTS = 20;
 export const MAX_FACT_CHARS = 120;
 
+/** Faits critiques : jamais évincés par la limite de 20, sauf remplacement par un fait du même type. */
+export const STICKY_PATTERNS: readonly RegExp[] = [
+  /^pr[eé]nom\s*:/i,
+  /^[aâ]ge\s*:/i,
+  /^ville\s*:/i,
+  /^pseudo\s*:/i,
+];
+
 /** Lecture tolérante de `Conversation.facts` (JSON) : textes non vides seulement. */
 export function parseFacts(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -26,5 +34,12 @@ export function mergeFacts(existing: readonly string[], incoming: readonly strin
     seen.add(key);
     out.push(fact);
   }
-  return out.slice(-MAX_FACTS);
+  if (out.length <= MAX_FACTS) return out;
+  const sticky: string[] = [];
+  const rest: string[] = [];
+  for (const f of out) {
+    if (STICKY_PATTERNS.some((p) => p.test(f))) sticky.push(f);
+    else rest.push(f);
+  }
+  return [...rest.slice(-(MAX_FACTS - sticky.length)), ...sticky];
 }

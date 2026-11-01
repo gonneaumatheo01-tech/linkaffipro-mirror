@@ -12,6 +12,8 @@ export const FIXED_TEXT_KEYS = [
   "stoppedAlready",
   // Passage à un humain (Casino / Paris sportifs, phase 25) : réponse neutre, sans promesse ni délai chiffré.
   "handoff",
+  // Repli en pleine conversation quand le modèle n'a rien donné d'envoyable : neutre et naturel.
+  "midConv",
 ] as const;
 export type FixedTextKey = (typeof FIXED_TEXT_KEYS)[number];
 
@@ -50,6 +52,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     stoppedAlready:
       "Tu m'as demandé de ne plus t'écrire, je respecte ton choix. Bonne continuation !",
     handoff: "Je transmets ta demande à l'équipe : quelqu'un te répond ici dès que possible 🙏",
+    midConv: "ah une seconde jreviens",
   },
   en: {
     intro: "I'm {name}, {role} of the channel 😉 How are you?",
@@ -60,6 +63,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     resetDone: "Done, I've forgotten everything. Shall we start over? 😊",
     stoppedAlready: "You asked me not to write to you anymore, and I respect that. All the best!",
     handoff: "I'm passing your request on to the team: someone will reply here as soon as possible 🙏",
+    midConv: "one sec, brb",
   },
   es: {
     intro: "Soy {name}, {role} del canal 😉 ¿Qué tal estás?",
@@ -71,6 +75,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     resetDone: "Hecho, lo he olvidado todo. ¿Empezamos de nuevo? 😊",
     stoppedAlready: "Me pediste que no te escribiera más y lo respeto. ¡Que te vaya bien!",
     handoff: "Paso tu solicitud al equipo: alguien te responderá aquí lo antes posible 🙏",
+    midConv: "un segundo, ya vuelvo",
   },
   pt: {
     intro: "Eu sou {name}, {role} do canal 😉 Tudo bem com você?",
@@ -82,6 +87,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     resetDone: "Pronto, esqueci tudo. Vamos recomeçar? 😊",
     stoppedAlready: "Você pediu para eu não te escrever mais, e eu respeito. Tudo de bom!",
     handoff: "Vou passar o seu pedido para a equipe: alguém te responde aqui o quanto antes 🙏",
+    midConv: "um segundo, já volto",
   },
   de: {
     intro: "Ich bin {name}, {role} des Kanals 😉 Wie geht's dir?",
@@ -94,6 +100,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     stoppedAlready:
       "Du hast mich gebeten, dir nicht mehr zu schreiben, und das respektiere ich. Alles Gute!",
     handoff: "Ich gebe deine Anfrage an das Team weiter: Jemand antwortet dir hier so schnell wie möglich 🙏",
+    midConv: "eine Sekunde, bin gleich wieder da",
   },
   it: {
     intro: "Sono {name}, {role} del canale 😉 Come stai?",
@@ -105,6 +112,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     resetDone: "Fatto, ho dimenticato tutto. Ricominciamo? 😊",
     stoppedAlready: "Mi hai chiesto di non scriverti più e lo rispetto. Buona continuazione!",
     handoff: "Passo la tua richiesta al team: qualcuno ti risponderà qui il prima possibile 🙏",
+    midConv: "un secondo, torno subito",
   },
 };
 

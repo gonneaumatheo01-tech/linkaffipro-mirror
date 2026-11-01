@@ -157,15 +157,18 @@ describe("runTurn : premier message et lien", () => {
     const r = await runTurn(input(), deps);
     expect(deps.offerLinks).toHaveLength(1);
     const sent = deps.sender.messages();
+    // #3 : le texte et le bouton d'offre sont dans des messages séparés
+    expect(sent).toHaveLength(3);
     expect(sent[0]?.buttons).toBeUndefined();
-    expect(sent[1]?.buttons).toEqual([
+    expect(sent[1]?.buttons).toBeUndefined(); // texte du 2e message, sans bouton
+    expect(sent[2]?.buttons).toEqual([
       [{ text: "Découvrir l'app", url: "https://go.goolink.eu/a/TEST00000001" }],
     ]);
     expect(r.offerSent).toEqual({
       subId: "TEST00000001",
       url: "https://go.goolink.eu/a/TEST00000001",
     });
-    expect(r.sent[1]?.offerSubId).toBe("TEST00000001");
+    expect(r.sent.some((s) => s.offerSubId === "TEST00000001")).toBe(true);
     expect(r.sent[0]?.offerSubId).toBeNull();
     expect(r.newStage).toBe("LINK_SENT");
     expect(r.stageChanges).toEqual([{ from: "CHAT", to: "LINK_SENT" }]);

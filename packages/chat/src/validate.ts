@@ -29,6 +29,8 @@ export const REJECT_CODES = [
   "contradiction",
   // Casino / Paris sportifs (phase 25) : promesse de gain, de certitude ou d'argent facile.
   "promise",
+  // Contenu très cru trop tôt dans la conversation (intérêt pas assez élevé).
+  "explicit_too_early",
 ] as const;
 export type RejectCode = (typeof REJECT_CODES)[number];
 
@@ -76,6 +78,8 @@ export type ValidationContext = {
   faqTexts?: readonly string[];
   /** Gérant du VIP (Paris sportifs) : au premier message, « gérant du VIP » vaut « assistant(e) ». */
   vipManager?: boolean;
+  /** Intérêt estimé de la personne (0-10) : sert au contrôle de progression du contenu explicite. */
+  interest?: number;
 };
 
 export type ValidationResult =
@@ -676,6 +680,46 @@ export function hasExplicitContent(text: string): boolean {
   return EXPLICIT_RE.test(wordsForm(text));
 }
 
+/** Sous-ensemble : mots très crus / actes directs. Une allusion soft (« ça me chauffe ») n'est pas dedans. */
+const VERY_EXPLICIT_WORDS = [
+  "baise moi",
+  "nique moi",
+  "suce moi",
+  "(?:te|me|nous|vous|se|on) baise\\w*",
+  "je te nique",
+  "je te suce",
+  "(?:te|me|la|le) sucer",
+  "(?:te|me|la|le) baiser",
+  "levrette",
+  "partouze",
+  "plan cul",
+  "plan q",
+  "fuck me",
+  "suck my",
+  "deepthroat",
+  "gangbang",
+  "follame",
+  "scopami",
+  "scoparti",
+  "fick dich",
+  "fode",
+  "fodendo",
+  "sodom\\w*",
+  "masturb\\w*",
+  "ejacul\\w*",
+  "orgasm\\w*",
+  "sextape",
+  "sex tape",
+];
+const VERY_EXPLICIT_RE = new RegExp(`\\b(?:${VERY_EXPLICIT_WORDS.join("|")})\\b`);
+
+/** Intérêt minimum avant de permettre du contenu très cru en mode illusion. */
+export const EXPLICIT_INTEREST_THRESHOLD = 7;
+
+export function hasVeryExplicitContent(text: string): boolean {
+  return VERY_EXPLICIT_RE.test(wordsForm(text));
+}
+
 // ------------------------------------------------------------------
 // Chiffres inventés (règle 4)
 // ------------------------------------------------------------------
@@ -873,6 +917,15 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
   const illusion = girl;
   // Illusion : une fille de 23 ans dit « bite », « cul », « baiser » sans se faire rejeter.
   if (hasExplicitContent(joined) && !illusion) reject("explicit", "Contenu explicite.");
+  if (
+    illusion &&
+    hasVeryExplicitContent(joined) &&
+    (ctx.interest ?? 0) < EXPLICIT_INTEREST_THRESHOLD
+  )
+    reject(
+      "explicit_too_early",
+      `Contenu très cru trop tôt : l'intérêt est à ${ctx.interest ?? 0}/10, il faut au moins ${EXPLICIT_INTEREST_THRESHOLD}.`,
+    );
   // Une fille parle d'elle comme d'une fille : le déni n'est refusé que si la personne insiste.
   if (!illusion && (!girl || ctx.botInsists) && deniesBeingAssistant(joined))
     reject("denies_assistant", "Prétend être une vraie personne ou nie être un assistant.");

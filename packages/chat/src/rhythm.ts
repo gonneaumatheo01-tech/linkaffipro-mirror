@@ -44,15 +44,28 @@ export const REFUSED_MAX_MS = 3 * 60 * 60 * 1000;
 export const PAUSE_MIN_MS = 800;
 export const PAUSE_MAX_MS = 2500;
 
+/** Nuit (1 h – 7 h Paris) : multiplicateur du délai d'ouverture. */
+export const NIGHT_HOUR_START = 1;
+export const NIGHT_HOUR_END = 7;
+export const NIGHT_MULTIPLIER_MIN = 3;
+export const NIGHT_MULTIPLIER_MAX = 10;
+export const NIGHT_MAX_MS = 30 * 60 * 1000;
+
+/** Jitter sur le délai de frappe : ±30 %. */
+export const TYPING_JITTER = 0.3;
+
 function clamp01(r: number): number {
   return Math.min(1, Math.max(0, r));
 }
 
-/** Delai « ecrit... » avant un message : proportionnel a sa longueur. */
-export function typingDelayMs(text: string, hot = false): number {
+/** Delai « ecrit... » avant un message : proportionnel a sa longueur, avec jitter optionnel (±30 %). */
+export function typingDelayMs(text: string, hot = false, random?: () => number): number {
   const len = Array.from(text).length;
-  const d = Math.min(TYPING_MAX_MS, TYPING_MIN_MS + TYPING_MS_PER_CHAR * len);
-  return Math.round(hot ? d * 0.7 : d);
+  const base = Math.min(TYPING_MAX_MS, TYPING_MIN_MS + TYPING_MS_PER_CHAR * len);
+  const d = hot ? base * LIVE_TYPING_FACTOR : base;
+  if (!random) return Math.round(d);
+  const jitter = 1 - TYPING_JITTER + clamp01(random()) * 2 * TYPING_JITTER;
+  return Math.round(Math.min(TYPING_MAX_MS, d * jitter));
 }
 
 export type OpeningInput = {
@@ -70,6 +83,8 @@ export type OpeningInput = {
   cold: boolean;
   /** La personne a refuse l'app : elle ne discute plus ici. */
   refused: boolean;
+  /** Heure de Paris (0-23) : la nuit (1 h – 7 h), le delai est multiplie. */
+  nowHourParis?: number;
 };
 
 /** Delai avant d'ouvrir le message (sans « ecrit... »). `random` rend une valeur dans [0, 1). */
@@ -95,7 +110,17 @@ export function openingDelayMs(input: OpeningInput, random: () => number): numbe
   const jitter = 1 - OPENING_JITTER + clamp01(random()) * 2 * OPENING_JITTER;
   const min = input.hot ? HOT_MIN_MS : OPENING_MIN_MS;
   const max = input.hot ? HOT_MAX_MS : OPENING_MAX_MS;
-  return Math.round(Math.min(max, Math.max(min, base * tone * jitter)));
+  let delay = Math.round(Math.min(max, Math.max(min, base * tone * jitter)));
+  if (
+    input.nowHourParis !== undefined &&
+    input.nowHourParis >= NIGHT_HOUR_START &&
+    input.nowHourParis < NIGHT_HOUR_END
+  ) {
+    const nightFactor =
+      NIGHT_MULTIPLIER_MIN + clamp01(random()) * (NIGHT_MULTIPLIER_MAX - NIGHT_MULTIPLIER_MIN);
+    delay = Math.round(Math.min(NIGHT_MAX_MS, delay * nightFactor));
+  }
+  return delay;
 }
 
 /** Pause entre deux messages : 800 a 2500 ms (alea injectable, valeur dans [0, 1)). */
