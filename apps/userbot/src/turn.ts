@@ -171,6 +171,18 @@ async function loadHistory(conversationId: string, inboundIds: readonly string[]
 
 const personaInclude = {
   affiliateCampaign: { select: { isActive: true, trackingUrlTemplate: true } },
+  bookmakers: {
+    select: {
+      bookmakerKey: true,
+      label: true,
+      priority: true,
+      affiliateCampaignId: true,
+      affiliateCampaign: { select: { isActive: true, trackingUrlTemplate: true } },
+      inviteLinkId: true,
+      inviteLink: { select: { telegramInviteLink: true } },
+    },
+    orderBy: { priority: "asc" as const },
+  },
 } satisfies Prisma.PersonaInclude;
 
 type PersonaRow = Prisma.PersonaGetPayload<{ include: typeof personaInclude }>;
@@ -253,6 +265,20 @@ async function processIncoming(account: ReadyAccount, msg: Incoming): Promise<vo
       if (stable) break;
     }
     if (pending.length === 0) return;
+    // Délai de réponse persona (ex. Mehdi : 2-3 min) : le moteur renvoie openingDelay=0 quand ce champ est posé
+    // (conçu pour BullMQ), donc on dort ici. Les messages arrivés pendant le délai sont ramassés par la boucle.
+    const persona = accountRow?.persona ?? null;
+    const delay = personaResponseDelay(persona);
+    if (delay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      // Ramasser les messages arrivés pendant le délai.
+      const fresh = await prisma.conversationMessage.findMany({
+        where: { conversationId: conv.id, direction: "IN", turnId: null },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, text: true, createdAt: true, media: true },
+      });
+      if (fresh.length > 0) pending = fresh.map((r) => ({ ...r, media: parseMedia(r.media) }));
+    }
     // Un tour, puis on ramasse les messages arrives pendant la preparation (au plus 3 tours d'affilee).
     for (let round = 0; round < 3; round++) {
       await runConversationTurn(account, conv.id, pending, msg.peer, accountRow?.persona ?? null);
@@ -459,4 +485,12 @@ function turnPatch(result: TurnResult, now: Date): Prisma.ConversationUpdateInpu
 
 async function persistTurn(conversationId: string, result: TurnResult, now: Date): Promise<void> {
   await prisma.conversation.update({ where: { id: conversationId }, data: turnPatch(result, now) });
+}
+
+/** Délai aléatoire entre min et max (secondes → ms). 0 si la persona n'a pas de délai configuré. */
+function personaResponseDelay(p: PersonaRow | null): number {
+  if (!p?.responseDelayMinSec || !p.responseDelayMaxSec) return 0;
+  const minMs = p.responseDelayMinSec * 1000;
+  const maxMs = p.responseDelayMaxSec * 1000;
+  return minMs + Math.random() * (maxMs - minMs);
 }

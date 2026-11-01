@@ -1,12 +1,10 @@
 import { prisma } from "@linkaffipro/db";
 /**
- * Persona d'un compte réel (phase 18) : règles pures du userbot. Un compte réel ne parle qu'en Rencontres : une persona
- * Casino ou Paris sportifs branchée sur un compte (choix refusé par le site, mais possible par un ancien formulaire ou
- * un script) fait SAUTER le tour (`persona_universe`, journalisé sans texte). L'univers et la fiche d'informations sont
- * tout de même transmis au moteur, comme le worker (`apps/worker/src/assistant/rules.ts`).
+ * Persona d'un compte réel (phase 18 + 36) : un compte réel peut être Rencontres, Paris sportifs (VIP manager) ou Casino.
+ * L'univers et la fiche d'informations sont transmis au moteur, comme le worker (`apps/worker/src/assistant/rules.ts`).
  */
-import { effectiveIdentityKind, parsePersonaFaq, parsePersonaUniverse } from "@linkaffipro/core";
-import type { PersonaInput } from "@linkaffipro/chat";
+import { effectiveIdentityKind, isVipManager, parsePersonaFaq, parsePersonaUniverse } from "@linkaffipro/core";
+import { parseSuggestedFollowUpHours, type PersonaInput } from "@linkaffipro/chat";
 import { offerUsable } from "./offer-link";
 
 export type UserbotPersonaRow = {
@@ -30,6 +28,7 @@ export type UserbotPersonaRow = {
   maxOfferSends: number;
   followUpAfterHours: number;
   followUpsMax: number;
+  suggestedFollowUpHours?: unknown;
   offerPitch: string;
   offerButtonText: string;
   offerMediaAssetId: string | null;
@@ -37,18 +36,29 @@ export type UserbotPersonaRow = {
   affiliateCampaign: { isActive: boolean; trackingUrlTemplate: string } | null;
   universe?: string | null;
   faq?: unknown;
+  responseDelayMinSec?: number | null;
+  responseDelayMaxSec?: number | null;
+  bookmakers?: readonly {
+    bookmakerKey: string;
+    label: string;
+    priority: number;
+    inviteLinkId: string | null;
+    inviteLink: { telegramInviteLink: string | null } | null;
+  }[];
 };
 
 /** Raison de ne pas répondre avec cette persona (null = tour permis). */
-export function personaSkipReason(p: Pick<UserbotPersonaRow, "isActive" | "universe"> | null): string | null {
+export function personaSkipReason(p: Pick<UserbotPersonaRow, "isActive"> | null): string | null {
   if (!p) return "no_persona";
   if (!p.isActive) return "persona_inactive";
-  if (parsePersonaUniverse(p.universe) !== "dating") return "persona_universe";
   return null;
 }
 
 export function toPersonaInput(p: UserbotPersonaRow, botName: string): PersonaInput {
-  const usable = offerUsable(p.affiliateCampaign);
+  const universe = parsePersonaUniverse(p.universe);
+  const books = vipBookmakers(p);
+  const hasBookmakerOffer = books.length > 0;
+  const usable = hasBookmakerOffer || offerUsable(p.affiliateCampaign);
   return {
     name: p.name,
     identity: effectiveIdentityKind(p.universe, p.identityKind),
@@ -68,16 +78,36 @@ export function toPersonaInput(p: UserbotPersonaRow, botName: string): PersonaIn
     maxOfferSends: p.maxOfferSends,
     followUpAfterHours: p.followUpAfterHours,
     followUpsMax: p.followUpsMax,
+    suggestedFollowUpHours: parseSuggestedFollowUpHours(p.suggestedFollowUpHours),
     offerPitch: p.offerPitch,
     offerButtonText: p.offerButtonText,
-    // Comme le worker : sans offre exploitable le moteur ne parle jamais du lien (aucun ne pourrait partir).
-    hasOffer: Boolean(p.affiliateCampaignId) && usable,
+    hasOffer: (Boolean(p.affiliateCampaignId) || hasBookmakerOffer) && usable,
     offerMediaAssetId: usable ? p.offerMediaAssetId : null,
     channelTitle: null,
     botName,
-    universe: parsePersonaUniverse(p.universe),
+    universe,
     faq: parsePersonaFaq(p.faq),
+    vipManager: isVipManager(universe, p.identityKind),
+    bookmakers: books.length
+      ? books.map((pb) => ({
+          bookmakerKey: pb.bookmakerKey,
+          label: pb.label,
+          priority: pb.priority,
+          hasInviteLink: Boolean(pb.inviteLinkId && pb.inviteLink?.telegramInviteLink),
+        }))
+      : undefined,
+    responseDelay:
+      p.responseDelayMinSec != null && p.responseDelayMaxSec != null
+        ? { minSec: p.responseDelayMinSec, maxSec: p.responseDelayMaxSec }
+        : null,
   };
+}
+
+function vipBookmakers(p: UserbotPersonaRow) {
+  if (!p.bookmakers?.length) return [];
+  const universe = parsePersonaUniverse(p.universe);
+  if (!isVipManager(universe, p.identityKind)) return [];
+  return [...p.bookmakers].sort((a, b) => a.priority - b.priority);
 }
 
 /** Photos de chauffe de la persona (emplacements 1 a 5) : media a envoyer et description factuelle pour l'accroche. */
