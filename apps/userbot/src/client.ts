@@ -28,6 +28,8 @@ export type AccountToStart = {
   /** Bot fantome et persona qui portent les conversations du compte (turn.ts). */
   botId: string | null;
   personaId: string | null;
+  /** Prenom souhaite sur Telegram (persona.name) : synchronise au demarrage si different. */
+  desiredFirstName?: string | null;
 };
 
 /** Message prive entrant d'une vraie personne (ni groupe, ni canal, ni bot, ni nous-memes), sinon null. */
@@ -91,6 +93,15 @@ export async function startAccount(account: AccountToStart): Promise<LiveAccount
   await client.connect();
   const me = await client.getMe();
   logger.info({ compte: account.label, username: me.username ?? null }, "compte connecte");
+
+  if (account.desiredFirstName && me instanceof Api.User && me.firstName !== account.desiredFirstName) {
+    try {
+      await client.invoke(new Api.account.UpdateProfile({ firstName: account.desiredFirstName }));
+      logger.info({ compte: account.label, prenom: account.desiredFirstName }, "prenom telegram mis a jour");
+    } catch (err) {
+      logger.warn({ compte: account.label, err: err instanceof Error ? err.message : String(err) }, "impossible de renommer le compte");
+    }
+  }
 
   const turnAccount: TurnAccount = {
     id: account.id,

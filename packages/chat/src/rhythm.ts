@@ -85,10 +85,15 @@ export type OpeningInput = {
   refused: boolean;
   /** Heure de Paris (0-23) : la nuit (1 h – 7 h), le delai est multiplie. */
   nowHourParis?: number;
+  /** Délai réglable de la persona (min/max en secondes). Prioritaire sur les constantes par défaut. */
+  personaDelay?: { minSec: number; maxSec: number } | null;
 };
 
 /** Delai avant d'ouvrir le message (sans « ecrit... »). `random` rend une valeur dans [0, 1). */
 export function openingDelayMs(input: OpeningInput, random: () => number): number {
+  // Délai réglable de la persona (traité par le retard BullMQ, pas un sleep dans le worker) :
+  // quand il est configuré, le délai d'ouverture ici est nul (sauf relance et refus).
+  if (input.personaDelay && !input.followUp && !input.refused) return 0;
   if (input.followUp)
     return Math.round(
       FOLLOWUP_OPENING_MIN_MS + clamp01(random()) * (FOLLOWUP_OPENING_MAX_MS - FOLLOWUP_OPENING_MIN_MS),

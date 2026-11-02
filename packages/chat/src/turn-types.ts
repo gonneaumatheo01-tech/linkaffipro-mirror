@@ -115,6 +115,8 @@ export type PersonaInput = {
    * Celsius (1) → Bet Portal (2) → Sportaza (3). Absent ou vide pour les personas dating / casino.
    */
   bookmakers?: readonly PersonaBookmakerInput[] | null;
+  /** Délai de réponse réglable : min et max en secondes. null = rythme par défaut du moteur. */
+  responseDelay?: { minSec: number; maxSec: number } | null;
 };
 
 /** Réglages utiles au tour (lus par l'appelant dans `Setting` `assistant.venice`). */

@@ -31,6 +31,8 @@ export const REJECT_CODES = [
   "promise",
   // Contenu très cru trop tôt dans la conversation (intérêt pas assez élevé).
   "explicit_too_early",
+  // Emojis interdits (VIP Manager sports).
+  "emoji",
 ] as const;
 export type RejectCode = (typeof REJECT_CODES)[number];
 
@@ -80,6 +82,8 @@ export type ValidationContext = {
   vipManager?: boolean;
   /** Intérêt estimé de la personne (0-10) : sert au contrôle de progression du contenu explicite. */
   interest?: number;
+  /** Emojis strictement interdits dans les messages (VIP Manager sports). */
+  noEmojis?: boolean;
 };
 
 export type ValidationResult =
@@ -158,6 +162,18 @@ const LINK_PATTERNS: readonly RegExp[] = [
 /** Vrai si le texte contient un lien, un nom de domaine ou un @pseudo (le seul lien permis est le bouton). */
 export function hasLink(text: string): boolean {
   return matchesAny(text, LINK_PATTERNS);
+}
+
+// ------------------------------------------------------------------
+// Emojis
+// ------------------------------------------------------------------
+
+const EMOJI_PATTERN =
+  /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
+
+/** Vrai si le texte contient au moins un emoji. */
+export function hasEmoji(text: string): boolean {
+  return EMOJI_PATTERN.test(text);
 }
 
 // ------------------------------------------------------------------
@@ -980,6 +996,8 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
     );
   if (strict && hasForbiddenPromise(joined))
     reject("promise", "Promesse de gain, de certitude ou d'argent facile.");
+  if (ctx.noEmojis && hasEmoji(joined))
+    reject("emoji", "Emojis interdits pour cette persona.");
 
   // Action choisie : elle doit être permise, et le texte doit coller à l'action.
   if (ctx.allowedActions) {

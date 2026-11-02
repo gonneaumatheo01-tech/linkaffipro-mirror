@@ -344,6 +344,7 @@ async function checkResponse(
     illusion: personaIllusion(input.persona),
     interest: input.conversation.style.interest ?? 0,
     vipManager: input.persona.vipManager === true && input.persona.universe === "sports",
+    noEmojis: input.persona.vipManager === true && input.persona.universe === "sports",
     botInsists:
       input.kind === "reply" &&
       botQuestionInsists(
@@ -662,6 +663,7 @@ async function sendParts(
           live: isLive(input),
           followUp: input.kind === "follow_up",
           nowHourParis: parisWallClock(deps.now()).hour,
+          personaDelay: persona.responseDelay ?? null,
         },
         deps.random,
       );

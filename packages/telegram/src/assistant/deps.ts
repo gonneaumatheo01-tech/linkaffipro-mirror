@@ -31,6 +31,8 @@ export type AssistantPersonaInfo = {
   gender: string;
   languages: string[];
   isActive: boolean;
+  responseDelayMinSec: number | null;
+  responseDelayMaxSec: number | null;
 };
 
 export interface AssistantDeps {
@@ -133,5 +135,5 @@ export interface AssistantDeps {
   /** La personne a bloqué le bot : plus aucune relance prévue (événement `blocked`). Absent : rien. */
   conversationBlocked?(input: { botId: string; telegramUserId: bigint; at: Date }): Promise<void>;
   /** Tour de l'assistant en file (`chat` `turn`, anti-rebond). Jamais d'appel à l'IA dans le webhook. */
-  enqueueTurn(conversationId: string): Promise<void>;
+  enqueueTurn(conversationId: string, opts?: { delayMs?: number }): Promise<void>;
 }

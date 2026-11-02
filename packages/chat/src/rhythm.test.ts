@@ -46,6 +46,19 @@ describe("rythme", () => {
     expect(pauseBetweenMs(() => 7)).toBe(2500);
   });
 
+  it("personaDelay configuré : délai d'ouverture à 0 (traité par BullMQ)", () => {
+    const delay = { minSec: 120, maxSec: 180 };
+    expect(openingDelayMs({ ...neutre, personaDelay: delay }, () => 0.5)).toBe(0);
+    expect(openingDelayMs({ ...neutre, personaDelay: delay, isFirst: true }, () => 0.5)).toBe(0);
+    expect(openingDelayMs({ ...neutre, personaDelay: delay, hot: true }, () => 0.5)).toBe(0);
+  });
+
+  it("personaDelay n'affecte pas les relances ni les refus", () => {
+    const delay = { minSec: 120, maxSec: 180 };
+    expect(openingDelayMs({ ...neutre, personaDelay: delay, followUp: true }, () => 0.5)).toBeGreaterThan(0);
+    expect(openingDelayMs({ ...neutre, personaDelay: delay, refused: true }, () => 0.5)).toBeGreaterThan(0);
+  });
+
   it("withTyping : « écrit… » tout de suite, relancé toutes les 4 s, minuterie toujours arrêtée", async () => {
     const timers = createFakeTimers();
     let typing = 0;

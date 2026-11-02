@@ -99,6 +99,9 @@ export type PersonaRow = {
   universe?: string | null;
   /** `Persona.faq` (phase 25) : JSON `{ q, a }[]`. */
   faq?: unknown;
+  /** Délai de réponse réglable (secondes). */
+  responseDelayMinSec?: number | null;
+  responseDelayMaxSec?: number | null;
   /** `PersonaBookmaker[]` (phase 25 bis) : bookmakers liés à la persona (paris sportifs). */
   bookmakers?: readonly {
     bookmakerKey: string;
@@ -187,6 +190,10 @@ export function toPersonaInput(
           hasInviteLink: Boolean(pb.inviteLinkId && pb.inviteLink?.telegramInviteLink),
         }))
       : undefined,
+    responseDelay:
+      p.responseDelayMinSec != null && p.responseDelayMaxSec != null
+        ? { minSec: p.responseDelayMinSec, maxSec: p.responseDelayMaxSec }
+        : null,
   };
 }
 

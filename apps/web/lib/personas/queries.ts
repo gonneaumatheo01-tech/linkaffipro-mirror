@@ -8,7 +8,6 @@ import { assistantProfilePlan } from "@linkaffipro/telegram";
 import { CHAT_LANGS, type PersonaInput, type VeniceModelInfo } from "@linkaffipro/chat";
 import { loadAssistantConfig } from "@/lib/assistant/config";
 import { listOfferCandidates } from "@/lib/campaigns/queries";
-import { visibleOffers } from "@/lib/campaigns/wizard";
 import { OFFER_VISUAL_MIME_TYPES, type PersonaRecord, type ProfileTemplates } from "./form";
 import { cleanFaq } from "./faq";
 import { personaTurnInput } from "./test-turn";
@@ -107,8 +106,8 @@ export type PersonaFormChoices = {
 const VIP_LINK_KINDS = ["MANUAL", "SHARE", "AD_ENTRY"] as const;
 
 /**
- * Choix du formulaire : nos offres actives (celles de l'univers Rencontres d'abord à l'affichage ; seules les offres
- * reconnues comme nôtres quand il y en a), l'offre déjà liée en plus si elle n'y est plus ; nos campagnes ; les
+ * Choix du formulaire : toutes les offres actives de Link Affi (celles de l'univers de la persona d'abord à l'affichage,
+ * pas seulement celles qui portent déjà nos clics), l'offre déjà liée en plus si elle n'y est plus ; nos campagnes ; les
  * images déjà envoyées ; les modèles du cache des réglages ; les textes proposés du profil du bot.
  */
 export async function loadPersonaFormChoices(current?: {
@@ -151,7 +150,7 @@ export async function loadPersonaFormChoices(current?: {
       },
     }),
   ]);
-  const offers: OfferChoice[] = visibleOffers(candidates, false).map((o) => ({
+  const offers: OfferChoice[] = candidates.map((o) => ({
     id: o.id,
     name: o.name,
     programName: o.programName,

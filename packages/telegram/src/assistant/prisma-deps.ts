@@ -237,7 +237,15 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
     async persona(personaId) {
       return prisma.persona.findUnique({
         where: { id: personaId },
-        select: { id: true, name: true, gender: true, languages: true, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          gender: true,
+          languages: true,
+          isActive: true,
+          responseDelayMinSec: true,
+          responseDelayMaxSec: true,
+        },
       });
     },
 
@@ -597,8 +605,8 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
       });
     },
 
-    async enqueueTurn(conversationId) {
-      await enqueueChatTurn(conversationId);
+    async enqueueTurn(conversationId, opts) {
+      await enqueueChatTurn(conversationId, opts);
     },
   };
 }

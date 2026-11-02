@@ -7,6 +7,7 @@ import {
   admitsBeingAssistant,
   asksIfBot,
   deniesBeingAssistant,
+  hasEmoji,
   hasExplicitContent,
   hasIntro,
   hasLink,
@@ -571,5 +572,30 @@ describe("contrôles renforcés après relecture (liens, déni, question, consig
       { privateTexts: [extra] },
     );
     expect(r.ok === false && r.codes).toContain("leak");
+  });
+
+  it("hasEmoji détecte les emojis et laisse passer le texte normal", () => {
+    expect(hasEmoji("salut frérot")).toBe(false);
+    expect(hasEmoji("oe tkt c'est bon")).toBe(false);
+    expect(hasEmoji("100%")).toBe(false);
+    expect(hasEmoji("Salut 😊")).toBe(true);
+    expect(hasEmoji("🔥")).toBe(true);
+    expect(hasEmoji("ok ✅")).toBe(true);
+  });
+
+  it("rejette les emojis quand noEmojis est activé", () => {
+    const r = validate(["Salut frérot 😊"], { noEmojis: true });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.codes).toContain("emoji");
+  });
+
+  it("accepte un message sans emoji quand noEmojis est activé", () => {
+    const r = validate(["Salut frérot, tkt c'est bon"], { noEmojis: true });
+    expect(r.ok).toBe(true);
+  });
+
+  it("ne rejette pas les emojis quand noEmojis est absent", () => {
+    const r = validate(["Coucou toi 😊"]);
+    expect(r.ok).toBe(true);
   });
 });
