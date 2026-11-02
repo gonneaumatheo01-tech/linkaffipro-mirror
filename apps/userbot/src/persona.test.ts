@@ -51,7 +51,14 @@ describe("persona d'un compte réel", () => {
       responseDelayMinSec: 120,
       responseDelayMaxSec: 180,
       bookmakers: [
-        { bookmakerKey: "celsius", label: "Celsius", priority: 1, inviteLinkId: "lk1", inviteLink: { telegramInviteLink: "https://t.me/+vip" } },
+        {
+          bookmakerKey: "celsius",
+          label: "Celsius",
+          priority: 1,
+          affiliateCampaign: { isActive: true, trackingUrlTemplate: "https://o.test/?s={subid}" },
+          inviteLinkId: "lk1",
+          inviteLink: { telegramInviteLink: "https://t.me/+vip" },
+        },
       ],
     };
     const p = toPersonaInput(sports as typeof row, "Mehdi");
@@ -59,5 +66,32 @@ describe("persona d'un compte réel", () => {
     expect(p.bookmakers).toEqual([{ bookmakerKey: "celsius", label: "Celsius", priority: 1, hasInviteLink: true }]);
     expect(p.responseDelay).toEqual({ minSec: 120, maxSec: 180 });
     expect(p.identity).toBe("ASSISTANT");
+  });
+  it("VIP manager : jamais un bookmaker dont le lien d'inscription ne peut pas partir (comme le worker)", () => {
+    const book = (key: string, priority: number, campaign: unknown) => ({
+      bookmakerKey: key,
+      label: key,
+      priority,
+      affiliateCampaign: campaign,
+      inviteLinkId: null,
+      inviteLink: null,
+    });
+    const sports = {
+      ...row,
+      universe: "sports",
+      identityKind: "VIP_MANAGER",
+      bookmakers: [
+        book("sportaza", 3, { isActive: true, trackingUrlTemplate: "https://s.test" }),
+        book("celsius", 1, { isActive: false, trackingUrlTemplate: "https://c.test" }),
+        book("betportal", 2, { isActive: true, trackingUrlTemplate: " " }),
+        book("winamax", 4, null),
+      ],
+    };
+    const p = toPersonaInput(sports as typeof row, "Mehdi");
+    expect(p.bookmakers?.map((b) => b.bookmakerKey)).toEqual(["sportaza"]);
+    expect(p.hasOffer).toBe(true);
+    const none = toPersonaInput({ ...sports, bookmakers: [book("celsius", 1, null)] } as typeof row, "Mehdi");
+    expect(none.bookmakers).toBeUndefined();
+    expect(none.hasOffer).toBe(false);
   });
 });

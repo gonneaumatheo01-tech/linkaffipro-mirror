@@ -10,6 +10,7 @@ describe("lien d'offre du userbot", () => {
   it("meme nom court et meme libelle que le worker (un seul lien suivi par persona et par offre)", () => {
     expect(offerSlug("persona1", "offre1")).toBe(worker.assistantOfferSlug("persona1", "offre1"));
     expect(offerLabel("Lea")).toBe(worker.assistantOfferLabel("Lea"));
+    expect(offerLabel("Mehdi", "Bet Portal")).toBe(worker.assistantOfferLabel("Mehdi", "Bet Portal"));
   });
 
   it("meme adresse que le worker", () => {

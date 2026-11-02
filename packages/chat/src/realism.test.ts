@@ -20,7 +20,6 @@ import {
 } from "./follow-ups";
 import {
   hasVeryExplicitContent,
-  EXPLICIT_INTEREST_THRESHOLD,
   validateTurnOutput,
   type ValidationContext,
 } from "./validate";

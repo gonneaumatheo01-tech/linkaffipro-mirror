@@ -111,6 +111,18 @@ describe("prompt : bookmakers partenaires", () => {
     expect(plain).not.toContain("un mec qui gère le VIP");
   });
 
+  it("gérant du VIP : photo reçue après le lien = capture du dépôt, jamais « je ne vois pas les photos »", () => {
+    const after = buildSystemPrompt({ ...ctx, persona: mehdi(), offerSends: 1 });
+    expect(after).toContain("demande-lui simplement s'il a bien fait son dépôt et sur quel bookmaker");
+    expect(after).toContain("ne dis pas que tu ne la vois pas");
+    const before = buildSystemPrompt({ ...ctx, persona: mehdi() });
+    expect(before).toContain("demande-lui simplement ce qu'il veut te montrer");
+    expect(before).not.toContain("s'il a bien fait son dépôt");
+    // Assistant du canal (pas gérant du VIP) : règle d'avant.
+    const plain = buildSystemPrompt({ ...ctx, persona: mehdi({ vipManager: false }) });
+    expect(plain).toContain("si on t'en envoie une, dis-le simplement");
+  });
+
   it("gérant du VIP : textes fixes et premier message", () => {
     expect(fixedText("fr", "intro", { name: "Mehdi", gender: "M", vipManager: true })).toBe(
       "Moi c'est Mehdi, le gérant du VIP du canal 😉 Comment tu vas ?",

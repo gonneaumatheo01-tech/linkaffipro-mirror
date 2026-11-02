@@ -10,3 +10,5 @@ export * from "@prisma/client";
 export { publishingBotFor, createAgentPost, PostingError } from "./posting";
 export type { PostingDb, AgentPostInput, AgentPostResult } from "./posting";
 export { CHANNEL_BOT_WHERE, ACTIVE_CHANNEL_BOT_WHERE } from "./bot-selectors";
+export { lastOfferBookmakerKey } from "./assistant-offer-book";
+export type { OfferBookDb } from "./assistant-offer-book";

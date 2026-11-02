@@ -1,6 +1,7 @@
 import { prisma } from "@linkaffipro/db";
 import { logger } from "./logger";
 import { startAccount, type LiveAccount } from "./client";
+import { drainUniverseTurns } from "./turn";
 import { startWelcomeDmLoop } from "./welcome-dm";
 import { startMailboxLoop, type MailboxDb } from "./mailbox";
 
@@ -62,6 +63,8 @@ async function shutdown(signal: string) {
   stopMailbox?.();
   const timer = setTimeout(() => process.exit(1), 15_000);
   try {
+    // Casino / Paris : tours en cours finis au plus vite (10 s au plus) ; le reste est repris au démarrage suivant.
+    await drainUniverseTurns(10_000);
     await Promise.all(live.map((a) => a.stop()));
     await prisma.$disconnect();
   } finally {

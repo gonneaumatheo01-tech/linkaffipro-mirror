@@ -51,6 +51,8 @@ const TIC_RULES: ReadonlyArray<readonly [RegExp, string]> = [
 ];
 
 export function normalizeTics(text: string): string {
+  // Lien envoyé seul (inscription, canal VIP) : jamais retouché.
+  if (/^https?:\/\/\S+$/.test(text.trim())) return text.trim();
   let out = text;
   for (const [re, to] of TIC_RULES) out = out.replace(re, to);
   return out.replace(/[ \t]{2,}/g, " ").replace(/[ \t]+([!?.,;:])/g, "$1").trim();

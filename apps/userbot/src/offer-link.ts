@@ -45,8 +45,11 @@ export function offerSlug(personaId: string, affiliateCampaignId: string): strin
   return out;
 }
 
-export function offerLabel(personaName: string): string {
-  return `Assistant « ${personaName} »`;
+/** Nom du lien dans Campagnes → Liens : celui d'un bookmaker porte son nom (même libellé que le worker). */
+export function offerLabel(personaName: string, bookmakerLabel?: string): string {
+  return bookmakerLabel
+    ? `Assistant « ${personaName} » — ${bookmakerLabel}`
+    : `Assistant « ${personaName} »`;
 }
 
 export function offerUrl(
@@ -93,7 +96,7 @@ async function personaBookmakerOfferTrackingLink(
   });
   if (!offer || !offer.isActive || !offer.trackingUrlTemplate.trim()) return null;
   const slug = offerSlug(personaId, offer.id);
-  const label = offerLabel(pb.persona.name);
+  const label = offerLabel(pb.persona.name, pb.label || undefined);
   const link = await prisma.trackingLink.upsert({
     where: { slug },
     create: {

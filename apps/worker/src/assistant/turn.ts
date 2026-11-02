@@ -45,7 +45,7 @@ import {
   type TurnResult,
 } from "@linkaffipro/chat";
 import { isAssistantOnlyUniverse, jsonIds, mergeNeedsHuman } from "@linkaffipro/core";
-import { prisma, toJsonValue, type Prisma } from "@linkaffipro/db";
+import { lastOfferBookmakerKey, prisma, toJsonValue, type Prisma } from "@linkaffipro/db";
 import { enqueueChatTurn, getRedis, RedisLockBusy, withRedisLock } from "@linkaffipro/queue";
 import { isAssistantTeamMember } from "@linkaffipro/telegram";
 import { logger } from "../logger";
@@ -762,9 +762,11 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
     hasBookmakerOffer ||
     (persona.affiliateCampaign?.isActive && persona.affiliateCampaign.trackingUrlTemplate.trim()),
   );
-  const [channelTitle, { history, plan }] = await Promise.all([
+  const [channelTitle, { history, plan }, lastOfferBookKey] = await Promise.all([
     personaChannelTitle(persona, conv.botId),
     loadHistory(conv.id, args.turnId),
+    // Gérant du VIP : bookmaker du dernier lien parti, pour le lien du canal VIP au dépôt (comme le compte réel).
+    hasBookmakerOffer ? lastOfferBookmakerKey(prisma, conv.id, persona.id) : null,
   ]);
   const modelId = persona.model?.trim() || cfg.defaultModel;
   const input: TurnInput = {
@@ -796,6 +798,7 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
       lastInboundAt: conv.lastInboundAt,
       lastAssistantAt: conv.lastAssistantAt,
       lastNeutralAt: args.lastNeutralAt,
+      lastOfferBookKey,
     },
     history,
     inbound: args.claimed.map(toTurnInbound),

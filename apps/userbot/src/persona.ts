@@ -42,6 +42,8 @@ export type UserbotPersonaRow = {
     bookmakerKey: string;
     label: string;
     priority: number;
+    /** Offre Link Affi du bookmaker : sans offre active avec son adresse de suivi, aucun lien d'inscription ne part. */
+    affiliateCampaign?: { isActive: boolean; trackingUrlTemplate: string } | null;
     inviteLinkId: string | null;
     inviteLink: { telegramInviteLink: string | null } | null;
   }[];
@@ -103,11 +105,18 @@ export function toPersonaInput(p: UserbotPersonaRow, botName: string): PersonaIn
   };
 }
 
-function vipBookmakers(p: UserbotPersonaRow) {
+/**
+ * Bookmakers proposés par un gérant du VIP : seulement ceux dont le lien d'inscription peut partir (offre active avec
+ * son adresse de suivi, même règle que `usableBookmakers` du worker), triés par priorité. Jamais un bookmaker qu'il
+ * annoncerait sans pouvoir envoyer son lien.
+ */
+export function vipBookmakers(p: UserbotPersonaRow) {
   if (!p.bookmakers?.length) return [];
   const universe = parsePersonaUniverse(p.universe);
   if (!isVipManager(universe, p.identityKind)) return [];
-  return [...p.bookmakers].sort((a, b) => a.priority - b.priority);
+  return p.bookmakers
+    .filter((pb) => offerUsable(pb.affiliateCampaign))
+    .sort((a, b) => a.priority - b.priority);
 }
 
 /** Photos de chauffe de la persona (emplacements 1 a 5) : media a envoyer et description factuelle pour l'accroche. */

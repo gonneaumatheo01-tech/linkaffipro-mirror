@@ -1,3 +1,24 @@
+# Statut — 2 novembre 2026 : Mehdi ne fait plus jamais patienter
+
+## Fait
+- ✅ Mehdi n'écrit plus jamais « attends je reviens 2 sec ». La cause : des règles de Léa s'appliquaient à Mehdi et bloquaient son lien ; elles sont retirées chez lui (Léa ne change pas).
+- ✅ Quand il annonce le lien Celsius ou Betportal, le lien part dans le message suivant. Le lien du VIP part quand la personne confirme son dépôt par écrit.
+- ✅ Aucun message perdu : si l'IA ou Telegram a un raté, ou si le service redémarre, Mehdi reprend la conversation tout seul quelques secondes plus tard, sans rien dire d'autre.
+- ✅ Une capture d'écran envoyée après le lien : il demande si le dépôt est fait et sur quel bookmaker.
+- ✅ Questions d'argent, hors sujet ou insultes : l'équipe prend le relais (visible dans Conversations, filtre « À traiter »).
+- ✅ Il ne répond plus aux messages automatiques de Telegram (codes de connexion).
+- ✅ Vérifié avec la vraie IA sur 20 situations (dont les 4 conversations bloquées d'aujourd'hui), sans rien envoyer à personne. Tests : moteur 873, compte réel 55 + 7 scénarios sur vraie base, worker et base verts.
+
+## Test de 5 minutes
+1. Depuis un autre compte Telegram, écrire à Mehdi : « salut je veux le vip ».
+2. Quand il demande si tu as un compte Celsius, répondre « non j'ai pas de compte » : le lien doit arriver (il répond en 2 à 3 minutes, c'est son rythme normal).
+3. À aucun moment il ne doit écrire « attends je reviens ».
+
+## Problèmes et actions humaines
+- Aucun.
+
+---
+
 # Statut — 29 octobre 2026 (suite) : Kevin envoie ce que tu veux, à qui tu veux, quand tu veux
 
 ## Fait

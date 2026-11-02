@@ -8,7 +8,8 @@
     "start": "node --env-file-if-exists=../../.env.local --import tsx src/index.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests --exclude \"tests/integration/**\"",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@linkaffipro/chat": "workspace:*",

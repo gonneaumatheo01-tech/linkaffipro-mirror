@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Tests d'intégration sur base PostgreSQL réelle : apps/web/tests/integration puis apps/worker/tests/integration.
+// Tests d'intégration sur base PostgreSQL réelle : apps/web, apps/worker puis apps/userbot (tests/integration).
 //
 // - En local : conteneurs Docker `lap-pg` (port 54329) et `lap-redis` (63799) démarrés ou réutilisés (voir CLAUDE.md),
 //   base `linkaffipro_test` créée si absente.
@@ -7,7 +7,7 @@
 //   doit déjà exister (service Postgres de la CI avec POSTGRES_DB=linkaffipro_test) ; Redis vient de REDIS_URL.
 // Dans les deux cas : garde-fou sur le nom de base (doit contenir « linkaffipro_test »), migrations appliquées, puis vitest.
 //
-// Options : `--only=web` ou `--only=worker` pour ne lancer qu'un paquet.
+// Options : `--only=web`, `--only=worker` ou `--only=userbot` pour ne lancer qu'un paquet.
 import { spawnSync } from "node:child_process";
 
 const TEST_DB = "linkaffipro_test";
@@ -76,9 +76,10 @@ if (run("pnpm", ["--filter", "@linkaffipro/db", "exec", "prisma", "migrate", "de
 const suites = [
   { name: "web", filter: "web" },
   { name: "worker", filter: "worker" },
+  { name: "userbot", filter: "userbot" },
 ].filter((s) => !only || s.name === only);
 if (suites.length === 0) {
-  console.error(`Option --only inconnue : ${only} (attendu : web ou worker).`);
+  console.error(`Option --only inconnue : ${only} (attendu : web, worker ou userbot).`);
   process.exit(1);
 }
 

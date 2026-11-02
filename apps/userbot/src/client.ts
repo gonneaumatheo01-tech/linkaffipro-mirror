@@ -11,9 +11,11 @@ import { NewMessage, type NewMessageEvent } from "telegram/events";
 import { loadUserbotSettings } from "./settings";
 import { transcribe } from "./transcribe";
 import { logger } from "./logger";
+import { isTelegramServiceSender } from "./senders";
 import {
   handleIncomingPrivate,
   startLinkNudges,
+  startUniverseSweep,
   type IncomingPrivate,
   type TurnAccount,
 } from "./turn";
@@ -44,6 +46,8 @@ async function toIncomingPrivate(
 ): Promise<IncomingPrivate | null> {
   const msg = event.message;
   if (!event.isPrivate || msg.out || !msg.senderId) return null;
+  // Compte « Telegram » (codes de connexion) : jamais lu, jamais enregistré, jamais envoyé à l'IA.
+  if (isTelegramServiceSender({ id: msg.senderId })) return null;
   const legende = msg.message?.trim() ?? "";
   const vocal = isVoiceMessage(msg);
   // Autocollant : un salut ou une réaction, jamais avalé ni pris pour un vocal ; son texte est son emoji.
@@ -53,6 +57,7 @@ async function toIncomingPrivate(
   if (!legende && !vocal && sticker === null && !photo) return null;
   const sender = await msg.getSender().catch(() => undefined);
   if (!(sender instanceof Api.User) || sender.bot || sender.self) return null;
+  if (isTelegramServiceSender(sender)) return null;
   const peer = (await msg.getInputChat().catch(() => undefined)) ?? msg.chatId ?? sender;
   const text = vocal ? ((await voiceText(client, msg)) ?? "") : (sticker ?? legende);
   return {
@@ -157,6 +162,8 @@ export async function startAccount(account: AccountToStart): Promise<LiveAccount
   );
   // Seule relance du compte réel : « t la ? » une fois, 1 à 2 h après le lien (série de photos).
   const stopNudges = startLinkNudges(turnAccount);
+  // Casino / Paris sportifs (Mehdi) : messages restés sans réponse (redémarrage, nouvel essai) repris toutes les 30 s.
+  const stopSweep = startUniverseSweep(turnAccount);
 
   return {
     id: account.id,
@@ -164,6 +171,7 @@ export async function startAccount(account: AccountToStart): Promise<LiveAccount
     client,
     stop: async () => {
       stopNudges();
+      stopSweep();
       await client.disconnect().catch(() => undefined);
       await client.destroy().catch(() => undefined);
     },
