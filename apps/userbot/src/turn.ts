@@ -18,6 +18,7 @@ import {
   parisMonthStart,
   parseFacts,
   parseStyleProfile,
+  personaIdentity,
   runTurn,
   type ChatMedia,
   type HistoryMessage,
@@ -225,13 +226,29 @@ export async function handleIncomingPrivate(
 
 type ReadyAccount = TurnAccount & { botId: string };
 
+/** Vrai si la persona reagit aux photos recues : une fille avec serie de photos de chauffe. */
+async function reactsToPhotos(
+  persona: { id: string; universe: string | null; identityKind: string } | null | undefined,
+): Promise<boolean> {
+  if (!persona) return false;
+  if (personaIdentity({ identity: persona.identityKind, universe: persona.universe }) !== "GIRL")
+    return false;
+  return (await loadFlirtPhotos(persona.id)).length > 0;
+}
+
 async function processIncoming(account: ReadyAccount, msg: Incoming): Promise<void> {
-  const memberId = await upsertMember(msg);
   // Persona relue a chaque message : un changement dans Reglages → Comptes s'applique sans redemarrer.
   const accountRow = await prisma.telegramUserAccount.findUnique({
     where: { id: account.id },
     select: { personaId: true, persona: { include: personaInclude } },
   });
+  // Photo : seule une fille avec serie de photos y reagit (« t'es mignon hihi », moteur). Ailleurs, comme avant : photo
+  // seule ignoree, legende lue comme un simple texte.
+  if (msg.media?.kind === "photo" && !(await reactsToPhotos(accountRow?.persona))) {
+    if (!msg.text) return;
+    msg = { ...msg, media: null };
+  }
+  const memberId = await upsertMember(msg);
   const conv = await prisma.conversation.upsert({
     where: { botId_memberId: { botId: account.botId, memberId } },
     create: { botId: account.botId, memberId, personaId: accountRow?.personaId ?? null },

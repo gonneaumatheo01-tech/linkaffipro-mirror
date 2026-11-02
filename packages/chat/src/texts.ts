@@ -16,6 +16,8 @@ export const FIXED_TEXT_KEYS = [
   "midConv",
   // Série de photos : relance unique et courte quand le lien vient de partir et qu'il ne répond pas.
   "linkNudge",
+  // Série de photos : réaction à une photo reçue (elle ne la regarde pas, consigne du client).
+  "photoReaction",
 ] as const;
 export type FixedTextKey = (typeof FIXED_TEXT_KEYS)[number];
 
@@ -56,6 +58,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     handoff: "Je transmets ta demande à l'équipe : quelqu'un te répond ici dès que possible 🙏",
     midConv: "ah une seconde jreviens",
     linkNudge: "t la ?",
+    photoReaction: "t'es mignon hihi",
   },
   en: {
     intro: "I'm {name}, {role} of the channel 😉 How are you?",
@@ -68,6 +71,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     handoff: "I'm passing your request on to the team: someone will reply here as soon as possible 🙏",
     midConv: "one sec, brb",
     linkNudge: "you there?",
+    photoReaction: "you're cute hihi",
   },
   es: {
     intro: "Soy {name}, {role} del canal 😉 ¿Qué tal estás?",
@@ -81,6 +85,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     handoff: "Paso tu solicitud al equipo: alguien te responderá aquí lo antes posible 🙏",
     midConv: "un segundo, ya vuelvo",
     linkNudge: "¿estás?",
+    photoReaction: "eres mono jiji",
   },
   pt: {
     intro: "Eu sou {name}, {role} do canal 😉 Tudo bem com você?",
@@ -94,6 +99,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     handoff: "Vou passar o seu pedido para a equipe: alguém te responde aqui o quanto antes 🙏",
     midConv: "um segundo, já volto",
     linkNudge: "tá aí?",
+    photoReaction: "você é fofo hihi",
   },
   de: {
     intro: "Ich bin {name}, {role} des Kanals 😉 Wie geht's dir?",
@@ -108,6 +114,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     handoff: "Ich gebe deine Anfrage an das Team weiter: Jemand antwortet dir hier so schnell wie möglich 🙏",
     midConv: "eine Sekunde, bin gleich wieder da",
     linkNudge: "bist du da?",
+    photoReaction: "du bist süß hihi",
   },
   it: {
     intro: "Sono {name}, {role} del canale 😉 Come stai?",
@@ -121,6 +128,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     handoff: "Passo la tua richiesta al team: qualcuno ti risponderà qui il prima possibile 🙏",
     midConv: "un secondo, torno subito",
     linkNudge: "ci sei?",
+    photoReaction: "sei carino hihi",
   },
 };
 

@@ -108,6 +108,14 @@ describe("prompt de la série de photos", () => {
     expect(p).toContain("Il a refusé l'app : ne la repropose pas");
   });
 
+  it("photo reçue : la réaction part toute seule, le modèle ne commente pas la photo", () => {
+    const p = prompt("PHOTOS", 100, "regarde", { memberPhoto: true });
+    expect(p.lastIndexOf("« t'es mignon hihi » part déjà tout seul")).toBeGreaterThan(
+      p.indexOf("AVANT D'ENVOYER"),
+    );
+    expect(prompt("PHOTOS", 100, "regarde")).not.toContain("t'es mignon hihi");
+  });
+
   it("un autocollant est un salut, pas un vocal", () => {
     expect(prompt("NONE", 0, "😘")).toContain("Un [autocollant] n'est pas un vocal");
   });

@@ -1144,3 +1144,8 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
 - Série de photos seulement : l'app n'est jamais décrite (plus de « c'est une appli pour parler », le lien répond pour elle). Les personas sans série gardent la réponse d'avant, mot pour mot.
 - Tour du lien armé : le moteur jette le texte du modèle et n'envoie que le lien (l'adresse seule sur le compte réel, le bouton sous « 👇 » sur un bot). Un appel au modèle reste fait à ce tour (accepté : un appel par conversation).
 - Correctif : le lien coupé de son texte partait dans un message VIDE, que Telegram refuse ; le moteur supprimait alors le lien, devenu mort (renvoi vers l'accueil de l'app). Depuis le 2 novembre ~14 h 55 (heure de Paris), 5 liens étaient concernés. Désormais le 2ᵉ message porte l'adresse (compte réel) ou « 👇 » avec le bouton (bot). Les 5 liens sont recréés en base avec le même identifiant de suivi, aucun message renvoyé aux membres.
+
+## Léa : réaction aux photos reçues (2 novembre 2026, consigne du client)
+
+- Série de photos (fille avec photos de chauffe) : une photo reçue sans un mot → « t'es mignon hihi » (texte fixe `photoReaction`, 6 langues), sans appel au modèle ; la série n'avance pas et un lien armé le reste. Photo avec des mots → « t'es mignon hihi » d'abord, puis la réponse du modèle, à qui la fin du prompt dit de ne pas commenter la photo.
+- Compte réel (userbot) : les photos ne sont plus jetées à la réception (`MessageMediaPhoto` → `media.kind = "photo"`). Pour une persona sans série (Mehdi…), rien ne change : photo seule ignorée, légende lue comme un texte.

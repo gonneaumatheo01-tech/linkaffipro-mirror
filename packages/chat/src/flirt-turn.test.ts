@@ -186,6 +186,63 @@ describe("le lien part seul, l'app n'est jamais décrite", () => {
   });
 });
 
+describe("photo reçue : « t'es mignon hihi »", () => {
+  const avecPhoto = (inp: TurnInput, text = ""): TurnInput => ({
+    ...inp,
+    inbound: [{ text, media: { kind: "photo" } }],
+  });
+
+  it("photo seule : la réaction part, sans appel au modèle, la série n'avance pas", async () => {
+    const llm = createFakeLlm([]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(avecPhoto(tour("PHOTOS", 100, "")), deps);
+    expect(llm.calls).toBe(0);
+    expect(res.sent.map((p) => p.text)).toEqual(["t'es mignon hihi"]);
+    expect(res.sent[0]?.fixedKey).toBe("photoReaction");
+    expect(res.outcome).toBe("replied");
+    expect(res.newFlirtStep).toBeUndefined();
+  });
+
+  it("photo seule pendant que le lien est armé : le lien reste armé pour le tour suivant", async () => {
+    const llm = createFakeLlm([]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(
+      avecPhoto(tour("OFFER", 301, "", { facts: [ARMED_LINK_FACT] })),
+      deps,
+    );
+    expect(res.sent.map((p) => p.text)).toEqual(["t'es mignon hihi"]);
+    expect(res.offerSent).toBeNull();
+    expect(res.facts).toContain(ARMED_LINK_FACT);
+  });
+
+  it("photo avec des mots : la réaction d'abord, puis la réponse du modèle", async () => {
+    const llm = createFakeLlm([reponse("mdrr t'es fou toi", "rien")]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(avecPhoto(tour("PHOTOS", 100, ""), "regarde moi"), deps);
+    expect(llm.calls).toBe(1);
+    expect(res.sent.map((p) => p.text)).toEqual(["t'es mignon hihi", "mdrr t'es fou toi"]);
+  });
+
+  it("le modèle a déjà réagi : pas de doublon", async () => {
+    const llm = createFakeLlm([reponse("t'es mignon hihi", "rien")]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(avecPhoto(tour("PHOTOS", 100, ""), "et moi ?"), deps);
+    expect(res.sent.map((p) => p.text)).toEqual(["t'es mignon hihi"]);
+  });
+
+  it("fille sans série de photos : rien ne change, le modèle répond", async () => {
+    const llm = createFakeLlm([reponse("oh c'est quoi ça", "rien")]);
+    const deps = createFakeTurnDeps({ llm });
+    const inp = avecPhoto(tour("NONE", 0, ""));
+    const res = await runTurn(
+      { ...inp, persona: fakePersona({ identity: "GIRL", illusion: true, hasOffer: true }) },
+      deps,
+    );
+    expect(llm.calls).toBe(1);
+    expect(res.sent.map((p) => p.text)).toEqual(["oh c'est quoi ça"]);
+  });
+});
+
 describe("silence dur après le refus ferme", () => {
   it("la dernière ligne (WRAP) part sans relance prévue", async () => {
     const llm = createFakeLlm([reponse("bon jcontinue la bas moi", "rien")]);

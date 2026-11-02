@@ -147,6 +147,8 @@ export type SystemPromptContext = {
   retryCodes?: readonly string[];
   /** Casino / Paris sportifs : la personne demande l'accès VIP, le lien ou l'inscription à ce tour. */
   memberAskedOffer?: boolean;
+  /** Série : la personne a envoyé une photo à ce tour (« t'es mignon hihi » part déjà, envoyé par le code). */
+  memberPhoto?: boolean;
   /** Série de photos de chauffe : consigne du tour et description de la photo à joindre. */
   flirt?: {
     allow: readonly FlirtAction[];
@@ -513,6 +515,12 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   if (ctx.flirt && series && ctx.flirt.phase === "NONE" && ctx.kind === "reply")
     turnLines.push(
       "Pas encore chaud : à ce tour tu provoques. Si tu ne lui as pas encore demandé ce qu'il cherche, fais-le maintenant, même au premier message (« tu cherches quoi ici toi ? »). S'il a répondu vague, tranche toi-même (« du sexe ? 😏 », « juste discuter ou plus ? »). S'il veut du sexe ou plus, rentre dedans. Ne repose jamais une question déjà posée : si tu as déjà demandé et tranché, chauffe-le toi-même (ton humeur coquine, ce que tu portes, ce qui te ferait plaisir). Pas de question de base (ville, taf, âge), pas d'app.",
+    );
+
+  // Photo reçue : la réaction part toute seule (code), le modèle ne commente pas la photo.
+  if (series && ctx.memberPhoto && ctx.kind === "reply")
+    turnLines.push(
+      "Il t'a envoyé une photo : « t'es mignon hihi » part déjà tout seul, juste avant ta réponse. Tu ne commentes pas la photo, tu ne la décris pas et tu ne redis pas qu'il est mignon : tu réponds seulement à ses mots.",
     );
 
   if (ctx.retryCodes && ctx.retryCodes.length > 0) {

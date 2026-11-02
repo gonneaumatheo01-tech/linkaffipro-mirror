@@ -221,6 +221,11 @@ function flirtSeries(input: TurnInput): boolean {
   return personaIdentity(input.persona) === "GIRL" && (input.persona.flirtPhotos ?? []).length > 0;
 }
 
+/** Photo envoyée par la personne à ce tour. */
+function hasMemberPhoto(inbound: readonly TurnInbound[]): boolean {
+  return inbound.some((m) => m.media?.kind === "photo");
+}
+
 /** Conversation vue par les règles générales du lien (`canSendOffer`). */
 function offerConvOf(run: Run, inbound: readonly TurnInbound[]) {
   const conv = run.input.conversation;
@@ -286,6 +291,7 @@ function buildRequest(
       : null,
     retryCodes,
     memberAskedOffer: memberAskedOffer(run, inbound),
+    memberPhoto: input.kind === "reply" && hasMemberPhoto(inbound),
     flirt: run.flirt
       ? {
           allow: run.flirt.allow,
@@ -1032,6 +1038,10 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     }
     if (input.kind === "follow_up" && (flirt.state.phase === "WRAP" || flirt.state.phase === "DONE"))
       return { ...baseResult(run, inbound), outcome: "aborted" };
+    // Photo reçue sans un mot : « t'es mignon hihi », texte fixe sans appel au modèle (consigne du client : elle ne
+    // regarde pas la photo). La série n'avance pas.
+    if (input.kind === "reply" && hasMemberPhoto(inbound) && inbound.every((m) => !m.text.trim()))
+      return photoReaction(run, inbound);
   }
 
   // 1 bis. Casino / Paris : demande d'argent, réclamation ou insulte repérée par le code → réponse neutre fixe et
@@ -1182,6 +1192,19 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     texts = [""];
     fixedKey = null;
   }
+
+  // Série : photo reçue avec des mots → « t'es mignon hihi » part d'abord, puis la réponse (elle ne regarde pas la photo).
+  const photoLine = fixedText(run.lang, "photoReaction");
+  if (
+    series &&
+    input.kind === "reply" &&
+    hasMemberPhoto(inbound) &&
+    fixedKey === null &&
+    !pseudoGiven &&
+    !needsHuman &&
+    !texts.some((t) => t.toLowerCase().includes(photoLine.toLowerCase()))
+  )
+    texts = [photoLine, ...texts];
 
   // Phase 25 bis : bookmaker partenaire (Paris sportifs VIP) et lien VIP.
   const selectedBook = pickBook(input.persona, output?.selected_book, withOffer);
@@ -1366,6 +1389,71 @@ async function linkNudge(run: Run, inbound: TurnInbound[]): Promise<TurnResult> 
       : sending.sendError?.unreachable
         ? "UNREACHABLE"
         : null,
+    sendError: sending.sendError,
+  };
+}
+
+/**
+ * Série de photos : photo reçue sans un mot → « t'es mignon hihi », texte fixe sans appel au modèle (elle ne regarde
+ * pas la photo). La série n'avance pas, le lien armé le reste. Messages arrivés pendant la relecture : rendus pour un
+ * vrai tour de réponse.
+ */
+async function photoReaction(run: Run, inbound: TurnInbound[]): Promise<TurnResult> {
+  const { input, deps } = run;
+  const conv = input.conversation;
+  const check = await deps.beforeSend();
+  if (check.abort)
+    return { ...baseResult(run, inbound), outcome: "aborted", deferredInbound: check.newInbound };
+  const lateMinor = detectMinorIn(check.newInbound.map((m) => m.text));
+  if (lateMinor.minor)
+    return stopForMinor(run, [...inbound, ...check.newInbound], "code", lateMinor.age);
+  const sending = await sendParts(run, [fixedText(run.lang, "photoReaction")], {
+    withOffer: false,
+    fixedKey: "photoReaction",
+  });
+  const anySent = sending.sent.length > 0;
+  const newStage = anySent
+    ? decideStage({
+        current: conv.stage,
+        proposed: null,
+        offerSent: false,
+        kind: "reply",
+        isFirstAssistantTurn: conv.isFirstAssistantTurn,
+        offerSendsBefore: conv.offerSends,
+      })
+    : conv.stage;
+  const stage = stageEvents(conv.stage, newStage);
+  const closeReason = sending.sendError?.blocked
+    ? ("BLOCKED" as const)
+    : sending.sendError?.unreachable
+      ? ("UNREACHABLE" as const)
+      : null;
+  const now = deps.now();
+  return {
+    ...baseResult(run, inbound),
+    outcome: anySent ? "replied" : "failed",
+    sent: sending.sent,
+    newStage,
+    stageChanges: stage.changes,
+    events: stage.events,
+    deferredInbound: check.newInbound,
+    followUpCount: anySent ? 0 : conv.followUpCount,
+    nextFollowUpAt:
+      anySent && !closeReason
+        ? nextFollowUpAt(
+            {
+              status: "BOT",
+              stage: newStage,
+              isMinor: false,
+              stoppedAt: null,
+              followUpCount: 0,
+              lastAssistantAt: now,
+            },
+            input.persona,
+            deps.random,
+          )
+        : null,
+    closeReason,
     sendError: sending.sendError,
   };
 }

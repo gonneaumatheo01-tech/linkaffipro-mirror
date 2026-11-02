@@ -48,8 +48,9 @@ async function toIncomingPrivate(
   const vocal = isVoiceMessage(msg);
   // Autocollant : un salut ou une réaction, jamais avalé ni pris pour un vocal ; son texte est son emoji.
   const sticker = vocal ? null : stickerEmoji(msg);
-  // Un vocal n'a pas de texte : on ne le jette pas, il sera transcrit.
-  if (!legende && !vocal && sticker === null) return null;
+  const photo = msg.media instanceof Api.MessageMediaPhoto;
+  // Un vocal n'a pas de texte : on ne le jette pas, il sera transcrit. Une photo seule non plus : turn.ts décide.
+  if (!legende && !vocal && sticker === null && !photo) return null;
   const sender = await msg.getSender().catch(() => undefined);
   if (!(sender instanceof Api.User) || sender.bot || sender.self) return null;
   const peer = (await msg.getInputChat().catch(() => undefined)) ?? msg.chatId ?? sender;
@@ -62,7 +63,9 @@ async function toIncomingPrivate(
       ? ({ kind: "voice" } as const)
       : sticker !== null
         ? ({ kind: "sticker" } as const)
-        : null,
+        : photo
+          ? ({ kind: "photo" } as const)
+          : null,
     peer,
     firstName: sender.firstName ?? null,
     lastName: sender.lastName ?? null,
