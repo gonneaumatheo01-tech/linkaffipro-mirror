@@ -7,7 +7,7 @@
 - ✅ Une capture d'écran envoyée après le lien : il demande si le dépôt est fait et sur quel bookmaker.
 - ✅ Questions d'argent, hors sujet ou insultes : l'équipe prend le relais (visible dans Conversations, filtre « À traiter »).
 - ✅ Il ne répond plus aux messages automatiques de Telegram (codes de connexion).
-- ✅ Vérifié avec la vraie IA sur 20 situations (dont les 4 conversations bloquées d'aujourd'hui), sans rien envoyer à personne. Tests : moteur 873, compte réel 55 + 7 scénarios sur vraie base, worker et base verts.
+- ✅ Vérifié avec la vraie IA sur 20 situations (dont les 4 conversations bloquées d'aujourd'hui), sans rien envoyer à personne. Tests tous verts : moteur 873, compte réel 55 + 7 scénarios sur vraie base, worker 496 + 274 sur vraie base, site 3 549 + 419 sur vraie base, base 88.
 
 ## Test de 5 minutes
 1. Depuis un autre compte Telegram, écrire à Mehdi : « salut je veux le vip ».
