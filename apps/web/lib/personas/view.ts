@@ -260,6 +260,9 @@ const REJECT_LABELS: Record<string, string> = {
   explicit_too_early: "mots trop crus trop tôt",
   emoji: "emoji alors qu'ils sont interdits",
   link_announce: "a annoncé le lien sans pouvoir l'envoyer",
+  waiting_phrase: "a fait patienter (« attends », « je reviens »)",
+  link_not_allowed: "a annoncé le lien d'inscription trop tôt",
+  vip_access_not_allowed: "a donné l'accès au VIP avant le dépôt",
 };
 
 /** Refus qui parlent de la persona elle-même : accordés à son genre (« assistante » par défaut, « assistant » si M). */
