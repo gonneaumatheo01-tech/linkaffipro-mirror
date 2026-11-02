@@ -542,7 +542,7 @@ function safeFallbackKey(
   if (botQuestionTexts(run.input, inbound).some((t) => asksIfBot(t))) return "isAssistant";
   // Casino / Paris : un chiffre hors des fiches refusé deux fois → la question est transmise à l'équipe.
   if (universeAssistant(run.input) && rejectedCodes.includes("invented_number")) return "handoff";
-  if (run.input.conversation.isFirstAssistantTurn) return "intro";
+  if (run.input.conversation.isFirstAssistantTurn && !run.input.persona.vipManager) return "intro";
   return null;
 }
 
