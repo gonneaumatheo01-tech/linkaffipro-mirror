@@ -14,6 +14,11 @@ export const FIXED_TEXT_KEYS = [
   "handoff",
   // Repli en pleine conversation quand le modèle n'a rien donné d'envoyable : neutre et naturel.
   "midConv",
+  // Script de chauffe d'une fille en illusion, quand le modèle n'a pas écrit l'étape demandée : accroche au premier
+  // message, accroche en cours de discussion, relance sur le sexe.
+  "hook",
+  "hookLater",
+  "push",
 ] as const;
 export type FixedTextKey = (typeof FIXED_TEXT_KEYS)[number];
 
@@ -53,6 +58,9 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
       "Tu m'as demandé de ne plus t'écrire, je respecte ton choix. Bonne continuation !",
     handoff: "Je transmets ta demande à l'équipe : quelqu'un te répond ici dès que possible 🙏",
     midConv: "ah une seconde jreviens",
+    hook: "moi c'est {name}, tu cherches quoi toi ? 😏",
+    hookLater: "et sinon tu cherches quoi toi ici ? 😏",
+    push: "du sexe alors ? 😏",
   },
   en: {
     intro: "I'm {name}, {role} of the channel 😉 How are you?",
@@ -62,8 +70,12 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     stopDone: "Got it, I won't write to you again. All the best!",
     resetDone: "Done, I've forgotten everything. Shall we start over? 😊",
     stoppedAlready: "You asked me not to write to you anymore, and I respect that. All the best!",
-    handoff: "I'm passing your request on to the team: someone will reply here as soon as possible 🙏",
+    handoff:
+      "I'm passing your request on to the team: someone will reply here as soon as possible 🙏",
     midConv: "one sec, brb",
+    hook: "I'm {name}, what are you looking for? 😏",
+    hookLater: "so what are you looking for here? 😏",
+    push: "sex then? 😏",
   },
   es: {
     intro: "Soy {name}, {role} del canal 😉 ¿Qué tal estás?",
@@ -76,6 +88,9 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     stoppedAlready: "Me pediste que no te escribiera más y lo respeto. ¡Que te vaya bien!",
     handoff: "Paso tu solicitud al equipo: alguien te responderá aquí lo antes posible 🙏",
     midConv: "un segundo, ya vuelvo",
+    hook: "soy {name}, ¿y tú qué buscas? 😏",
+    hookLater: "¿y tú qué buscas por aquí? 😏",
+    push: "¿sexo entonces? 😏",
   },
   pt: {
     intro: "Eu sou {name}, {role} do canal 😉 Tudo bem com você?",
@@ -88,6 +103,9 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     stoppedAlready: "Você pediu para eu não te escrever mais, e eu respeito. Tudo de bom!",
     handoff: "Vou passar o seu pedido para a equipe: alguém te responde aqui o quanto antes 🙏",
     midConv: "um segundo, já volto",
+    hook: "sou a {name}, o que você procura? 😏",
+    hookLater: "e você procura o quê aqui? 😏",
+    push: "sexo então? 😏",
   },
   de: {
     intro: "Ich bin {name}, {role} des Kanals 😉 Wie geht's dir?",
@@ -99,8 +117,12 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     resetDone: "Erledigt, ich habe alles vergessen. Fangen wir neu an? 😊",
     stoppedAlready:
       "Du hast mich gebeten, dir nicht mehr zu schreiben, und das respektiere ich. Alles Gute!",
-    handoff: "Ich gebe deine Anfrage an das Team weiter: Jemand antwortet dir hier so schnell wie möglich 🙏",
+    handoff:
+      "Ich gebe deine Anfrage an das Team weiter: Jemand antwortet dir hier so schnell wie möglich 🙏",
     midConv: "eine Sekunde, bin gleich wieder da",
+    hook: "ich bin {name}, was suchst du so? 😏",
+    hookLater: "und was suchst du hier so? 😏",
+    push: "also Sex? 😏",
   },
   it: {
     intro: "Sono {name}, {role} del canale 😉 Come stai?",
@@ -113,6 +135,9 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     stoppedAlready: "Mi hai chiesto di non scriverti più e lo rispetto. Buona continuazione!",
     handoff: "Passo la tua richiesta al team: qualcuno ti risponderà qui il prima possibile 🙏",
     midConv: "un secondo, torno subito",
+    hook: "sono {name}, tu cosa cerchi? 😏",
+    hookLater: "e tu cosa cerchi qui? 😏",
+    push: "sesso allora? 😏",
   },
 };
 

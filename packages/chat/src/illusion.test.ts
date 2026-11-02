@@ -92,8 +92,33 @@ describe("prompt système en illusion", () => {
     );
     expect(p).toContain("cherches quoi");
     expect(p).toContain("Léa");
-    expect(validate(["moi c'est Léa, tu cherches quoi toi ? 😏"], { isFirstAssistantMessage: true }).ok).toBe(true);
+    expect(
+      validate(["moi c'est Léa, tu cherches quoi toi ? 😏"], { isFirstAssistantMessage: true }).ok,
+    ).toBe(true);
     expect(p).not.toMatch(/assistante|canal/);
+  });
+
+  it("script de chauffe : l'étape du tour en dernier, pas de déroulé vers l'app avant la photo 3", () => {
+    const photos = [{ slot: 1, assetId: "a1", description: "photo 1" }];
+    const persona = fakePersona({ identity: "GIRL", illusion: true, age: 23, flirtPhotos: photos });
+    const p = buildSystemPrompt(
+      ctx({
+        persona,
+        flirt: { allow: ["rien"], photoSlot: null, directive: "push", photo: null, phase: "NONE" },
+      }),
+    );
+    expect(p).not.toContain("// >>> CONVERSION");
+    expect(p).not.toContain("« t'es d'ou ? », « tu fais quoi dans la vie ? »");
+    expect(p.indexOf("CE TOUR")).toBeGreaterThan(p.indexOf("RÈGLES"));
+    expect(p.indexOf("CE TOUR")).toBeLessThan(p.indexOf("SORTIE"));
+    expect(p.slice(p.indexOf("CE TOUR"))).toContain("DOIT contenir le mot « sexe »");
+    const apres = buildSystemPrompt(
+      ctx({
+        persona,
+        flirt: { allow: ["rien"], photoSlot: null, directive: "wait", photo: null, phase: "OFFER" },
+      }),
+    );
+    expect(apres).toContain("// >>> CONVERSION");
   });
 
   it("corrections : jamais d'aveu demandé", () => {

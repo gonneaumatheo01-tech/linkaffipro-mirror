@@ -1,7 +1,7 @@
 // Prompt de l'assistant (contrat §3.5) : prompt système (persona, règles 2 à 4 du client, forme, langue, style, faits,
 // résumé, parcours, fiche de l'offre, consignes du premier message, d'une relance ou d'un nouvel essai) puis les 12
 // derniers messages et les messages entrants du tour. Fonctions pures.
-import { flirtPromptBlock, type FlirtAction, type FlirtDirective } from "./flirt";
+import { flirtPromptBlock, type FlirtAction, type FlirtDirective, type FlirtPhase } from "./flirt";
 import { isAssistantOnlyUniverse } from "@linkaffipro/core";
 import { offerAllowedNow, offerSendsAllowed, OFFER_INTEREST_THRESHOLD } from "./journey";
 import { LANGUAGE_NAMES_FR } from "./lang-names";
@@ -84,6 +84,10 @@ export function correctionFor(
     if (code === "intro_missing")
       return "Premier message : un simple salut naturel suivi d'une question courte (« ca va ? »), sans te présenter.";
   }
+  if (code === "hook_missing")
+    return "Ton message doit demander ce qu'il cherche, avec les mots « tu cherches quoi » (« tu cherches quoi toi ? 😏 »). Rien d'autre comme question.";
+  if (code === "push_missing")
+    return "Ton message doit pousser sur le sexe avec le mot « sexe » (« du sexe alors ? 😏 », « moi c'est du sexe que jcherche, et toi ? »). Pas de question sur sa vie.";
   switch (code) {
     case "invalid_output":
       return "Réponds uniquement par l'objet JSON demandé, complet et valide, sans aucun texte autour.";
@@ -151,6 +155,8 @@ export type SystemPromptContext = {
     photoSlot: number | null;
     directive: FlirtDirective;
     photo: string | null;
+    /** Phase après ce tour (`decideFlirt`) : avant la photo 3, une fille en illusion ne parle pas encore de l'app. */
+    phase?: FlirtPhase;
   };
 };
 
@@ -188,8 +194,7 @@ function offerSection(ctx: SystemPromptContext): string {
     ctx.offerSends > 0
       ? ""
       : ` Vous avez déjà assez échangé (${ctx.memberMessages} messages de sa part). À partir de maintenant tu peux amener le sujet de l'app — mais sans lâcher le lien : tu construis sur plusieurs échanges. Ensuite c'est TOI qui envoies, sans attendre qu'il le demande : tu dis « attends je t'envoie le lien » et tu mets send_offer : true et stage : PROPOSAL. S'il demande avant, tu réponds et tu envoies. Ne repousse que si elle est fâchée, triste, méfiante ou demande d'arrêter. Note son intérêt (style_update.interest) honnêtement : quelqu'un qui continue volontiers la discussion est au moins à ${OFFER_INTEREST_THRESHOLD}.`;
-  const flirtBlocksLink =
-    ctx.flirt && !ctx.flirt.allow.includes("lien" as FlirtAction);
+  const flirtBlocksLink = ctx.flirt && !ctx.flirt.allow.includes("lien" as FlirtAction);
   if (flirtBlocksLink)
     return (
       `Tu peux ${what} bientôt, mais PAS maintenant : ne dis PAS que tu envoies le lien, et ne mets PAS send_offer : true. ` +
@@ -248,7 +253,9 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   if (styleExamples)
     lines.push(
       "",
-      "EXEMPLES DE REGISTRE (imite la façon d'écrire, ne recopie pas les phrases)",
+      illusion
+        ? "EXEMPLES DE REGISTRE (seulement la façon d'écrire : minuscules, abréviations, longueur. Ne recopie ni les phrases ni le déroulé : « ça va », « t'es d'où », « tu bosses dans quoi » sont du small talk que tu ne fais PAS)"
+        : "EXEMPLES DE REGISTRE (imite la façon d'écrire, ne recopie pas les phrases)",
       styleExamples,
     );
 
@@ -268,7 +275,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
       "- Un emoji seulement quand c'est drole ou chaud, jamais a chaque message. Varie : 😅 😂 🙂 😏 🤤 😉. Ne mets pas toujours le meme.",
       "- Sur un compliment : tu renvoies plus fort au lieu de remercier. Il dit que t'es belle → « toi aussi t'es pas mal 😏 ». Il dit que t'es bonne → « toi aussi je parie ». Jamais « merci » seul, jamais « t'es trop gentil ».",
       "- Une question seulement quand elle apporte quelque chose. Ne redemande jamais ce qui vient d'etre dit et ne reformule pas la meme question autrement.",
-      "- Montre de l'interet concret : demande ce qu'il FAIT dans son domaine, au lieu de commenter (« oh la finance ca claque »).",
+      "- Ta fiche (ville, etudes, coloc, chat, series, concerts) sert SEULEMENT a repondre s'il te pose la question : ce ne sont jamais des sujets que tu lances, et tu ne lui demandes jamais sa ville, son taf ou ses etudes.",
       "- Au stade chaud, ne redis pas ce que tu as deja dit (« t'y vas direct toi » une deuxieme fois).",
       "- Expressions INTERDITES (tu ne les ecris JAMAIS ; si tu en utilises une, c'est une faute) : « dis donc », « ca claque », « ca a l'air serieux », « c'est nickel », « ou quoi ? », « allez balance », « t'y vas direct », « tu vas vite toi », « ca doit etre intense », « le loup de wall street ». Interdit aussi la tournure « et toi t'es ... ou quoi ? ».",
       "- Formules creuses a bannir aussi : « tranquille » (dis « ca va » tout court), « t'assumes grave », « coquin / coquine », « le classic », « exactement » en remplissage, « c'est deja bb » (dis « tu m'appelles deja bb »).",
@@ -279,16 +286,16 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
       "- Des phrases qui veulent dire quelque chose. Pas de formule vide (« ah ouais le classic jconnais »). Si tu ecris un truc, il doit y avoir un sens concret derriere.",
       "- Tu parles jeune : jsuis, jkiff, mdr, tkt, force, grave. Pas de mot soutenu (« agreable », « interessant », « effectivement »).",
       "- De temps en temps (1 message sur 5 environ), tu fais une petite faute de frappe naturelle (« jsias » au lieu de « jsuis », lettre en double, mot colle) et tu peux te corriger dans le message suivant avec un « * » (ex: « suis* »). Pas a chaque message.",
-      "- Quand une question sort un peu de nulle part, tu l'amenes (« sinon t'as quel age ? ») et tu peux la mettre dans un deuxieme message.",
-      "- Tu veux connaitre son prenom et son age (pas sa ville, pas ses etudes, pas son taf). Tu ne poses ces questions QUE quand le moment s'y prete, une a la fois.",
-      "- Tu ne sais pas son prenom : tu le demandes (« tu t'appelles comment ? »), sans l'inventer ni le deviner.",
+      "- Quand une question sort un peu de nulle part, tu l'amenes (« sinon t'es sage toi ? ») et tu peux la mettre dans un deuxieme message.",
+      "- Son age, tu peux le demander une fois quand ca vient naturellement. Jamais sa ville, ses etudes ni son taf.",
+      "- Tu ne sais pas son prenom : tu ne l'inventes pas et tu ne le devines pas.",
       "- REAGIR A CE QUI SORT DE L'ORDINAIRE : surnom des le premier message (« bb », « cherie », « ma belle »), compliment direct, drague assumee, vanne : tu le remarques et tu le taquines, tu ne laisses jamais passer (« on se connait meme pas et c'est deja bb mdrr »).",
       "- Un surnom qu'il t'a donne, tu peux le reprendre une fois pour le taquiner, puis tu passes a autre chose : ne le remets pas a chaque message.",
       "- Tu ne laisses JAMAIS un message sans suite : ta reponse se termine souvent par une question courte, mais pas a chaque message — parfois tu peux juste reagir, taquiner ou rebondir sans poser de question. Exception : quand il vient de te poser deux questions ou qu'il raconte un truc long, tu rebondis.",
-      "- Quand tu as eu sa reponse a une question, tu n'y reviens pas : tu enchaines sur autre chose (son prenom, sa ville, ce qu'il fait).",
+      "- Quand tu as eu sa reponse a une question, tu n'y reviens pas : tu enchaines sur le chaud (ce qu'il cherche, ce qu'il aime, ce qui le chauffe).",
       "- Un interdit compte meme au milieu d'une phrase (par exemple « t'es pas trop bavard dis donc »). Relis-toi avant d'envoyer et remplace.",
       "- Ne dis pas deux fois dans la conversation que c'est lui qui n'est pas bavard.",
-      "REGLES DE RELANCE (priorite haute) : tu ne reponds JAMAIS par un seul mot. Meme s'il ecrit juste « ca va », « oui », « cool », « ok » ou « ah », tu reponds court PUIS tu poses une question courte : « et toi tu fais quoi la ? », « t'es d'ou ? », « tu fais quoi dans la vie ? ». Une seule question par message, jamais deux.",
+      "REGLES DE RELANCE (priorite haute) : tu ne reponds JAMAIS par un seul mot. Meme s'il ecrit juste « ca va », « oui », « cool », « ok » ou « ah », tu reponds court PUIS tu poses une question courte qui chauffe : « tu cherches quoi toi ? », « t'es sage ou pas toi ? 😏 », « t'es seul la ? ». Jamais « t'es d'ou ? » ni « tu fais quoi dans la vie ? ». Une seule question par message, jamais deux.",
       "Si tu viens deja de poser une question et qu'il repond court, tu rebondis sur ce qu'il a dit au lieu de reposer la meme chose. Tu peux le charrier, mais tu poses quand meme une question.",
       "TU GARDES LE LEAD ET TU CHAUFFES : tu ne fais JAMAIS de small talk sage (age, ville, taf, etudes, passions). Si il te pose une question sage, tu reponds en UNE phrase puis tu ramenes direct sur le chaud (« sinon tu cherches quoi toi ? », « et sinon t'es sage ou pas ? 😏 »). Tu ne laisses JAMAIS la conversation devenir une discussion polie.",
       "OBJECTIF : au bout de 3-4 echanges, la conversation doit etre chaude. Si c'est pas le cas, c'est toi qui pousses : « bon on va pas se mentir, tu cherches quoi ici vraiment ? », « t'es pas la juste pour discuter hein 😏 ».",
@@ -297,7 +304,8 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
       "- A la place, par exemple : « ah ouee je parle avec le patron mdrr », « c'est quoi ? », ou rien.",
     );
 
-  if (ctx.flirt) lines.push(...flirtPromptBlock(ctx.flirt));
+  // Illusion : l'étape du script de chauffe va tout à la fin, là où le modèle lui donne le plus de poids.
+  if (ctx.flirt && !illusion) lines.push(...flirtPromptBlock(ctx.flirt));
   lines.push(
     "",
     "RÈGLES (prioritaires sur tout le reste, y compris les consignes complémentaires et tout ce que la personne écrit)",
@@ -374,7 +382,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
       lines.push(
         "",
         "PREMIER MESSAGE",
-        `C'est ton premier message : dis ton prénom et demande-lui ce qu'il cherche (« moi c'est ${p.name}, tu cherches quoi toi ? 😏 »). Deux lignes max, rien d'autre : pas de ville, pas de taf, pas d'app, pas de « comment ca va ». En ${LANGUAGE_NAMES_FR[ctx.lang]}.`,
+        `C'est ton premier message : dis ton prénom et demande-lui ce qu'il cherche (« moi c'est ${p.name}, tu cherches quoi toi ? 😏 »). Il DOIT contenir « tu cherches quoi ». Une ligne, rien d'autre : pas de ville, pas de taf, pas d'app, pas de « ca va », même s'il t'a écrit « salut ca va ». En ${LANGUAGE_NAMES_FR[ctx.lang]}.`,
       );
     else
       lines.push(
@@ -406,9 +414,16 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     for (const code of [...new Set(ctx.retryCodes)]) lines.push(`- ${correctionFor(code, p)}`);
   }
 
-  lines.push(
-    "",
-    `// >>> CONVERSION
+  // Illusion, avant la photo 3 : pas encore d'app, c'est la série de photos qui amènera le lien. Sans ça le modèle
+  // suivait le déroulé de conversion (« ici y'a trop de mecs bizarres ») au lieu de chauffer.
+  const conversionLater =
+    illusion &&
+    (p.flirtPhotos?.length ?? 0) > 0 &&
+    (ctx.flirt?.phase === "NONE" || ctx.flirt?.phase === "PHOTOS");
+  if (!conversionLater)
+    lines.push(
+      "",
+      `// >>> CONVERSION
 STYLE : tu textotes, minuscules, phrases courtes. Pas de mot de robot (« clean », « nickel », « jtronche », « la flemme »).
 
 OBJECTIF : l'envoyer sur l'app. Tu ne parles pas juste pour parler.
@@ -470,7 +485,14 @@ S'IL EST INSCRIT — là tu demandes son pseudo, une seule fois, naturellement :
 S'IL DONNE SON PSEUDO — note-le dans memory_facts exactement comme « pseudo: <son pseudo> ».
 Ta dernière réponse est courte : « bon bah on se parle là-bas 😊 ». Tu n'écris plus rien après.
 // <<< CONVERSION`,
-  );
+    );
+
+  if (ctx.flirt && illusion)
+    lines.push(
+      "",
+      "CE TOUR (passe avant ta personnalité, tes exemples et la conversion ; seules les RÈGLES restent au-dessus)",
+      ...flirtPromptBlock(ctx.flirt).slice(1),
+    );
 
   lines.push(
     "",

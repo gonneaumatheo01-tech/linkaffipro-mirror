@@ -26,6 +26,8 @@ import {
   applyAction,
   decideFlirt,
   encodeProgress,
+  isHookQuestion,
+  isPushAnswer,
   type FlirtAction,
   type FlirtDecision,
 } from "./flirt";
@@ -59,6 +61,7 @@ import {
   asksIfBot,
   botQuestionInsists,
   openBotQuestion,
+  saysNo,
   validateTurnOutput,
   type RejectCode,
 } from "./validate";
@@ -248,6 +251,7 @@ function buildRequest(
           allow: run.flirt.allow,
           photoSlot: run.flirt.photoSlot,
           directive: run.flirt.directive,
+          phase: run.flirt.state.phase,
           photo:
             input.persona.flirtPhotos?.find((x) => x.slot === run.flirt?.photoSlot)?.description ??
             null,
@@ -345,6 +349,7 @@ async function checkResponse(
     interest: input.conversation.style.interest ?? 0,
     vipManager: input.persona.vipManager === true && input.persona.universe === "sports",
     noEmojis: input.persona.vipManager === true && input.persona.universe === "sports",
+    flirtDirective: run.flirt?.directive,
     botInsists:
       input.kind === "reply" &&
       botQuestionInsists(
@@ -353,9 +358,7 @@ async function checkResponse(
       ),
   });
   if (!v.ok) {
-    const softOnly = v.codes.every(
-      (c) => c === "contradiction" || c === "action_interdite",
-    );
+    const softOnly = v.codes.every((c) => c === "contradiction" || c === "action_interdite");
     if (softOnly) {
       await recordUsage(run, {
         model: call.model,
@@ -565,6 +568,13 @@ function safeFallbackKey(
   if (botQuestionTexts(run.input, inbound).some((t) => asksIfBot(t))) return "isAssistant";
   // Casino / Paris : un chiffre hors des fiches refusé deux fois → la question est transmise à l'équipe.
   if (universeAssistant(run.input) && rejectedCodes.includes("invented_number")) return "handoff";
+  // Script de chauffe : l'étape part quand même, en texte fixe.
+  if (personaIllusion(run.input.persona)) {
+    const directive = run.flirt?.directive;
+    if (directive === "hook") return "hook";
+    if (directive === "rehook") return "hookLater";
+    if (directive === "push") return "push";
+  }
   if (run.input.conversation.isFirstAssistantTurn) return "intro";
   return null;
 }
@@ -930,9 +940,9 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       .map((m) => m.text),
     ...input.inbound.map((m) => m.text),
   ];
-  const lastAssistantMsg = [...input.history].reverse().find(
-    (m) => m.direction === "OUT" && (m.author === "ASSISTANT" || m.author === "TEAM"),
-  );
+  const sentTexts = [...(input.summaryMessages ?? []), ...input.history]
+    .filter((m) => m.direction === "OUT" && (m.author === "ASSISTANT" || m.author === "TEAM"))
+    .map((m) => m.text);
   const flirt = (run.flirt = decideFlirt({
     step: conv.flirt?.step ?? "NONE",
     teases: conv.flirt?.teases ?? 0,
@@ -941,7 +951,10 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     hasPhotos: (input.persona.flirtPhotos ?? []).map((x) => x.slot),
     isMinor: conv.isMinor,
     isFirstTurn: conv.isFirstAssistantTurn && input.kind === "reply",
-    lastAssistantText: lastAssistantMsg?.text,
+    lastAssistantText: sentTexts[sentTexts.length - 1],
+    scripted: personaIllusion(input.persona) && input.kind === "reply",
+    hookAsked: sentTexts.some(isHookQuestion),
+    pushDone: sentTexts.some(isPushAnswer),
   }));
   // Silence dur : la série est terminée (phase DONE déjà persistée) → aucune réponse, aucune relance.
   const inputPhase = (conv.flirt?.step ?? "NONE") as string;
@@ -950,8 +963,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   }
 
   // Hors série, les règles générales gardent la main sur le lien ; dans la série, c'est l'action qui décide.
-  const lienLibre =
-    flirt.state.phase === "NONE" || flirt.state.phase === "LINKED";
+  const lienLibre = flirt.state.phase === "NONE" || flirt.state.phase === "LINKED";
 
   // Jamais de réponse à une conversation fermée ou à un mineur (l'appelant ne devrait pas appeler).
   if (conv.isMinor || conv.stage === "CLOSED")
@@ -1067,13 +1079,23 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   };
   // Lien armé au tour précédent (annonce sans envoi) : il part maintenant.
   const linkWasArmed = conv.facts.includes(ARMED_LINK_FACT);
+  // Photo imposée par le script (seule action permise) : elle part avec le texte du modèle, sauf si ce texte refuse.
+  const forcedPhoto =
+    flirt.allow.length === 1 &&
+    flirt.allow[0] === "photo" &&
+    output !== null &&
+    fixedKey === null &&
+    !needsHuman &&
+    !saysNo(texts.join("\n"));
   // Action retenue : lien armé → "lien" ; sinon celle du modèle si elle est permise, sinon « rien ».
   const action: FlirtAction =
     linkWasArmed && input.persona.hasOffer
       ? "lien"
       : output?.action && flirt.allow.includes(output.action)
         ? output.action
-        : "rien";
+        : forcedPhoto
+          ? "photo"
+          : "rien";
   const photoAssetId =
     action === "photo" && flirt.photoSlot
       ? (input.persona.flirtPhotos?.find((x) => x.slot === flirt.photoSlot)?.assetId ?? null)
@@ -1164,15 +1186,16 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       ? conv.followUpCount + 1
       : 0
     : conv.followUpCount;
-  const closeReason = pseudoGiven && anySent
-    ? ("PSEUDO" as const)
-    : sending.sendError?.blocked
-      ? ("BLOCKED" as const)
-      : sending.sendError?.unreachable
-        ? ("UNREACHABLE" as const)
-        : nextFlirt.phase === "DONE"
-          ? ("FLIRT_DONE" as const)
-          : null;
+  const closeReason =
+    pseudoGiven && anySent
+      ? ("PSEUDO" as const)
+      : sending.sendError?.blocked
+        ? ("BLOCKED" as const)
+        : sending.sendError?.unreachable
+          ? ("UNREACHABLE" as const)
+          : nextFlirt.phase === "DONE"
+            ? ("FLIRT_DONE" as const)
+            : null;
   // « Arrête de m'écrire », « unsubscribe »… au milieu d'un message : réponse polie, puis aucune relance.
   const stopAsked = input.kind === "reply" && inbound.some((m) => mentionsStopRequest(m.text));
   // Conversation passée à l'équipe ou pseudo donné : aucune relance de l'assistante.

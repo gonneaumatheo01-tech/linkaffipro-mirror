@@ -18,12 +18,7 @@ import {
   type FollowUpState,
   type FollowUpRules,
 } from "./follow-ups";
-import {
-  hasVeryExplicitContent,
-  EXPLICIT_INTEREST_THRESHOLD,
-  validateTurnOutput,
-  type ValidationContext,
-} from "./validate";
+import { hasVeryExplicitContent, validateTurnOutput, type ValidationContext } from "./validate";
 import { fakeOutput } from "./fake";
 import { buildSystemPrompt, type SystemPromptContext } from "./prompt";
 import type { PersonaInput } from "./turn-types";
@@ -63,7 +58,15 @@ const testPersona = (over: Partial<PersonaInput> = {}): PersonaInput => ({
 // #5 : facteur de nuit dans openingDelayMs
 // ------------------------------------------------------------------
 describe("#5 : facteur de nuit", () => {
-  const base = { peerDelayMs: 30_000, isFirst: false, hot: false, cold: false, refused: false, live: false, followUp: false };
+  const base = {
+    peerDelayMs: 30_000,
+    isFirst: false,
+    hot: false,
+    cold: false,
+    refused: false,
+    live: false,
+    followUp: false,
+  };
 
   it("de nuit (1h-7h Paris) le délai est multiplié par au moins NIGHT_MULTIPLIER_MIN", () => {
     const dayDelay = openingDelayMs(base, () => 0.5);
@@ -72,7 +75,10 @@ describe("#5 : facteur de nuit", () => {
   });
 
   it("de nuit le délai est plafonné à NIGHT_MAX_MS", () => {
-    const nightDelay = openingDelayMs({ ...base, peerDelayMs: 3_600_000, nowHourParis: 2 }, () => 1);
+    const nightDelay = openingDelayMs(
+      { ...base, peerDelayMs: 3_600_000, nowHourParis: 2 },
+      () => 1,
+    );
     expect(nightDelay).toBeLessThanOrEqual(NIGHT_MAX_MS);
   });
 
@@ -132,8 +138,18 @@ describe("#6 : faits collants (sticky facts)", () => {
   });
 
   it("les patterns collants reconnaissent les variantes", () => {
-    for (const f of ["prénom : X", "Prenom : Y", "âge : 22", "Age : 30", "ville : Paris", "pseudo : abc"]) {
-      expect(STICKY_PATTERNS.some((p) => p.test(f)), f).toBe(true);
+    for (const f of [
+      "prénom : X",
+      "Prenom : Y",
+      "âge : 22",
+      "Age : 30",
+      "ville : Paris",
+      "pseudo : abc",
+    ]) {
+      expect(
+        STICKY_PATTERNS.some((p) => p.test(f)),
+        f,
+      ).toBe(true);
     }
   });
 });
@@ -236,10 +252,7 @@ describe("#12 : contenu très cru trop tôt", () => {
   });
 
   it("pas de rejet quand intérêt >= 7", () => {
-    const r = validateTurnOutput(
-      fakeOutput({ messages: ["suce moi"] }),
-      ctx({ interest: 8 }),
-    );
+    const r = validateTurnOutput(fakeOutput({ messages: ["suce moi"] }), ctx({ interest: 8 }));
     if (!r.ok) expect(r.codes).not.toContain("explicit_too_early");
   });
 

@@ -257,6 +257,10 @@ const REJECT_LABELS: Record<string, string> = {
   action_interdite: "action impossible à ce moment",
   contradiction: "texte qui contredit la photo",
   leak: "a dévoilé ses consignes internes",
+  explicit_too_early: "mots trop crus trop tôt",
+  emoji: "emoji alors qu'ils sont interdits",
+  hook_missing: "n'a pas demandé ce qu'il cherche",
+  push_missing: "n'a pas relancé sur le sexe",
 };
 
 /** Refus qui parlent de la persona elle-même : accordés à son genre (« assistante » par défaut, « assistant » si M). */

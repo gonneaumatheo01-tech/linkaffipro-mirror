@@ -56,7 +56,17 @@ export type FlirtState = {
 
 /** Consigne de rédaction pour ce tour (voir `flirtPromptBlock`). */
 export type FlirtDirective =
-  "none" | "play_hard" | "hook" | "push" | "tease" | "wait" | "link" | "explain" | "gift" | "wrap";
+  | "none"
+  | "play_hard"
+  | "hook"
+  | "rehook"
+  | "push"
+  | "tease"
+  | "wait"
+  | "link"
+  | "explain"
+  | "gift"
+  | "wrap";
 
 export type FlirtDecision = {
   /** État mis à jour (échanges comptés). */
@@ -82,6 +92,15 @@ export type FlirtInput = {
   isFirstTurn?: boolean;
   /** Dernier message de l'assistante (pour détecter la question d'accroche). */
   lastAssistantText?: string;
+  /**
+   * Fille en illusion qui répond : script de chauffe imposé (accroche « tu cherches quoi », relance sur le sexe, photo 1
+   * qui part, photo forcée quand le modèle en a déjà laissé passer une). Absent : ancien comportement.
+   */
+  scripted?: boolean;
+  /** L'accroche « tu cherches quoi » a déjà été envoyée dans la conversation. */
+  hookAsked?: boolean;
+  /** La relance « du sexe alors ? » a déjà été envoyée dans la conversation. */
+  pushDone?: boolean;
 };
 
 /** Nombre d'accroches sans envoi avant de forcer (compatibilité). */
@@ -111,17 +130,24 @@ export function hasStarted(phase: FlirtPhase): boolean {
 // Lecture du message
 // ------------------------------------------------------------------
 
+// Comparés au texte entouré d'espaces : un mot court précédé d'un espace (« nu ») ne prend que le mot entier, jamais
+// « venu », « continue » ou « avenue ».
 const FORTS = [
   "bz",
-  "bais",
+  "baise",
+  "baiz",
   "niqu",
   "bite",
-  "queue",
-  "doigt",
-  "tremp",
+  "ma queue",
+  "ta queue",
+  "sa queue",
+  "doigte",
+  "trempee",
   "mouill",
   "bander",
-  "bande",
+  "je bande",
+  "jbande",
+  "tu bandes",
   "sucer",
   "suce",
   "seins",
@@ -132,8 +158,9 @@ const FORTS = [
   "chatte",
   "a poil",
   "a poils",
-  "nue",
-  "nu ",
+  " nue",
+  " nu ",
+  " nus ",
   "excite",
   "excitant",
   "bandante",
@@ -260,15 +287,33 @@ export function isEngaged(text: string): boolean {
   return t.includes("?") || t.split(" ").filter(Boolean).length >= 3;
 }
 
-/** Vrai si le texte contient la question d'accroche du premier tour. */
+const HOOKS = [
+  "cherches quoi",
+  "cherche quoi",
+  "tu cherches",
+  "looking for",
+  "que buscas",
+  "procura o que",
+  "o que voce procura",
+  "was suchst",
+  "cosa cerchi",
+];
+
+/** Vrai si le texte contient la question d'accroche (« tu cherches quoi toi ? »). */
 export function isHookQuestion(text: string): boolean {
-  return normalize(text).includes("cherches quoi");
+  const t = normalize(text);
+  return HOOKS.some((h) => t.includes(h));
 }
 
-/** Vrai si le texte est la réponse push (« du sexe alors ? » ou variante). */
+/** Vrai si le texte est la relance sur le sexe (« du sexe alors ? », « moi oui en tout cas »…). */
 export function isPushAnswer(text: string): boolean {
   const t = normalize(text);
-  return t.includes("du sexe") || t.includes("sexe alors") || t.includes("moi oui en tout cas");
+  return (
+    /\b(sexe|sex|sexo|sesso)\b/.test(t) ||
+    t.includes("moi oui en tout cas") ||
+    t.includes("plus que discuter") ||
+    t.includes("juste discuter ou plus")
+  );
 }
 
 // ------------------------------------------------------------------
@@ -285,38 +330,39 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
     photoSlot: null,
     directive,
   });
-  const photoDispo = (s: FlirtState, n: number, directive: FlirtDirective): FlirtDecision =>
-    photo(n) ? { state: s, allow: ["photo", "rien"], photoSlot: n, directive } : rien("wait", s);
+  /** Photo n armée ; `forced` : elle part ce tour (seule action permise). */
+  const photoDispo = (
+    s: FlirtState,
+    n: number,
+    directive: FlirtDirective,
+    forced = false,
+  ): FlirtDecision =>
+    photo(n)
+      ? { state: s, allow: forced ? ["photo"] : ["photo", "rien"], photoSlot: n, directive }
+      : rien("wait", s);
+  const lancer = (forced: boolean) =>
+    photoDispo({ phase: "PHOTOS", lastPhoto: 0, exchanges: 1 }, 1, "tease", forced);
 
   // Moins de 18 ans : plus rien ne part, ni photo ni lien.
   if (input.isMinor) return rien();
 
   switch (state.phase) {
-    // Rien en cours : accroche au premier tour, puis réponse à l'accroche, puis série sur du sexe.
+    // Rien en cours. Fille en illusion : script imposé, accroche → relance sur le sexe → photo 1, en 3 tours au plus.
     case "NONE": {
-      // Premier tour : directive hook (prénom + « tu cherches quoi toi ? »).
-      if (input.isFirstTurn) return rien("hook");
-
-      // Tour suivant l'accroche : sa réponse au « cherches quoi ».
-      // N'importe quelle réponse sexuelle → série directe ; sinon → push.
-      if (input.lastAssistantText && isHookQuestion(input.lastAssistantText)) {
-        if (isSexTalk(input.text)) {
-          const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
-          return photoDispo(s, 1, "tease");
-        }
-        return rien("push");
+      if (input.scripted) {
+        if (input.isFirstTurn) return rien("hook");
+        const last = input.lastAssistantText ?? "";
+        const hookAsked = input.hookAsked === true || isHookQuestion(last);
+        const pushDone = input.pushDone === true || isPushAnswer(last);
+        // Après la relance, n'importe quelle réponse lance la série, et la photo 1 part.
+        if (pushDone) return lancer(true);
+        if (isSexTalk(input.text) || isHot(input.recent, input.text) || asksPhoto(input.text))
+          return lancer(true);
+        // Il a eu l'accroche et reste vague : elle pousse sur le sexe. Pas encore d'accroche : elle la pose.
+        return rien(hookAsked ? "push" : "rehook");
       }
-
-      // Tour suivant le push (« du sexe alors ? ») : N'IMPORTE QUELLE réponse lance la série.
-      if (input.lastAssistantText && isPushAnswer(input.lastAssistantText)) {
-        const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
-        return photoDispo(s, 1, "tease");
-      }
-
-      if (isSexTalk(input.text) || isHot(input.recent, input.text) || asksPhoto(input.text)) {
-        const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
-        return photoDispo(s, 1, "tease");
-      }
+      if (isSexTalk(input.text) || isHot(input.recent, input.text) || asksPhoto(input.text))
+        return lancer(false);
       return rien();
     }
 
@@ -327,7 +373,8 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
       const seuil = state.lastPhoto === 0 ? MIN_ECHANGES_AVANT_PREMIERE : MIN_ECHANGES_ENTRE_PHOTOS;
       if (s.exchanges < seuil) return rien("wait", s);
       if (suivant > DERNIERE_PHOTO_GRATUITE) return rien("wait", s);
-      return photoDispo(s, suivant, "tease");
+      // Script : le modèle a déjà laissé passer la photo une fois, elle part maintenant.
+      return photoDispo(s, suivant, "tease", input.scripted === true && s.exchanges > seuil);
     }
 
     // La 3 est partie : on parle, on tease, et le lien attend qu'il en veuille vraiment plus.
@@ -361,7 +408,8 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
       return rien("wrap", { phase: "DONE", lastPhoto: state.lastPhoto, exchanges: 0 });
 
     default:
-      if (asksPhoto(input.text)) return rien("play_hard", { ...state, exchanges: state.exchanges + 1 });
+      if (asksPhoto(input.text))
+        return rien("play_hard", { ...state, exchanges: state.exchanges + 1 });
       return rien("none", { ...state, exchanges: state.exchanges + 1 });
   }
 }
@@ -394,10 +442,12 @@ const DIRECTIVE_HINT: Record<FlirtDirective, string> = {
   none: "",
   play_hard:
     "Il demande une photo mais t'as plus rien ici : « dommage, j'envoie pas de photos sur telegram ». Le reste c'est sur l'app.",
-  hook: "Premier message : dis ton prénom et demande-lui « tu cherches quoi toi ? ». Deux lignes max, rien d'autre.",
-  push: "Il a répondu au hook : pousse direct. Dis « du sexe alors ? 😏 » ou « moi oui en tout cas ». Tu assumes que c'est du sexe, sans exception. Interdits : « ça dépend », « on verra », « c'est sympa », « à voir », « chacun son truc ».",
+  hook: "OBLIGATOIRE CE TOUR : c'est ton premier message, tu lui demandes ce qu'il cherche. Ton message DOIT contenir « tu cherches quoi » (« moi c'est <ton prénom>, tu cherches quoi toi ? 😏 »). Rien d'autre : pas de « ça va », pas de ville, pas de taf.",
+  rehook:
+    "OBLIGATOIRE CE TOUR : tu réagis en quelques mots à ce qu'il dit, puis tu lui demandes ce qu'il cherche ici. Ton message DOIT contenir « tu cherches quoi » (« et sinon tu cherches quoi toi ? 😏 »). Aucune autre question.",
+  push: "OBLIGATOIRE CE TOUR : il reste vague, tu pousses direct sur le sexe. Ton message DOIT contenir le mot « sexe » (« du sexe alors ? 😏 », « moi c'est du sexe que jcherche, et toi ? »). Tu assumes, sans exception. Interdits : « ça dépend », « on verra », « c'est sympa », « à voir », « chacun son truc », toute question sur sa vie.",
   tease: "Fais court : tu chauffes, tu annonces, tu ne décris pas tout.",
-  wait: "Rien à envoyer ce tour : réagis à ce qu'il vient de dire et tease, sans promettre de photo tout de suite.",
+  wait: "Rien à envoyer ce tour : réagis à ce qu'il vient de dire et tu restes sur le chaud (allusion, envie, provocation). Aucune question de small talk (ville, taf, études, âge), sans promettre de photo tout de suite.",
   link: "Tu envoies l'app : « jsuis pas trop sur cette app » ou « la-bas je suis coquine, viens ». Le lien est ajouté par le système.",
   explain:
     "Il a refusé l'app : « dommage, j'envoie pas de photos sur telegram, n'importe qui peut enregistrer ». Ne renvoie pas de lien, et dis que t'as autre chose à montrer.",
@@ -420,17 +470,20 @@ export function flirtPromptBlock(d: {
   lines.push(
     `Tu réponds dans le champ action, une seule valeur, obligatoirement parmi : ${d.allow.join(", ")}.`,
   );
+  const forcedPhoto = d.allow.length === 1 && d.allow[0] === "photo";
   if (d.photoSlot && d.allow.includes("photo") && d.photo) {
     lines.push(`Photo armée : ${d.photoSlot} (${d.photo}).`);
     lines.push(
-      `Si tu l'envoies : action "photo", et ton texte annonce la photo en une ligne (« attends », « juste une », « tiens »). Jamais un refus quand la photo part.`,
+      forcedPhoto
+        ? `La photo PART à ce tour : action "photo" obligatoire, et ton texte l'annonce en une ligne (« attends jte montre », « tiens 😏 », « juste une »). Jamais un refus.`
+        : `Si tu l'envoies : action "photo", et ton texte annonce la photo en une ligne (« attends », « juste une », « tiens »). Jamais un refus quand la photo part.`,
     );
   }
   if (d.allow.includes("lien"))
     lines.push(
       `Si tu envoies l'app : action "lien", une phrase qui l'amène, le lien est ajouté par le système.`,
     );
-  if (d.allow.length === 1) lines.push(`N'envoie rien : action "rien".`);
+  if (d.allow.length === 1 && d.allow[0] === "rien") lines.push(`N'envoie rien : action "rien".`);
   const hint = DIRECTIVE_HINT[d.directive];
   if (hint) lines.push(hint);
   return lines;
