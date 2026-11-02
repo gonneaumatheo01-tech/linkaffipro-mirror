@@ -250,9 +250,7 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
 
   switch (state.phase) {
     // Rien en cours : la série ne démarre que sur du sexe. Une demande de photo seule laisse jouer l'autre script.
-    // Sans aucune photo disponible, la série ne peut pas démarrer : les règles générales gardent la main sur le lien.
     case "NONE": {
-      if (input.hasPhotos.length === 0) return rien();
       if (isSexTalk(input.text) || isHot(input.recent, input.text)) {
         const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
         return photoDispo(s, 1, "tease");
@@ -262,9 +260,7 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
     }
 
     // Série en cours : une photo tous les MIN_ECHANGES_ENTRE_PHOTOS messages, pas plus.
-    // Sans aucune photo disponible (persona sans photos) : retour à NONE pour débloquer les règles générales du lien.
     case "PHOTOS": {
-      if (input.hasPhotos.length === 0) return rien("none", { phase: "NONE", lastPhoto: 0, exchanges: 0 });
       const s: FlirtState = { ...state, exchanges: state.exchanges + 1 };
       const suivant = state.lastPhoto + 1;
       const seuil = state.lastPhoto === 0 ? MIN_ECHANGES_AVANT_PREMIERE : MIN_ECHANGES_ENTRE_PHOTOS;
@@ -274,9 +270,7 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
     }
 
     // La 3 est partie : on parle, on tease, et le lien attend qu'il en veuille vraiment plus.
-    // Sans photos (données retirées entre-temps) : retour à NONE pour débloquer le lien par les règles générales.
     case "OFFER": {
-      if (input.hasPhotos.length === 0) return rien("none", { phase: "NONE", lastPhoto: 0, exchanges: 0 });
       if (isRefusal(input.text))
         return rien("explain", { ...state, phase: "REFUSED", exchanges: 0 });
       const s: FlirtState = { ...state, exchanges: state.exchanges + 1 };
@@ -294,7 +288,6 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
 
     // Il a refusé le site : on discute d'abord, puis un cadeau, après MIN_ECHANGES_APRES_REFUS.
     case "REFUSED": {
-      if (input.hasPhotos.length === 0) return rien("none", { phase: "NONE", lastPhoto: 0, exchanges: 0 });
       const s: FlirtState = { ...state, exchanges: state.exchanges + 1 };
       const suivant = state.lastPhoto + 1;
       if (s.exchanges < MIN_ECHANGES_APRES_REFUS) return rien("wait", s);
