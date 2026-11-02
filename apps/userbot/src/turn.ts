@@ -372,15 +372,15 @@ async function runConversationTurn(
     now: () => new Date(),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     random: () => Math.random(),
-    createOfferLink: () =>
+    createOfferLink: (bookmakerKey?: string) =>
       createOfferLink({
         conversationId: conv.id,
         personaId: persona.id,
         botId: account.botId,
         memberId: conv.memberId,
         source: conv.source,
+        bookmakerKey,
       }).catch((err: unknown) => {
-        // Le moteur avale l'erreur (message parti sans lien) : on garde une trace.
         logger.error(
           {
             compte: account.label,
@@ -391,6 +391,11 @@ async function runConversationTurn(
         );
         return null;
       }),
+    resolveVipLink: async (bookmakerKey: string) => {
+      const pb = persona.bookmakers?.find((b: { bookmakerKey: string }) => b.bookmakerKey === bookmakerKey);
+      if (!pb?.inviteLinkId || !pb.inviteLink?.telegramInviteLink) return null;
+      return { url: pb.inviteLink.telegramInviteLink, bookmakerKey };
+    },
     // Messages arrives pendant la preparation : rendus au moteur, qui refait sa reponse UNE fois en les incluant.
     // Sans ca, le tour suivant les reprend et elle repond deux fois (avec une question repetee).
     // Ils sont marques avec ce turnId pour que la boucle de `processIncoming` ne les reprenne pas.
