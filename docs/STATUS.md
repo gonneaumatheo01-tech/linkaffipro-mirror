@@ -2,6 +2,7 @@
 
 ## Fait
 - ✅ Mehdi n'écrit plus jamais « attends je reviens 2 sec ». La cause : des règles de Léa s'appliquaient à Mehdi et bloquaient son lien ; elles sont retirées chez lui (Léa ne change pas).
+- ✅ Au premier message, si la personne parle déjà du VIP, il ne lui redemande plus « t'es là pour le VIP ? » : il passe directement à la question sur Celsius (vérifié après la mise en ligne, 10 essais avec la vraie IA).
 - ✅ Quand il annonce le lien Celsius ou Betportal, le lien part dans le message suivant. Le lien du VIP part quand la personne confirme son dépôt par écrit.
 - ✅ Aucun message perdu : si l'IA ou Telegram a un raté, ou si le service redémarre, Mehdi reprend la conversation tout seul quelques secondes plus tard, sans rien dire d'autre.
 - ✅ Une capture d'écran envoyée après le lien : il demande si le dépôt est fait et sur quel bookmaker.
