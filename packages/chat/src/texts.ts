@@ -18,6 +18,8 @@ export const FIXED_TEXT_KEYS = [
   "linkNudge",
   // Série de photos : réaction à une photo reçue (elle ne la regarde pas, consigne du client).
   "photoReaction",
+  // Série de photos : petite phrase qui amène le lien quand il ne reste rien de la réponse (jamais balancé seul).
+  "linkLead",
 ] as const;
 export type FixedTextKey = (typeof FIXED_TEXT_KEYS)[number];
 
@@ -59,6 +61,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "ah une seconde jreviens",
     linkNudge: "t la ?",
     photoReaction: "t'es mignon hihi",
+    linkLead: "tiens viens me voir la bas 😏",
   },
   en: {
     intro: "I'm {name}, {role} of the channel 😉 How are you?",
@@ -72,6 +75,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "one sec, brb",
     linkNudge: "you there?",
     photoReaction: "you're cute hihi",
+    linkLead: "here, come see me there 😏",
   },
   es: {
     intro: "Soy {name}, {role} del canal 😉 ¿Qué tal estás?",
@@ -86,6 +90,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "un segundo, ya vuelvo",
     linkNudge: "¿estás?",
     photoReaction: "eres mono jiji",
+    linkLead: "toma, ven a verme allí 😏",
   },
   pt: {
     intro: "Eu sou {name}, {role} do canal 😉 Tudo bem com você?",
@@ -100,6 +105,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "um segundo, já volto",
     linkNudge: "tá aí?",
     photoReaction: "você é fofo hihi",
+    linkLead: "toma, vem me ver lá 😏",
   },
   de: {
     intro: "Ich bin {name}, {role} des Kanals 😉 Wie geht's dir?",
@@ -115,6 +121,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "eine Sekunde, bin gleich wieder da",
     linkNudge: "bist du da?",
     photoReaction: "du bist süß hihi",
+    linkLead: "hier, komm mich dort besuchen 😏",
   },
   it: {
     intro: "Sono {name}, {role} del canale 😉 Come stai?",
@@ -129,6 +136,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "un secondo, torno subito",
     linkNudge: "ci sei?",
     photoReaction: "sei carino hihi",
+    linkLead: "tieni, vieni a trovarmi là 😏",
   },
 };
 

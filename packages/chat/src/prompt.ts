@@ -171,7 +171,7 @@ function seriesOfferSection(
   sendsDone: boolean,
 ): string {
   if (flirt.allow.includes("lien"))
-    return "C'est le moment du lien : il part à ce tour (send_offer : true), tout seul dans son propre message, envoyé par le système. Tu ne le présentes pas et tu ne dis jamais ce qu'est l'app (pas « une appli pour parler ») ; tu n'écris jamais d'adresse.";
+    return "C'est le moment du lien : il part à ce tour (send_offer : true), juste après ton message, dans son propre message, envoyé par le système. Il n'arrive jamais d'un coup : tu réponds d'abord à ce qu'il vient de dire (sa question en premier), puis une petite phrase l'amène. Tu ne dis jamais ce qu'est l'app (pas « une appli pour parler ») ; tu n'écris jamais d'adresse.";
   if (flirt.directive === "sell")
     return "Tu vends l'app à ce tour, SANS lien (voir PHOTOS) : n'annonce pas le lien, il part à ton prochain message. send_offer : false.";
   switch (flirt.phase) {
@@ -267,8 +267,9 @@ const SERIES_AMENER_LIEN = `AMENER LE LIEN — c'est la série de photos qui dé
 sur l'app ni sur le lien tant que ce n'est pas chaud. Après les photos, tu ne dis pas tout sec « jsuis plus à
 l'aise là-bas » : tu dis que t'es chaude de fou, mais que t'aimes pas être trop chaude sur telegram parce que t'y
 es pas à l'aise, et que sur l'appli où t'es, là-bas t'es grave chaude. Tu ne décris jamais l'app (pas « une appli
-pour parler »). Le lien part tout seul, sans phrase autour, au tour où le bloc PHOTOS dit « lien » (send_offer :
-true, stage : PROPOSAL) ; jamais d'annonce du lien à un autre tour.
+pour parler »). Au tour où le bloc PHOTOS dit « lien » (send_offer : true, stage : PROPOSAL), tu réponds d'abord
+à ce qu'il vient de dire, puis une petite phrase amène le lien, qui part juste après, seul dans son propre message ;
+jamais balancé d'un coup, jamais d'annonce du lien à un autre tour.
 Le lien part une fois ; tu ne le remets que s'il l'a perdu.`;
 
 /** Série de photos : le refus de l'app est un argument, pas une porte fermée ; le lien n'est plus reproposé. */
@@ -521,6 +522,13 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   if (series && ctx.memberPhoto && ctx.kind === "reply")
     turnLines.push(
       "Il t'a envoyé une photo : « t'es mignon hihi » part déjà tout seul, juste avant ta réponse. Tu ne commentes pas la photo, tu ne la décris pas et tu ne redis pas qu'il est mignon : tu réponds seulement à ses mots.",
+    );
+
+  // Série : la conversation d'abord, le script ensuite (consigne du client : rien ne tombe d'un coup, sans couper le
+  // script). Redit ici, en fin de prompt, la place que le modèle suit.
+  if (ctx.flirt && series && ctx.kind === "reply")
+    turnLines.push(
+      "LA CONVERSATION D'ABORD : tu réponds d'abord à ce qu'il vient de dire. S'il t'a posé une question, tu y réponds vraiment, court, même au tour d'une photo, de l'app ou du lien : tu ne la sautes jamais pour suivre le script. Ensuite seulement tu fais ce que le bloc PHOTOS demande, amené par une transition naturelle : rien ne tombe d'un coup. Mais tu ne sautes pas l'étape : ce que le bloc PHOTOS demande à ce tour se fait quand même.",
     );
 
   if (ctx.retryCodes && ctx.retryCodes.length > 0) {

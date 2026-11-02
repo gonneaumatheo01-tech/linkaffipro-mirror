@@ -78,10 +78,12 @@ describe("prompt de la série de photos", () => {
     expect(p).toContain("la bas jsuis grave chaude");
   });
 
-  it("tour du lien : il part seul, l'app n'est jamais décrite", () => {
+  it("tour du lien : jamais balancé, il répond d'abord, l'app n'est jamais décrite", () => {
     const p = prompt("OFFER", 301, "envoie la suite");
     expect(p).toContain("C'est le moment du lien");
     expect(p).toContain(`Action obligatoire ce tour : "lien".`);
+    expect(p).toContain("tu réponds d'abord à ce qu'il vient de dire (sa question en premier)");
+    expect(p).toContain("mais jamais balancée d'un coup");
     expect(p).not.toContain("tu dis juste : « c'est une appli pour parler »");
     expect(p).not.toContain("→ c'est une appli pour parler");
   });
@@ -114,6 +116,24 @@ describe("prompt de la série de photos", () => {
       p.indexOf("AVANT D'ENVOYER"),
     );
     expect(prompt("PHOTOS", 100, "regarde")).not.toContain("t'es mignon hihi");
+  });
+
+  it("la conversation d'abord, à chaque tour de réponse : redit en fin de prompt, sans sauter l'étape", () => {
+    for (const [step, teases, text] of [
+      ["NONE", 0, "t'as quel age ?"],
+      ["PHOTOS", 101, "tu fais quoi ce soir ?"],
+      ["OFFER", 300, "t'es d'ou ?"],
+      ["OFFER", 301, "pourquoi t'es pas a l'aise ici ?"],
+    ] as const) {
+      const p = prompt(step, teases, text);
+      expect(p.lastIndexOf("LA CONVERSATION D'ABORD")).toBeGreaterThan(
+        p.indexOf("AVANT D'ENVOYER"),
+      );
+      expect(p).toContain("tu ne sautes pas l'étape");
+    }
+    expect(prompt("PHOTOS", 101, "ok", { kind: "follow_up" })).not.toContain(
+      "LA CONVERSATION D'ABORD",
+    );
   });
 
   it("un autocollant est un salut, pas un vocal", () => {
