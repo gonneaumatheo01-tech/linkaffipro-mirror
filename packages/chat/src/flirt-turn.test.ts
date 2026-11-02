@@ -147,10 +147,10 @@ describe("corrigé par le code, sans nouvel appel", () => {
   });
 });
 
-describe("le lien part seul, l'app n'est jamais décrite", () => {
+describe("le lien n'est jamais balancé, l'app n'est jamais décrite", () => {
   const sansBoutons = () => createFakeSender({ capabilities: { canSendButtons: false } });
 
-  it("compte réel, lien vendu au tour d'avant : seule l'adresse part, le texte du modèle est laissé", async () => {
+  it("compte réel, lien vendu au tour d'avant : sa réponse l'amène, sans la description de l'app, puis l'adresse seule", async () => {
     const llm = createFakeLlm([
       reponse("c'est une appli pour parler, tiens 😏", "lien", { send_offer: true }),
     ]);
@@ -158,20 +158,56 @@ describe("le lien part seul, l'app n'est jamais décrite", () => {
     const deps = createFakeTurnDeps({ llm, sender });
     const res = await runTurn(tour("OFFER", 301, "vas y", { facts: [ARMED_LINK_FACT] }), deps);
     expect(res.offerSent).not.toBeNull();
-    expect(sender.messages().map((m) => m.text)).toEqual([res.offerSent?.url]);
-    expect(sender.messages()[0]?.offerSubId).toBe(res.offerSent?.subId);
+    expect(sender.messages().map((m) => m.text)).toEqual(["tiens 😏", res.offerSent?.url]);
+    expect(sender.messages()[0]?.offerSubId).toBeNull();
+    expect(sender.messages()[1]?.offerSubId).toBe(res.offerSent?.subId);
     expect(res.newFlirtStep).toBe("LINKED");
     expect(res.facts).not.toContain(ARMED_LINK_FACT);
   });
 
-  it("bot avec boutons : le bouton part sous une flèche, jamais dans un message vide", async () => {
+  it("il pose une question au tour du lien : elle y répond, amène le lien, puis l'adresse seule", async () => {
+    const llm = createFakeLlm([
+      fakeOutput({
+        messages: ["rien de ouf et toi ?", "tiens viens me voir la bas 😏"],
+        action: "lien",
+        send_offer: true,
+      }),
+    ]);
+    const sender = sansBoutons();
+    const deps = createFakeTurnDeps({ llm, sender });
+    const res = await runTurn(
+      tour("OFFER", 301, "tu fais quoi ce soir ?", { facts: [ARMED_LINK_FACT] }),
+      deps,
+    );
+    expect(llm.calls).toBe(1);
+    expect(sender.messages().map((m) => m.text)).toEqual([
+      "rien de ouf et toi ?",
+      "tiens viens me voir la bas 😏",
+      res.offerSent?.url,
+    ]);
+  });
+
+  it("réponse qui ne fait que décrire l'app : une petite phrase fixe amène le lien, jamais l'adresse seule", async () => {
+    const llm = createFakeLlm([
+      reponse("c'est une appli pour parler", "lien", { send_offer: true }),
+    ]);
+    const sender = sansBoutons();
+    const deps = createFakeTurnDeps({ llm, sender });
+    const res = await runTurn(tour("OFFER", 301, "c'est quoi", { facts: [ARMED_LINK_FACT] }), deps);
+    expect(sender.messages().map((m) => m.text)).toEqual([
+      "tiens viens me voir la bas 😏",
+      res.offerSent?.url,
+    ]);
+  });
+
+  it("bot avec boutons : la phrase d'abord, puis le bouton sous une flèche, jamais dans un message vide", async () => {
     const llm = createFakeLlm([reponse("tiens", "lien", { send_offer: true })]);
     const deps = createFakeTurnDeps({ llm });
     const res = await runTurn(tour("OFFER", 301, "vas y", { facts: [ARMED_LINK_FACT] }), deps);
     const sent = deps.sender.messages();
-    expect(sent).toHaveLength(1);
-    expect(sent[0]?.text).toBe("👇");
-    expect(sent[0]?.buttons?.[0]?.[0]?.url).toBe(res.offerSent?.url);
+    expect(sent.map((m) => m.text)).toEqual(["tiens", "👇"]);
+    expect(sent[0]?.buttons).toBeUndefined();
+    expect(sent[1]?.buttons?.[0]?.[0]?.url).toBe(res.offerSent?.url);
   });
 
   it("compte réel, lien avec une phrase : la phrase d'abord, puis l'adresse seule, jamais un message vide", async () => {

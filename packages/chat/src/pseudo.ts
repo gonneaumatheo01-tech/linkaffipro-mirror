@@ -57,5 +57,28 @@ export function stripLinkAnnouncement(texts: readonly string[]): string[] {
     .filter((t) => /[\p{L}\p{N}]/u.test(t));
 }
 
+/** Phrase qui dit ce qu'est l'app (« c'est une appli pour parler », « c'est un site de rencontre »). */
+const APP_DESCRIPTION = [
+  /\bc\s*.?\s*est\s+(une?\s+)?(appli|app|application|site|plateforme)\b/,
+  /\b(appli|app|application)\s+(pour|de)\s+(parler|discuter|tchatter|chatter|se\s+parler|rencontres?)\b/,
+];
+
+/**
+ * Série de photos : retire, au tour du lien, les morceaux de phrase qui disent ce qu'est l'app (consigne du client : le
+ * lien répond pour elle). Les messages vidés sont retirés ; rend [] si plus rien ne reste.
+ */
+export function stripAppDescription(texts: readonly string[]): string[] {
+  return texts
+    .map((text) =>
+      text
+        .split(/(?<=[,;.!?…])\s+/)
+        .filter((part) => !APP_DESCRIPTION.some((re) => re.test(fold(part))))
+        .join(" ")
+        .replace(/^[\s,;:.]+|[\s,;:]+$/g, "")
+        .trim(),
+    )
+    .filter((t) => /[\p{L}\p{N}]/u.test(t));
+}
+
 /** Clé interne dans les faits : le lien est armé et partira au prochain tour. */
 export const ARMED_LINK_FACT = "__lien_arme";

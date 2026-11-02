@@ -22,6 +22,8 @@ export const FIXED_TEXT_KEYS = [
   "handoffAgain",
   // Gérant du VIP : dépôt confirmé mais lien du canal VIP introuvable, l'équipe l'envoie.
   "vipPending",
+  // Série de photos : petite phrase qui amène le lien quand il ne reste rien de la réponse (jamais balancé seul).
+  "linkLead",
 ] as const;
 export type FixedTextKey = (typeof FIXED_TEXT_KEYS)[number];
 
@@ -65,6 +67,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     photoReaction: "t'es mignon hihi",
     handoffAgain: "C'est noté, l'équipe a bien ta demande : quelqu'un te répond ici dès que possible.",
     vipPending: "C'est validé de mon côté : l'équipe t'envoie ton accès au VIP ici dès que possible.",
+    linkLead: "tiens viens me voir la bas 😏",
   },
   en: {
     intro: "I'm {name}, {role} of the channel 😉 How are you?",
@@ -80,6 +83,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     photoReaction: "you're cute hihi",
     handoffAgain: "Noted, the team has your request: someone will reply here as soon as possible.",
     vipPending: "All good on my side: the team will send you your VIP access here as soon as possible.",
+    linkLead: "here, come see me there 😏",
   },
   es: {
     intro: "Soy {name}, {role} del canal 😉 ¿Qué tal estás?",
@@ -96,6 +100,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     photoReaction: "eres mono jiji",
     handoffAgain: "Anotado, el equipo ya tiene tu solicitud: alguien te responderá aquí lo antes posible.",
     vipPending: "Todo bien por mi parte: el equipo te enviará tu acceso al VIP aquí lo antes posible.",
+    linkLead: "toma, ven a verme allí 😏",
   },
   pt: {
     intro: "Eu sou {name}, {role} do canal 😉 Tudo bem com você?",
@@ -112,6 +117,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     photoReaction: "você é fofo hihi",
     handoffAgain: "Anotado, a equipe já tem o seu pedido: alguém te responde aqui o quanto antes.",
     vipPending: "Tudo certo da minha parte: a equipe te envia o acesso ao VIP aqui o quanto antes.",
+    linkLead: "toma, vem me ver lá 😏",
   },
   de: {
     intro: "Ich bin {name}, {role} des Kanals 😉 Wie geht's dir?",
@@ -129,6 +135,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     photoReaction: "du bist süß hihi",
     handoffAgain: "Notiert, das Team hat deine Anfrage: Jemand antwortet dir hier so schnell wie möglich.",
     vipPending: "Von meiner Seite passt alles: Das Team schickt dir deinen VIP-Zugang hier so schnell wie möglich.",
+    linkLead: "hier, komm mich dort besuchen 😏",
   },
   it: {
     intro: "Sono {name}, {role} del canale 😉 Come stai?",
@@ -145,6 +152,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     photoReaction: "sei carino hihi",
     handoffAgain: "Ricevuto, il team ha la tua richiesta: qualcuno ti risponderà qui il prima possibile.",
     vipPending: "Tutto ok da parte mia: il team ti invierà l'accesso al VIP qui il prima possibile.",
+    linkLead: "tieni, vieni a trovarmi là 😏",
   },
 };
 

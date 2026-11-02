@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARMED_LINK_FACT, announcesLink, extractPseudo } from "./pseudo";
+import { ARMED_LINK_FACT, announcesLink, extractPseudo, stripAppDescription } from "./pseudo";
 
 describe("extractPseudo", () => {
   it("extrait le pseudo d'un fait « pseudo: xxx »", () => {
@@ -61,5 +61,27 @@ describe("ARMED_LINK_FACT", () => {
   it("est une chaîne constante", () => {
     expect(typeof ARMED_LINK_FACT).toBe("string");
     expect(ARMED_LINK_FACT.length).toBeGreaterThan(0);
+  });
+});
+
+describe("stripAppDescription (série : l'app n'est jamais décrite au tour du lien)", () => {
+  it("retire le morceau qui dit ce qu'est l'app et garde le reste", () => {
+    expect(stripAppDescription(["c'est une appli pour parler, tu vas voir 😏"])).toEqual([
+      "tu vas voir 😏",
+    ]);
+    expect(stripAppDescription(["22 et toi ?", "c'est un site de rencontre"])).toEqual([
+      "22 et toi ?",
+    ]);
+    expect(stripAppDescription(["tkt c'est une app pour qu'on parle tranquille"])).toEqual([]);
+  });
+
+  it("ne touche pas à ce qui ne décrit pas l'app", () => {
+    const texts = [
+      "jsuis chaude de fou la",
+      "sur l'appli ou jsuis la bas jsuis grave chaude",
+      "c'est l'appli ou jsuis tout le temps 😏",
+      "tiens viens me voir la bas",
+    ];
+    expect(stripAppDescription(texts)).toEqual(texts);
   });
 });

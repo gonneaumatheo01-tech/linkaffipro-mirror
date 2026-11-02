@@ -21,7 +21,13 @@ import {
   withTyping,
 } from "./rhythm";
 import { parisWallClock } from "./paris-time";
-import { ARMED_LINK_FACT, announcesLink, extractPseudo, stripLinkAnnouncement } from "./pseudo";
+import {
+  ARMED_LINK_FACT,
+  announcesLink,
+  extractPseudo,
+  stripAppDescription,
+  stripLinkAnnouncement,
+} from "./pseudo";
 import {
   applyAction,
   decideFlirt,
@@ -1353,11 +1359,15 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     }
   }
 
-  // Série : le lien vendu au tour d'avant part tout seul, sans phrase autour (consigne du client : « elle envoie juste
-  // le lien »). Le texte du modèle n'est pas envoyé.
-  if (series && linkWasArmed && withOffer && action === "lien" && !pseudoGiven && !needsHuman) {
-    texts = [""];
-    fixedKey = null;
+  // Série : le lien n'est jamais balancé (consigne du client) : sa réponse (à sa question d'abord) l'amène, puis il part
+  // juste après, seul dans son propre message. Ce qui dit ce qu'est l'app est retiré (« elle envoie juste le lien ») ;
+  // s'il ne reste rien, une petite phrase fixe l'amène.
+  if (series && withOffer && !pseudoGiven && !needsHuman && fixedKey === null) {
+    const kept = stripAppDescription(texts);
+    if (kept.length === 0) {
+      texts = [fixedText(run.lang, "linkLead")];
+      fixedKey = "linkLead";
+    } else texts = kept;
   }
 
   // Série : photo reçue avec des mots → « t'es mignon hihi » part d'abord, puis la réponse (elle ne regarde pas la photo).
