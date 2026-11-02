@@ -105,6 +105,9 @@ function assistantDeps(over: Partial<FakeState["conv"]> = {}) {
       gender: "F",
       languages: ["fr", "en"],
       isActive: state.personaActiveById[id] ?? state.personaActive,
+      // Délai de réponse propre à la persona : aucun ici (attente par défaut).
+      responseDelayMinSec: null,
+      responseDelayMaxSec: null,
     })),
     activationAllows: vi.fn(async () => state.activation),
     recordInbound: vi.fn(async (input) => {
