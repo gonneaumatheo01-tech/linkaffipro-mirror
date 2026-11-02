@@ -70,6 +70,58 @@ export function offerUsable(
   return Boolean(offer?.isActive && offer.trackingUrlTemplate.trim());
 }
 
+/**
+ * Lien OFFER via PersonaBookmaker (Paris sportifs VIP) : le modele choisit un bookmaker (`selected_book`),
+ * chaque bookmaker a sa propre AffiliateCampaign. Meme logique que le worker.
+ */
+async function personaBookmakerOfferTrackingLink(
+  personaId: string,
+  bookmakerKey: string,
+): Promise<{ id: string } | null> {
+  const pb = await prisma.personaBookmaker.findUnique({
+    where: { personaId_bookmakerKey: { personaId, bookmakerKey } },
+    select: {
+      affiliateCampaignId: true,
+      label: true,
+      persona: { select: { name: true, campaignId: true } },
+    },
+  });
+  if (!pb?.affiliateCampaignId) return null;
+  const offer = await prisma.affiliateCampaign.findUnique({
+    where: { id: pb.affiliateCampaignId },
+    select: { id: true, isActive: true, trackingUrlTemplate: true },
+  });
+  if (!offer || !offer.isActive || !offer.trackingUrlTemplate.trim()) return null;
+  const slug = offerSlug(personaId, offer.id);
+  const label = offerLabel(pb.persona.name);
+  const link = await prisma.trackingLink.upsert({
+    where: { slug },
+    create: {
+      slug,
+      kind: "OFFER",
+      destinationTemplate: offer.trackingUrlTemplate,
+      label,
+      affiliateCampaignId: offer.id,
+      campaignId: pb.persona.campaignId,
+      personaId,
+    },
+    update: {},
+    select: { id: true, isActive: true, destinationTemplate: true, campaignId: true, personaId: true, label: true },
+  });
+  if (!link.isActive) return null;
+  if (
+    link.destinationTemplate !== offer.trackingUrlTemplate ||
+    link.campaignId !== pb.persona.campaignId ||
+    link.personaId !== personaId ||
+    link.label !== label
+  )
+    await prisma.trackingLink.update({
+      where: { id: link.id },
+      data: { destinationTemplate: offer.trackingUrlTemplate, campaignId: pb.persona.campaignId, personaId, label },
+    });
+  return { id: link.id };
+}
+
 // ------------------------------------------------------------------
 // Journal : une raison par persona n'est ecrite qu'une fois (sinon une ligne a chaque tour)
 // ------------------------------------------------------------------
@@ -151,10 +203,12 @@ async function personaOfferTrackingLink(personaId: string): Promise<{ id: string
 
 /** Cree le lien de CET envoi (sub-ID neuf), ou null si l'offre n'est pas exploitable. */
 export async function createOfferLink(
-  ctx: OfferLinkContext,
+  ctx: OfferLinkContext & { bookmakerKey?: string },
   env: Record<string, string | undefined> = process.env,
 ): Promise<CreatedOfferLink | null> {
-  const tracking = await personaOfferTrackingLink(ctx.personaId);
+  const tracking = ctx.bookmakerKey
+    ? await personaBookmakerOfferTrackingLink(ctx.personaId, ctx.bookmakerKey)
+    : await personaOfferTrackingLink(ctx.personaId);
   if (!tracking) return null;
   for (let attempt = 1; ; attempt++) {
     const subId = newSubId();
