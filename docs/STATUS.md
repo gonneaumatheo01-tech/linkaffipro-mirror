@@ -7,6 +7,7 @@
 - ✅ Une capture d'écran envoyée après le lien : il demande si le dépôt est fait et sur quel bookmaker.
 - ✅ Questions d'argent, hors sujet ou insultes : l'équipe prend le relais (visible dans Conversations, filtre « À traiter »).
 - ✅ Il ne répond plus aux messages automatiques de Telegram (codes de connexion).
+- ✅ En ligne depuis 19 h 57 (heure de Paris). Les 2 personnes restées sans réponse aujourd'hui (Matheo et abde13kz) ont reçu leur lien Celsius moins d'une minute après la mise en ligne, sans rien faire de plus.
 - ✅ Vérifié avec la vraie IA sur 20 situations (dont les 4 conversations bloquées d'aujourd'hui), sans rien envoyer à personne. Tests tous verts : moteur 873, compte réel 55 + 7 scénarios sur vraie base, worker 496 + 274 sur vraie base, site 3 549 + 419 sur vraie base, base 88.
 
 ## Test de 5 minutes
