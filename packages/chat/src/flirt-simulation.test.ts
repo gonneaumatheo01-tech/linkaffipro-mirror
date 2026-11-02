@@ -50,13 +50,7 @@ function modele() {
     const force: FlirtAction | null = index === 1 ? "photo" : null;
     const action: FlirtAction =
       force ?? (permises.includes("photo") ? "photo" : permises.includes("lien") ? "lien" : "rien");
-    // Directives hook et push : le modèle doit sortir le bon texte pour que le tour suivant le détecte.
-    const text = system.includes("dis ton prénom")
-      ? "moi c'est Léa, tu cherches quoi toi ? 😏"
-      : system.includes("DOIT contenir le mot « sexe »")
-        ? "du sexe alors ? 😏"
-        : TEXTE[action];
-    return fakeOutput({ messages: [text], action });
+    return fakeOutput({ messages: [TEXTE[action]], action });
   });
 }
 
@@ -114,105 +108,6 @@ describe("simulation de la série de photos", () => {
     expect(photos[3]!.tour - (liens[0]! + 1)).toBeGreaterThanOrEqual(2);
     // Le modèle a bien tenté une action interdite, et le code l'a refusée.
     expect(rejets).toContain("action_interdite");
-  });
-
-  it("ouverture : hook → push → série", async () => {
-    const OPENING_SCRIPT = ["salut", "je sais pas trop", "ouais pourquoi pas", "grave"];
-    const deps = createFakeTurnDeps({ llm: modele() });
-    const conv = fakeConversation({
-      stage: "CHAT",
-      assistantTurns: 0,
-      memberMessages: 1,
-      isFirstAssistantTurn: true,
-    });
-    conv.flirt = { step: "NONE", teases: 0 };
-    const persona = fakePersona({
-      identity: "GIRL",
-      illusion: true,
-      hasOffer: true,
-      flirtPhotos: PHOTOS,
-    });
-    const history: HistoryMessage[] = [];
-    const photoTours: number[] = [];
-    const messageLengths: number[] = [];
-
-    for (const [i, texte] of OPENING_SCRIPT.entries()) {
-      const input: TurnInput = {
-        kind: "reply",
-        persona,
-        settings: fakeSettings(),
-        conversation: { ...conv, isFirstAssistantTurn: i === 0 },
-        history: [...history],
-        inbound: [{ text: texte }],
-      };
-      const res = await runTurn(input, deps);
-      const asset = res.sent.find((p) => p.mediaAssetId)?.mediaAssetId ?? null;
-      const slot = asset ? Number(asset.split("-")[1]) : null;
-      if (slot) photoTours.push(i + 1);
-      messageLengths.push(res.sent.length);
-      console.log(`${i + 1}. LUI  ${texte}`);
-      console.log(
-        `   ELLE ${res.sent.map((p) => p.text).join(" / ")}${slot ? `   [PHOTO ${slot}]` : ""}`,
-      );
-      if (res.newFlirtStep) conv.flirt = { step: res.newFlirtStep, teases: res.flirtTeases ?? 0 };
-      for (const p of res.sent)
-        history.push({ direction: "OUT", author: "ASSISTANT", text: p.text });
-      history.push({ direction: "IN", author: "MEMBER", text: texte });
-    }
-
-    // Tour 1 : pas de photo.
-    expect(photoTours).not.toContain(1);
-    // Tour 2 : pas de photo (push).
-    expect(photoTours).not.toContain(2);
-    // Tour 3 : « du sexe » déclenche la série, photo au tour 3 ou après.
-    expect(photoTours.some((t) => t >= 3)).toBe(true);
-    // Le premier message contient le hook (« cherches quoi ») et au plus 2 lignes.
-    const firstReply = history.find((m) => m.direction === "OUT")?.text ?? "";
-    expect(firstReply).toBeTruthy();
-  });
-
-  it("modèle sage et têtu (conversation de production) : le script part quand même", async () => {
-    // Le modèle répond toujours du small talk, sans action, comme en production le 2 novembre.
-    const sage = createFakeLlm(() => fakeOutput({ messages: ["slt ca va?"], action: "rien" }));
-    const deps = createFakeTurnDeps({ llm: sage });
-    const persona = fakePersona({
-      identity: "GIRL",
-      illusion: true,
-      hasOffer: true,
-      flirtPhotos: PHOTOS,
-    });
-    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 0, memberMessages: 1 });
-    conv.flirt = { step: "NONE", teases: 0 };
-    const history: HistoryMessage[] = [];
-    const tours: { texte: string; photo: boolean; fixedKey: string | null }[] = [];
-
-    for (const [i, texte] of ["Salut", "Oui et toi ça va", "Coool t'as quel âge"].entries()) {
-      const res = await runTurn(
-        {
-          kind: "reply",
-          persona,
-          settings: fakeSettings(),
-          conversation: { ...conv, isFirstAssistantTurn: i === 0, assistantTurns: i },
-          history: [...history],
-          inbound: [{ text: texte }],
-        },
-        deps,
-      );
-      tours.push({
-        texte: res.sent.map((p) => p.text).join(" / "),
-        photo: res.sent.some((p) => p.mediaAssetId),
-        fixedKey: res.sent[0]?.fixedKey ?? null,
-      });
-      if (res.newFlirtStep) conv.flirt = { step: res.newFlirtStep, teases: res.flirtTeases ?? 0 };
-      history.push({ direction: "IN", author: "MEMBER", text: texte });
-      for (const p of res.sent)
-        history.push({ direction: "OUT", author: "ASSISTANT", text: p.text });
-    }
-
-    expect(tours[0]!.texte).toBe("moi c'est Léa, tu cherches quoi toi ? 😏");
-    expect(tours[1]!.texte).toBe("du sexe alors ? 😏");
-    expect(tours[2]!.photo).toBe(true);
-    expect(conv.flirt.step).toBe("PHOTOS");
   });
 
   it("moins de 18 ans : plus de photo ni de lien", async () => {

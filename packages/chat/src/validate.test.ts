@@ -441,17 +441,11 @@ describe("détecteurs", () => {
         const admit = fixedText(lang, "isAssistant", { name: "Léa", gender });
         expect(hasIntro(intro, "Léa"), `${lang} intro`).toBe(true);
         expect(admitsBeingAssistant(admit), `${lang} isAssistant`).toBe(true);
-        const textes: [string, string][] = [
-          ["intro", intro],
-          ["isAssistant", admit],
-          ...Object.entries(FIXED_TEXTS[lang]),
-        ];
-        for (const [key, t] of textes) {
+        for (const t of [intro, admit, ...Object.values(FIXED_TEXTS[lang])]) {
           expect(deniesBeingAssistant(t), `${lang} : ${t}`).toBe(false);
           expect(hasMarkdown(t), `${lang} : ${t}`).toBe(false);
           expect(hasLink(t), `${lang} : ${t}`).toBe(false);
-          // « push » ne sert qu'à une fille en illusion, pour qui les mots crus sont permis.
-          if (key !== "push") expect(hasExplicitContent(t), `${lang} : ${t}`).toBe(false);
+          expect(hasExplicitContent(t), `${lang} : ${t}`).toBe(false);
         }
       }
     }

@@ -62,12 +62,12 @@ describe("prompt système d'une fille", () => {
     expect(p).toContain("Tu es Léa, une fille sur Telegram.");
   });
 
-  it("premier message : prénom + hook question", () => {
+  it("premier message : prénom seul, exemple de fille", () => {
     const p = buildSystemPrompt(
       ctx({ isFirstAssistantTurn: true, stage: "WELCOME", memberMessages: 0 }),
     );
-    expect(p).toContain("cherches quoi");
-    expect(p).toContain("Léa");
+    expect(p).toContain("sans te présenter ni dire ton prénom");
+    expect(p).toContain("« coucou 😊 »");
     expect(p).not.toContain("du canal");
   });
 

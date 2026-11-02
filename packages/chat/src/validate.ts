@@ -1,7 +1,6 @@
 // Contrôles faits par le code après chaque réponse du modèle (contrat §3.3, règles 2 à 4 du client). Une réponse non
 // conforme est rejetée avec des codes stables ; le moteur la refait une fois avec une consigne de correction.
 import { isAssistantOnlyUniverse } from "@linkaffipro/core";
-import { isHookQuestion, isPushAnswer } from "./flirt";
 import { hasForbiddenPromise } from "./promises";
 import type { TurnOutput } from "./schema";
 import type { PersonaIdentity } from "./turn-types";
@@ -34,9 +33,6 @@ export const REJECT_CODES = [
   "explicit_too_early",
   // Emojis interdits (VIP Manager sports).
   "emoji",
-  // Script de chauffe d'une fille en illusion : accroche « tu cherches quoi » absente, relance sur le sexe absente.
-  "hook_missing",
-  "push_missing",
 ] as const;
 export type RejectCode = (typeof REJECT_CODES)[number];
 
@@ -88,8 +84,6 @@ export type ValidationContext = {
   interest?: number;
   /** Emojis strictement interdits dans les messages (VIP Manager sports). */
   noEmojis?: boolean;
-  /** Consigne de la série de ce tour (`decideFlirt`) : « hook », « rehook » et « push » sont exigés dans le texte. */
-  flirtDirective?: string;
 };
 
 export type ValidationResult =
@@ -174,7 +168,8 @@ export function hasLink(text: string): boolean {
 // Emojis
 // ------------------------------------------------------------------
 
-const EMOJI_PATTERN = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
+const EMOJI_PATTERN =
+  /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
 
 /** Vrai si le texte contient au moins un emoji. */
 export function hasEmoji(text: string): boolean {
@@ -1001,19 +996,8 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
     );
   if (strict && hasForbiddenPromise(joined))
     reject("promise", "Promesse de gain, de certitude ou d'argent facile.");
-  if (ctx.noEmojis && hasEmoji(joined)) reject("emoji", "Emojis interdits pour cette persona.");
-
-  // Script de chauffe : l'étape demandée doit être écrite, sinon nouvel essai puis texte fixe. Une question « t'es un
-  // bot ? » passe avant : le déni seul suffit, l'étape revient au tour suivant.
-  const scriptStep = girl && !ctx.turnInboundTexts.some(asksIfBot);
-  if (
-    scriptStep &&
-    (ctx.flirtDirective === "hook" || ctx.flirtDirective === "rehook") &&
-    !isHookQuestion(joined)
-  )
-    reject("hook_missing", "Accroche « tu cherches quoi » absente.");
-  if (scriptStep && ctx.flirtDirective === "push" && !isPushAnswer(joined))
-    reject("push_missing", "Relance sur le sexe absente.");
+  if (ctx.noEmojis && hasEmoji(joined))
+    reject("emoji", "Emojis interdits pour cette persona.");
 
   // Action choisie : elle doit être permise, et le texte doit coller à l'action.
   if (ctx.allowedActions) {
