@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { runTurn } from "./engine";
 import {
   createFakeLlm,
+  createFakeSender,
   createFakeTurnDeps,
   fakeConversation,
   fakeOutput,
@@ -143,6 +144,45 @@ describe("corrigé par le code, sans nouvel appel", () => {
     expect(res.offerSent).not.toBeNull();
     expect(res.newFlirtStep).toBe("LINKED");
     expect(res.facts).not.toContain(ARMED_LINK_FACT);
+  });
+});
+
+describe("le lien part seul, l'app n'est jamais décrite", () => {
+  const sansBoutons = () => createFakeSender({ capabilities: { canSendButtons: false } });
+
+  it("compte réel, lien vendu au tour d'avant : seule l'adresse part, le texte du modèle est laissé", async () => {
+    const llm = createFakeLlm([
+      reponse("c'est une appli pour parler, tiens 😏", "lien", { send_offer: true }),
+    ]);
+    const sender = sansBoutons();
+    const deps = createFakeTurnDeps({ llm, sender });
+    const res = await runTurn(tour("OFFER", 301, "vas y", { facts: [ARMED_LINK_FACT] }), deps);
+    expect(res.offerSent).not.toBeNull();
+    expect(sender.messages().map((m) => m.text)).toEqual([res.offerSent?.url]);
+    expect(sender.messages()[0]?.offerSubId).toBe(res.offerSent?.subId);
+    expect(res.newFlirtStep).toBe("LINKED");
+    expect(res.facts).not.toContain(ARMED_LINK_FACT);
+  });
+
+  it("bot avec boutons : le bouton part sous une flèche, jamais dans un message vide", async () => {
+    const llm = createFakeLlm([reponse("tiens", "lien", { send_offer: true })]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("OFFER", 301, "vas y", { facts: [ARMED_LINK_FACT] }), deps);
+    const sent = deps.sender.messages();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.text).toBe("👇");
+    expect(sent[0]?.buttons?.[0]?.[0]?.url).toBe(res.offerSent?.url);
+  });
+
+  it("compte réel, lien avec une phrase : la phrase d'abord, puis l'adresse seule, jamais un message vide", async () => {
+    const llm = createFakeLlm([reponse("mmh viens", "lien", { send_offer: true })]);
+    const sender = sansBoutons();
+    const deps = createFakeTurnDeps({ llm, sender });
+    const res = await runTurn(tour("OFFER", 301, "envoie la suite"), deps);
+    expect(res.offerSent).not.toBeNull();
+    const texts = sender.messages().map((m) => m.text);
+    expect(texts).toEqual(["mmh viens", res.offerSent?.url]);
+    expect(sender.messages()[1]?.offerSubId).toBe(res.offerSent?.subId);
   });
 });
 

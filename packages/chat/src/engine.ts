@@ -777,11 +777,18 @@ async function sendParts(
             ? [[vipBtn]]
             : undefined;
 
-    // Sans boutons (aperçu « Tester ») : les adresses vont à la fin du texte.
+    // Sans boutons (compte réel, aperçu « Tester ») : les adresses vont à la fin du texte, ou seules s'il n'y a pas
+    // de texte. Avec des boutons, le lien seul part sous une flèche (Telegram refuse un message vide).
     const inlineUrls = canButtons
       ? []
       : [link?.url, vipLink].filter((u): u is string => Boolean(u));
-    const outgoing = inlineUrls.length > 0 ? `${text}\n\n${inlineUrls.join("\n")}` : text;
+    const linkOnly = inlineUrls.length > 0 ? inlineUrls.join("\n") : "👇";
+    const outgoing =
+      !text.trim() && (link || inlineUrls.length > 0)
+        ? linkOnly
+        : inlineUrls.length > 0
+          ? `${text}\n\n${linkOnly}`
+          : text;
     const sendOpts = { buttons, fixedKey: opts.fixedKey, offerSubId: link?.subId ?? null };
     const mediaAssetId =
       link && persona.offerMediaAssetId
@@ -791,15 +798,17 @@ async function sendParts(
           : null;
 
     // #2 : photo de chauffe envoyée dans un message séparé (après le texte).
-    // #3 : lien d'offre envoyé dans un message séparé (après le texte), SAUF quand le visuel de l'offre est joint
-    //       ou quand noSplit est demandé (pseudo → fin de conversation, texte et bouton restent ensemble).
+    // #3 : lien d'offre envoyé dans un message séparé (après le texte) : l'adresse seule (ou le bouton sous une flèche),
+    //       sans texte autour, SAUF quand le visuel de l'offre est joint ou quand noSplit est demandé (pseudo → fin de
+    //       conversation, texte et lien restent ensemble).
     const splitPhoto = mediaAssetId && !link && outgoing.trim().length > 0;
-    const splitOffer = link && outgoing.trim().length > 0 && !mediaAssetId && !opts.noSplit;
+    const splitOffer = link && text.trim().length > 0 && !mediaAssetId && !opts.noSplit;
 
     if (splitPhoto || splitOffer) {
-      // 1) texte seul
+      // 1) texte seul (sans l'adresse du lien, qui part ensuite seule)
+      const firstText = splitOffer ? text : outgoing;
       const textR = await safeSend(() =>
-        deps.sender.sendText(outgoing, { fixedKey: opts.fixedKey, offerSubId: null }),
+        deps.sender.sendText(firstText, { fixedKey: opts.fixedKey, offerSubId: null }),
       );
       if (!textR.ok) {
         sendError = { blocked: textR.blocked, unreachable: textR.unreachable, error: textR.error };
@@ -808,7 +817,7 @@ async function sendParts(
       }
       sent.push({
         index: i,
-        text: outgoing,
+        text: firstText,
         telegramMessageId: textR.telegramMessageId,
         offerSubId: null,
         mediaAssetId: null,
@@ -821,14 +830,14 @@ async function sendParts(
       const shortDelay = typingDelayMs("...", false, deps.random);
       if (shortDelay > 0) await deps.sleep(shortDelay);
 
-      // 3) photo seule ou bouton d'offre seul
+      // 3) photo seule ou lien seul
       const splitR = await safeSend(() =>
         splitPhoto
           ? deps.sender.sendMedia({ mediaAssetId: mediaAssetId! }, "", {
               fixedKey: null,
               offerSubId: null,
             })
-          : deps.sender.sendText("", sendOpts),
+          : deps.sender.sendText(linkOnly, sendOpts),
       );
       if (!splitR.ok) {
         sendError = {
@@ -841,7 +850,7 @@ async function sendParts(
       }
       sent.push({
         index: i,
-        text: "",
+        text: splitPhoto ? "" : linkOnly,
         telegramMessageId: splitR.telegramMessageId,
         offerSubId: link?.subId ?? null,
         mediaAssetId: splitPhoto ? mediaAssetId : null,
@@ -1165,6 +1174,13 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       fixedKey = null;
       if (!withOffer && conv.offerSends === 0 && input.persona.hasOffer) withOffer = true;
     }
+  }
+
+  // Série : le lien vendu au tour d'avant part tout seul, sans phrase autour (consigne du client : « elle envoie juste
+  // le lien »). Le texte du modèle n'est pas envoyé.
+  if (series && linkWasArmed && withOffer && action === "lien" && !pseudoGiven && !needsHuman) {
+    texts = [""];
+    fixedKey = null;
   }
 
   // Phase 25 bis : bookmaker partenaire (Paris sportifs VIP) et lien VIP.

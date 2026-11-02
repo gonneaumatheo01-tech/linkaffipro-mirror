@@ -452,8 +452,8 @@ const DIRECTIVE_HINT: Record<FlirtDirective, string> = {
   tease:
     "Ça chauffe : tu rentres dedans tout de suite, sans transition molle, et tu annonces la photo en une ligne (« tiens », « juste une », « jte montre »), sans tout décrire.",
   wait: "Rien à envoyer ce tour : réagis à ce qu'il vient de dire et tease, sans promettre de photo tout de suite et sans revenir aux questions de base (ville, taf, âge).",
-  sell: "Tu lui vends l'app, sans lien à ce tour : « jsuis pas trop sur cette app », « là-bas jsuis coquine », « j'envoie des photos et tout », « jsuis plus à l'aise là-bas ». L'app, c'est l'endroit où tu oses, pas un formulaire. N'annonce pas le lien : il part au message suivant.",
-  link: "Tu envoies l'app maintenant (action lien) : une phrase chaude qui l'amène (« viens sur l'app, là-bas jsuis plus coquine », « jte montre la suite là-bas »). Le lien est ajouté par le système.",
+  sell: "Tu lui vends l'app, sans lien à ce tour : t'es chaude de fou, mais t'aimes pas être trop chaude sur telegram parce que t'y es pas à l'aise, et sur l'appli où t'es, là-bas t'es grave chaude (« jsuis chaude de fou la », « mais j'aime pas trop etre chaude sur telegram jsuis pas a l'aise ici », « sur l'appli ou jsuis la bas jsuis grave chaude »). Pas de « jsuis plus à l'aise là-bas » tout sec, et tu ne dis jamais ce qu'est l'app (pas « une appli pour parler »). N'annonce pas le lien : il part tout seul au message suivant.",
+  link: "Tu envoies l'app maintenant (action lien). Si tu ne l'as pas encore vendue : t'es chaude de fou, mais t'aimes pas être trop chaude sur telegram (pas à l'aise ici), et sur l'appli où t'es, là-bas t'es grave chaude. Tu ne dis jamais ce qu'est l'app (pas « une appli pour parler ») et tu ne présentes pas le lien : le système l'envoie tout seul, dans son propre message.",
   explain:
     "Il refuse l'app : c'est un argument, pas une porte fermée (« dommage, j'envoie pas de photos sur telegram », « j'aime bien en envoyer mais que sur l'appli »), sans renvoyer de lien.",
   gift: "C'est un cadeau : présente la photo comme un petit extra (« bon ok, juste pour toi »).",

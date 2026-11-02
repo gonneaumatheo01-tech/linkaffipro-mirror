@@ -70,16 +70,36 @@ describe("prompt de la série de photos", () => {
     expect(p).not.toContain("d'ailleurs ici y'a trop de mecs bizarres");
   });
 
-  it("tour de vente : l'app comme l'endroit où elle ose, sans annoncer le lien", () => {
+  it("tour de vente : chaude de fou, pas à l'aise d'être trop chaude sur telegram, grave chaude sur l'appli", () => {
     const p = prompt("OFFER", 300, "mmh");
     expect(p).toContain("Tu vends l'app à ce tour, SANS lien");
-    expect(p).toContain("là-bas jsuis coquine");
+    expect(p).toContain("jsuis chaude de fou la");
+    expect(p).toContain("jsuis pas a l'aise ici");
+    expect(p).toContain("la bas jsuis grave chaude");
   });
 
-  it("tour du lien : il part avec son annonce", () => {
+  it("tour du lien : il part seul, l'app n'est jamais décrite", () => {
     const p = prompt("OFFER", 301, "envoie la suite");
     expect(p).toContain("C'est le moment du lien");
     expect(p).toContain(`Action obligatoire ce tour : "lien".`);
+    expect(p).not.toContain("tu dis juste : « c'est une appli pour parler »");
+    expect(p).not.toContain("→ c'est une appli pour parler");
+  });
+
+  it("sans série de photos, la réponse « c'est une appli pour parler » ne change pas", () => {
+    const sans = buildSystemPrompt({
+      persona: fakePersona({ identity: "GIRL", illusion: true, hasOffer: true }),
+      lang: "fr",
+      kind: "reply",
+      stage: "CHAT",
+      style: {},
+      facts: [],
+      summary: null,
+      isFirstAssistantTurn: false,
+      memberMessages: 10,
+      offerSends: 0,
+    });
+    expect(sans).toContain("tu dis juste : « c'est une appli pour parler »");
   });
 
   it("refus : un argument, et le lien n'est plus reproposé", () => {

@@ -1137,3 +1137,10 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
 - Autocollant : reçu par le userbot avec son emoji et `media.kind = "sticker"`, jamais avalé ni pris pour un vocal ; règle 7 du prompt : salut court et chaleureux.
 - Coût : `HISTORY_LIMIT` 20 → 12 (résumé roulant du worker ajusté de lui-même) ; prompt de la série réordonné (partie fixe d'abord, consignes du tour à la fin, ~97 % de préfixe commun) et `prompt_cache_key = persona:<nom>` envoyé à Venice (routage vers un serveur au cache chaud, paramètre documenté par Venice, accepté par grok-4-5 : vérifié par appel réel) ; liste de vérification finale condensée pour la série. Modèle, température et plafond de sortie inchangés.
 - La fiche de Léa en base (exemples « ca depend comment elle est utilisee », consigne « quand le moment est bon, tu proposes l'appli ») n'a pas été modifiée (base en lecture seule) : le prompt la cadre.
+
+## Léa : vente après la 3ᵉ photo et lien seul (2 novembre 2026, consigne du client)
+
+- Tour de vente (OFFER, lien armé) : plus de « jsuis plus à l'aise là-bas » tout sec. Elle est chaude de fou, mais n'aime pas être trop chaude sur Telegram (pas à l'aise), et sur l'appli où elle est, elle est grave chaude (consigne `sell` / `link` de `flirt.ts`, `SERIES_AMENER_LIEN` du prompt).
+- Série de photos seulement : l'app n'est jamais décrite (plus de « c'est une appli pour parler », le lien répond pour elle). Les personas sans série gardent la réponse d'avant, mot pour mot.
+- Tour du lien armé : le moteur jette le texte du modèle et n'envoie que le lien (l'adresse seule sur le compte réel, le bouton sous « 👇 » sur un bot). Un appel au modèle reste fait à ce tour (accepté : un appel par conversation).
+- Correctif : le lien coupé de son texte partait dans un message VIDE, que Telegram refuse ; le moteur supprimait alors le lien, devenu mort (renvoi vers l'accueil de l'app). Depuis le 2 novembre ~14 h 55 (heure de Paris), 5 liens étaient concernés. Désormais le 2ᵉ message porte l'adresse (compte réel) ou « 👇 » avec le bouton (bot). Les 5 liens sont recréés en base avec le même identifiant de suivi, aucun message renvoyé aux membres.
