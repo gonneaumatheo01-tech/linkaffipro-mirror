@@ -99,14 +99,16 @@ describe("prompt : bookmakers partenaires", () => {
     }
   });
 
-  it("gérant du VIP : se présente comme « le gérant du VIP », reste une IA déclarée", () => {
+  it("gérant du VIP : se présente comme un mec qui gère le VIP, pas comme une IA", () => {
     const p = buildSystemPrompt({ ...ctx, persona: mehdi(), isFirstAssistantTurn: true });
-    expect(p).toContain("Tu es Mehdi, le gérant du VIP du canal « Pronos VIP »");
-    expect(p).toContain("le gérant virtuel du VIP du canal (une IA)");
+    expect(p).toContain("un mec qui gère le VIP");
     expect(p).toContain("gérer l'accès au groupe VIP gratuit");
+    expect(p).not.toContain("le gérant virtuel du VIP du canal (une IA)");
+    expect(p).toContain("Ne te présente JAMAIS comme un assistant, un bot ou une IA");
+    expect(p).toContain("Ne dis JAMAIS « attends »");
     const plain = buildSystemPrompt({ ...ctx, persona: mehdi({ vipManager: false }) });
     expect(plain).toContain("Tu es Mehdi, l'assistant du canal");
-    expect(plain).not.toContain("gérant du VIP");
+    expect(plain).not.toContain("un mec qui gère le VIP");
   });
 
   it("gérant du VIP : textes fixes et premier message", () => {
