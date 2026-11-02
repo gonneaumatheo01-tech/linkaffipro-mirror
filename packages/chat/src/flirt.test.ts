@@ -61,8 +61,30 @@ describe("démarrage", () => {
     expect(d.photoSlot).toBeNull();
   });
 
-  it("une demande de photo seule fait genre", () => {
+  it("une demande de photo démarre la série", () => {
     const d = decideFlirt(tour("NONE", "envoie une photo"));
+    expect(d.directive).toBe("tease");
+    expect(d.allow).toContain("photo");
+    expect(d.photoSlot).toBe(1);
+    expect(d.state.phase).toBe("PHOTOS");
+  });
+
+  it("mots FORTS élargis : « t'es bonne » et « tu portes quoi » démarrent", () => {
+    expect(isSexTalk("t'es bonne")).toBe(true);
+    expect(isSexTalk("tu portes quoi")).toBe(true);
+    expect(isSexTalk("ça te dit de te montrer")).toBe(true);
+    expect(isSexTalk("plan cul")).toBe(true);
+    expect(isSexTalk("envoie des nudes")).toBe(true);
+  });
+
+  it("« salut ça va » ne déclenche rien", () => {
+    expect(isSexTalk("salut ça va")).toBe(false);
+    const d = decideFlirt(tour("NONE", "salut ça va"));
+    expect(d.allow).toEqual(["rien"]);
+  });
+
+  it("play_hard en phase DONE quand il demande une photo", () => {
+    const d = decideFlirt(tour("DONE", "envoie une photo"));
     expect(d.directive).toBe("play_hard");
     expect(d.allow).toEqual(["rien"]);
   });

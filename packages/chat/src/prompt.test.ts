@@ -158,15 +158,15 @@ describe("messages envoyés au modèle", () => {
     text,
   });
 
-  it("système, 20 derniers messages, rôles (équipe = assistant), messages entrants du tour", () => {
+  it("système, 12 derniers messages, rôles (équipe = assistant), messages entrants du tour", () => {
     const history = Array.from({ length: 30 }, (_, i) => msg(i % 2 === 0 ? "IN" : "OUT", `m${i}`));
     history[29] = msg("OUT", "message de l'équipe", "TEAM");
     const out = buildTurnMessages({ system: "SYS", history, inbound: [{ text: "nouveau" }] });
     expect(out[0]).toEqual({ role: "system", content: "SYS" });
-    expect(out[1]).toEqual({ role: "user", content: "m10" });
-    expect(out).toHaveLength(22);
-    expect(out[20]).toEqual({ role: "assistant", content: "message de l'équipe" });
-    expect(out[21]).toEqual({ role: "user", content: "nouveau" });
+    expect(out[1]).toEqual({ role: "user", content: "m18" });
+    expect(out).toHaveLength(14);
+    expect(out[12]).toEqual({ role: "assistant", content: "message de l'équipe" });
+    expect(out[13]).toEqual({ role: "user", content: "nouveau" });
   });
 
   it("regroupe les messages consécutifs, signale les médias, retire le paramètre de /start", () => {

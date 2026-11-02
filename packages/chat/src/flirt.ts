@@ -137,6 +137,20 @@ const FORTS = [
   "envie de toi",
   "penetr",
   "branl",
+  "t es bonne",
+  "portes quoi",
+  "te montrer",
+  "deshabill",
+  "a quatre pattes",
+  "a 4 pattes",
+  "te toucher",
+  "te caresser",
+  "plan cul",
+  "nudes",
+  "nude",
+  "te mater",
+  "cochonne",
+  "salope",
 ];
 
 const DOUX = [
@@ -155,6 +169,19 @@ const DOUX = [
   "jolie",
   "sexy",
   "desirable",
+  "mignonne",
+  "canon",
+  "charmante",
+  "attirante",
+  "sensuelle",
+  "tentation",
+  "plaire",
+  "craquer",
+  "coquin",
+  "coquine",
+  "magnifique",
+  "irresistible",
+  "aguich",
 ];
 
 const OUI = ["oui", "ouais", "vas y", "vas-y", "go", "carrement", "grave", "ok"];
@@ -251,11 +278,10 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
   switch (state.phase) {
     // Rien en cours : la série ne démarre que sur du sexe. Une demande de photo seule laisse jouer l'autre script.
     case "NONE": {
-      if (isSexTalk(input.text) || isHot(input.recent, input.text)) {
+      if (isSexTalk(input.text) || isHot(input.recent, input.text) || asksPhoto(input.text)) {
         const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
         return photoDispo(s, 1, "tease");
       }
-      if (asksPhoto(input.text)) return rien("play_hard");
       return rien();
     }
 
@@ -300,6 +326,7 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
       return rien("wrap", { phase: "DONE", lastPhoto: state.lastPhoto, exchanges: 0 });
 
     default:
+      if (asksPhoto(input.text)) return rien("play_hard", { ...state, exchanges: state.exchanges + 1 });
       return rien("none", { ...state, exchanges: state.exchanges + 1 });
   }
 }
@@ -331,12 +358,12 @@ const ACTION_LABEL: Record<FlirtAction, string> = { rien: "rien", photo: "photo"
 const DIRECTIVE_HINT: Record<FlirtDirective, string> = {
   none: "",
   play_hard:
-    "Il demande une photo et la série n'a pas commencé : dis que tu n'envoies pas de photos ici.",
+    "Il demande une photo mais t'as plus rien ici : « dommage, j'envoie pas de photos sur telegram ». Le reste c'est sur l'app.",
   tease: "Fais court : tu chauffes, tu annonces, tu ne décris pas tout.",
   wait: "Rien à envoyer ce tour : réagis à ce qu'il vient de dire et tease, sans promettre de photo tout de suite.",
-  link: "Tu envoies l'app : dis en une ligne que le reste n'est pas ici et que Telegram n'est pas sûr.",
+  link: "Tu envoies l'app : « jsuis pas trop sur cette app » ou « la-bas je suis coquine, viens ». Le lien est ajouté par le système.",
   explain:
-    "Il a refusé l'app : explique en une ligne pourquoi (n'importe qui peut enregistrer), sans renvoyer de lien, et dis que t'as autre chose à montrer.",
+    "Il a refusé l'app : « dommage, j'envoie pas de photos sur telegram, n'importe qui peut enregistrer ». Ne renvoie pas de lien, et dis que t'as autre chose à montrer.",
   gift: "C'est un cadeau : présente la photo comme un petit extra (« bon ok, juste pour toi »).",
   wrap: "Tu dis que tu continues là-bas, en une ligne, sans renvoyer de lien.",
 };

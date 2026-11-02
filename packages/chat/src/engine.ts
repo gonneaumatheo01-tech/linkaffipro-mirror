@@ -353,6 +353,26 @@ async function checkResponse(
       ),
   });
   if (!v.ok) {
+    const softOnly = v.codes.every(
+      (c) => c === "contradiction" || c === "action_interdite",
+    );
+    if (softOnly) {
+      await recordUsage(run, {
+        model: call.model,
+        res: call.res,
+        ok: true,
+        error: `fixed:${v.codes.join(",")}`,
+        attempt: call.attempt,
+      });
+      run.rejected.push(...v.codes);
+      const fixed = { ...parsed.output, action: "rien" };
+      return {
+        kind: "ok",
+        output: fixed as TurnOutput,
+        messages: v.messages,
+        model: call.res.model || call.model,
+      };
+    }
     await recordUsage(run, {
       model: call.model,
       res: call.res,
@@ -918,9 +938,15 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     hasPhotos: (input.persona.flirtPhotos ?? []).map((x) => x.slot),
     isMinor: conv.isMinor,
   }));
+  // Silence dur : la série est terminée (phase DONE déjà persistée) → aucune réponse, aucune relance.
+  const inputPhase = (conv.flirt?.step ?? "NONE") as string;
+  if (inputPhase === "DONE") {
+    return { ...baseResult(run, inbound), outcome: "aborted" };
+  }
+
   // Hors série, les règles générales gardent la main sur le lien ; dans la série, c'est l'action qui décide.
   const lienLibre =
-    flirt.state.phase === "NONE" || flirt.state.phase === "LINKED" || flirt.state.phase === "DONE";
+    flirt.state.phase === "NONE" || flirt.state.phase === "LINKED";
 
   // Jamais de réponse à une conversation fermée ou à un mineur (l'appelant ne devrait pas appeler).
   if (conv.isMinor || conv.stage === "CLOSED")
@@ -1052,7 +1078,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       ? action === "lien" && input.persona.hasOffer
         ? true
         : canSendOffer(offerConv, input.persona, output, input.kind) && lienLibre
-      : false;
+      : action === "lien" && input.persona.hasOffer;
 
   // Pseudo donné dans ce tour (fille) : message de fin, lien forcé si pas encore parti.
   let pseudoGiven = false;
@@ -1139,7 +1165,9 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       ? ("BLOCKED" as const)
       : sending.sendError?.unreachable
         ? ("UNREACHABLE" as const)
-        : null;
+        : nextFlirt.phase === "DONE"
+          ? ("FLIRT_DONE" as const)
+          : null;
   // « Arrête de m'écrire », « unsubscribe »… au milieu d'un message : réponse polie, puis aucune relance.
   const stopAsked = input.kind === "reply" && inbound.some((m) => mentionsStopRequest(m.text));
   // Conversation passée à l'équipe ou pseudo donné : aucune relance de l'assistante.
