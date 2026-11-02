@@ -92,7 +92,7 @@ describe("prompt système en illusion", () => {
     );
     expect(p).toContain("cherches quoi");
     expect(p).toContain("Léa");
-    expect(validate(["moi c'est Léa, tu cherches quoi toi avec les filles ?"], { isFirstAssistantMessage: true }).ok).toBe(true);
+    expect(validate(["moi c'est Léa, tu cherches quoi toi ? 😏"], { isFirstAssistantMessage: true }).ok).toBe(true);
     expect(p).not.toMatch(/assistante|canal/);
   });
 

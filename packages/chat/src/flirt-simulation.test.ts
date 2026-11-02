@@ -50,7 +50,14 @@ function modele() {
     const force: FlirtAction | null = index === 1 ? "photo" : null;
     const action: FlirtAction =
       force ?? (permises.includes("photo") ? "photo" : permises.includes("lien") ? "lien" : "rien");
-    return fakeOutput({ messages: [TEXTE[action]], action });
+    // Directives hook et push : le modèle doit sortir le bon texte pour que le tour suivant le détecte.
+    const text =
+      system.includes("dis ton prénom")
+        ? "moi c'est Léa, tu cherches quoi toi ? 😏"
+        : system.includes("pousse direct")
+          ? "du sexe alors ? 😏"
+          : TEXTE[action];
+    return fakeOutput({ messages: [text], action });
   });
 }
 
@@ -111,7 +118,7 @@ describe("simulation de la série de photos", () => {
   });
 
   it("ouverture : hook → push → série", async () => {
-    const OPENING_SCRIPT = ["salut", "je sais pas trop", "du sexe", "grave"];
+    const OPENING_SCRIPT = ["salut", "je sais pas trop", "ouais pourquoi pas", "grave"];
     const deps = createFakeTurnDeps({ llm: modele() });
     const conv = fakeConversation({
       stage: "CHAT",

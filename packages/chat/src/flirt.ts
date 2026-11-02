@@ -265,6 +265,12 @@ export function isHookQuestion(text: string): boolean {
   return normalize(text).includes("cherches quoi");
 }
 
+/** Vrai si le texte est la réponse push (« du sexe alors ? » ou variante). */
+export function isPushAnswer(text: string): boolean {
+  const t = normalize(text);
+  return t.includes("du sexe") || t.includes("sexe alors") || t.includes("moi oui en tout cas");
+}
+
 // ------------------------------------------------------------------
 // Décision
 // ------------------------------------------------------------------
@@ -288,16 +294,23 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
   switch (state.phase) {
     // Rien en cours : accroche au premier tour, puis réponse à l'accroche, puis série sur du sexe.
     case "NONE": {
-      // Premier tour : directive hook (prénom + « tu cherches quoi »).
+      // Premier tour : directive hook (prénom + « tu cherches quoi toi ? »).
       if (input.isFirstTurn) return rien("hook");
 
       // Tour suivant l'accroche : sa réponse au « cherches quoi ».
+      // N'importe quelle réponse sexuelle → série directe ; sinon → push.
       if (input.lastAssistantText && isHookQuestion(input.lastAssistantText)) {
         if (isSexTalk(input.text)) {
           const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
           return photoDispo(s, 1, "tease");
         }
         return rien("push");
+      }
+
+      // Tour suivant le push (« du sexe alors ? ») : N'IMPORTE QUELLE réponse lance la série.
+      if (input.lastAssistantText && isPushAnswer(input.lastAssistantText)) {
+        const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
+        return photoDispo(s, 1, "tease");
       }
 
       if (isSexTalk(input.text) || isHot(input.recent, input.text) || asksPhoto(input.text)) {
@@ -381,8 +394,8 @@ const DIRECTIVE_HINT: Record<FlirtDirective, string> = {
   none: "",
   play_hard:
     "Il demande une photo mais t'as plus rien ici : « dommage, j'envoie pas de photos sur telegram ». Le reste c'est sur l'app.",
-  hook: "Premier message : dis ton prénom et demande-lui « tu cherches quoi toi avec les filles ? ». Deux lignes max, rien d'autre.",
-  push: "Il est vague : pousse-le. Dis « du sexe alors ? » ou une variante directe. Interdits : « ça dépend », « on verra », « c'est sympa », « à voir ». Tu assumes que c'est du sexe.",
+  hook: "Premier message : dis ton prénom et demande-lui « tu cherches quoi toi ? ». Deux lignes max, rien d'autre.",
+  push: "Il a répondu au hook : pousse direct. Dis « du sexe alors ? 😏 » ou « moi oui en tout cas ». Tu assumes que c'est du sexe, sans exception. Interdits : « ça dépend », « on verra », « c'est sympa », « à voir », « chacun son truc ».",
   tease: "Fais court : tu chauffes, tu annonces, tu ne décris pas tout.",
   wait: "Rien à envoyer ce tour : réagis à ce qu'il vient de dire et tease, sans promettre de photo tout de suite.",
   link: "Tu envoies l'app : « jsuis pas trop sur cette app » ou « la-bas je suis coquine, viens ». Le lien est ajouté par le système.",

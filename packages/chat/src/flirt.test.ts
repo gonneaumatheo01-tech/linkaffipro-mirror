@@ -7,6 +7,7 @@ import {
   decodeState,
   encodeProgress,
   isHookQuestion,
+  isPushAnswer,
   isRefusal,
   isSexTalk,
   MAX_PHOTOS,
@@ -216,8 +217,15 @@ describe("accroche du premier tour", () => {
   });
 
   it("isHookQuestion détecte la question d'accroche", () => {
+    expect(isHookQuestion("moi c'est Léa, tu cherches quoi toi ?")).toBe(true);
     expect(isHookQuestion("moi c'est Léa, tu cherches quoi toi avec les filles ?")).toBe(true);
     expect(isHookQuestion("ça va bien")).toBe(false);
+  });
+
+  it("isPushAnswer détecte la réponse push", () => {
+    expect(isPushAnswer("du sexe alors ? 😏")).toBe(true);
+    expect(isPushAnswer("moi oui en tout cas")).toBe(true);
+    expect(isPushAnswer("salut ca va")).toBe(false);
   });
 
   it("réponse sexuelle au hook → série (tease + photo)", () => {
@@ -245,6 +253,15 @@ describe("accroche du premier tour", () => {
 
   it("après le push, « du sexe » déclenche la série normalement", () => {
     const d = decideFlirt(tour("NONE", "du sexe"));
+    expect(d.directive).toBe("tease");
+    expect(d.state.phase).toBe("PHOTOS");
+  });
+
+  it("après le push, n'importe quelle réponse lance la série", () => {
+    const d = decideFlirt({
+      ...tour("NONE", "ouais pourquoi pas"),
+      lastAssistantText: "du sexe alors ? 😏",
+    });
     expect(d.directive).toBe("tease");
     expect(d.state.phase).toBe("PHOTOS");
   });
