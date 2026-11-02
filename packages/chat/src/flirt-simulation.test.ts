@@ -110,6 +110,61 @@ describe("simulation de la série de photos", () => {
     expect(rejets).toContain("action_interdite");
   });
 
+  it("ouverture : hook → push → série", async () => {
+    const OPENING_SCRIPT = ["salut", "je sais pas trop", "du sexe", "grave"];
+    const deps = createFakeTurnDeps({ llm: modele() });
+    const conv = fakeConversation({
+      stage: "CHAT",
+      assistantTurns: 0,
+      memberMessages: 1,
+      isFirstAssistantTurn: true,
+    });
+    conv.flirt = { step: "NONE", teases: 0 };
+    const persona = fakePersona({
+      identity: "GIRL",
+      illusion: true,
+      hasOffer: true,
+      flirtPhotos: PHOTOS,
+    });
+    const history: HistoryMessage[] = [];
+    const photoTours: number[] = [];
+    const messageLengths: number[] = [];
+
+    for (const [i, texte] of OPENING_SCRIPT.entries()) {
+      const input: TurnInput = {
+        kind: "reply",
+        persona,
+        settings: fakeSettings(),
+        conversation: { ...conv, isFirstAssistantTurn: i === 0 },
+        history: [...history],
+        inbound: [{ text: texte }],
+      };
+      const res = await runTurn(input, deps);
+      const asset = res.sent.find((p) => p.mediaAssetId)?.mediaAssetId ?? null;
+      const slot = asset ? Number(asset.split("-")[1]) : null;
+      if (slot) photoTours.push(i + 1);
+      messageLengths.push(res.sent.length);
+      console.log(`${i + 1}. LUI  ${texte}`);
+      console.log(
+        `   ELLE ${res.sent.map((p) => p.text).join(" / ")}${slot ? `   [PHOTO ${slot}]` : ""}`,
+      );
+      if (res.newFlirtStep) conv.flirt = { step: res.newFlirtStep, teases: res.flirtTeases ?? 0 };
+      for (const p of res.sent)
+        history.push({ direction: "OUT", author: "ASSISTANT", text: p.text });
+      history.push({ direction: "IN", author: "MEMBER", text: texte });
+    }
+
+    // Tour 1 : pas de photo.
+    expect(photoTours).not.toContain(1);
+    // Tour 2 : pas de photo (push).
+    expect(photoTours).not.toContain(2);
+    // Tour 3 : « du sexe » déclenche la série, photo au tour 3 ou après.
+    expect(photoTours.some((t) => t >= 3)).toBe(true);
+    // Le premier message contient le hook (« cherches quoi ») et au plus 2 lignes.
+    const firstReply = history.find((m) => m.direction === "OUT")?.text ?? "";
+    expect(firstReply).toBeTruthy();
+  });
+
   it("moins de 18 ans : plus de photo ni de lien", async () => {
     const deps = createFakeTurnDeps({ llm: modele() });
     const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });

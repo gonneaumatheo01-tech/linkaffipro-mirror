@@ -88,6 +88,7 @@ describe("prompt système", () => {
       ctx({ isFirstAssistantTurn: true, stage: "WELCOME", lang: "en", memberMessages: 0 }),
     );
     expect(p).toContain("PREMIER MESSAGE");
+    // fakePersona() sans identity = ASSISTANT : présentation classique.
     expect(p).toContain("« I'm Léa, the assistant of the channel 😉 How are you? »");
     expect(p).toContain("Premier message : ne parle pas encore de l'app. send_offer : false.");
     expect(p).toContain("Réponds en anglais.");

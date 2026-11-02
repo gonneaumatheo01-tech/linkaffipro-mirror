@@ -86,13 +86,13 @@ describe("prompt système en illusion", () => {
     expect(buildSystemPrompt(ctx({ persona: fakePersona() }))).not.toContain("TU ECRIS COMME CA");
   });
 
-  it("premier message : simple salut, sans prénom exigé", () => {
+  it("premier message : prénom + hook question, pas d'assistante", () => {
     const p = buildSystemPrompt(
       ctx({ isFirstAssistantTurn: true, stage: "WELCOME", memberMessages: 0 }),
     );
-    expect(p).toContain("« coucou 😊 »");
-    expect(p).toContain("sans te présenter ni dire ton prénom");
-    expect(validate(["coucou 😊"], { isFirstAssistantMessage: true }).ok).toBe(true);
+    expect(p).toContain("cherches quoi");
+    expect(p).toContain("Léa");
+    expect(validate(["moi c'est Léa, tu cherches quoi toi avec les filles ?"], { isFirstAssistantMessage: true }).ok).toBe(true);
     expect(p).not.toMatch(/assistante|canal/);
   });
 

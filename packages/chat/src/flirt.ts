@@ -56,7 +56,7 @@ export type FlirtState = {
 
 /** Consigne de rédaction pour ce tour (voir `flirtPromptBlock`). */
 export type FlirtDirective =
-  "none" | "play_hard" | "tease" | "wait" | "link" | "explain" | "gift" | "wrap";
+  "none" | "play_hard" | "hook" | "push" | "tease" | "wait" | "link" | "explain" | "gift" | "wrap";
 
 export type FlirtDecision = {
   /** État mis à jour (échanges comptés). */
@@ -78,6 +78,10 @@ export type FlirtInput = {
   /** Emplacements de photos réellement disponibles. */
   hasPhotos: readonly number[];
   isMinor?: boolean;
+  /** Premier tour de réponse de l'assistante (GIRL illusion). */
+  isFirstTurn?: boolean;
+  /** Dernier message de l'assistante (pour détecter la question d'accroche). */
+  lastAssistantText?: string;
 };
 
 /** Nombre d'accroches sans envoi avant de forcer (compatibilité). */
@@ -151,6 +155,7 @@ const FORTS = [
   "te mater",
   "cochonne",
   "salope",
+  "sexe",
 ];
 
 const DOUX = [
@@ -255,6 +260,11 @@ export function isEngaged(text: string): boolean {
   return t.includes("?") || t.split(" ").filter(Boolean).length >= 3;
 }
 
+/** Vrai si le texte contient la question d'accroche du premier tour. */
+export function isHookQuestion(text: string): boolean {
+  return normalize(text).includes("cherches quoi");
+}
+
 // ------------------------------------------------------------------
 // Décision
 // ------------------------------------------------------------------
@@ -276,8 +286,20 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
   if (input.isMinor) return rien();
 
   switch (state.phase) {
-    // Rien en cours : la série ne démarre que sur du sexe. Une demande de photo seule laisse jouer l'autre script.
+    // Rien en cours : accroche au premier tour, puis réponse à l'accroche, puis série sur du sexe.
     case "NONE": {
+      // Premier tour : directive hook (prénom + « tu cherches quoi »).
+      if (input.isFirstTurn) return rien("hook");
+
+      // Tour suivant l'accroche : sa réponse au « cherches quoi ».
+      if (input.lastAssistantText && isHookQuestion(input.lastAssistantText)) {
+        if (isSexTalk(input.text)) {
+          const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
+          return photoDispo(s, 1, "tease");
+        }
+        return rien("push");
+      }
+
       if (isSexTalk(input.text) || isHot(input.recent, input.text) || asksPhoto(input.text)) {
         const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
         return photoDispo(s, 1, "tease");
@@ -359,6 +381,8 @@ const DIRECTIVE_HINT: Record<FlirtDirective, string> = {
   none: "",
   play_hard:
     "Il demande une photo mais t'as plus rien ici : « dommage, j'envoie pas de photos sur telegram ». Le reste c'est sur l'app.",
+  hook: "Premier message : dis ton prénom et demande-lui « tu cherches quoi toi avec les filles ? ». Deux lignes max, rien d'autre.",
+  push: "Il est vague : pousse-le. Dis « du sexe alors ? » ou une variante directe. Interdits : « ça dépend », « on verra », « c'est sympa », « à voir ». Tu assumes que c'est du sexe.",
   tease: "Fais court : tu chauffes, tu annonces, tu ne décris pas tout.",
   wait: "Rien à envoyer ce tour : réagis à ce qu'il vient de dire et tease, sans promettre de photo tout de suite.",
   link: "Tu envoies l'app : « jsuis pas trop sur cette app » ou « la-bas je suis coquine, viens ». Le lien est ajouté par le système.",

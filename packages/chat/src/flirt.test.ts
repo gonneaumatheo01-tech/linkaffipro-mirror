@@ -6,6 +6,7 @@ import {
   decideFlirt,
   decodeState,
   encodeProgress,
+  isHookQuestion,
   isRefusal,
   isSexTalk,
   MAX_PHOTOS,
@@ -203,6 +204,49 @@ describe("sécurité", () => {
     });
     expect(d.allow).toEqual(["rien"]);
     expect(d.photoSlot).toBeNull();
+  });
+});
+
+describe("accroche du premier tour", () => {
+  it("isFirstTurn → directive hook, pas de photo", () => {
+    const d = decideFlirt({ ...tour("NONE", "salut"), isFirstTurn: true });
+    expect(d.directive).toBe("hook");
+    expect(d.allow).toEqual(["rien"]);
+    expect(d.photoSlot).toBeNull();
+  });
+
+  it("isHookQuestion détecte la question d'accroche", () => {
+    expect(isHookQuestion("moi c'est Léa, tu cherches quoi toi avec les filles ?")).toBe(true);
+    expect(isHookQuestion("ça va bien")).toBe(false);
+  });
+
+  it("réponse sexuelle au hook → série (tease + photo)", () => {
+    const d = decideFlirt({
+      ...tour("NONE", "du sexe"),
+      lastAssistantText: "moi c'est Léa, tu cherches quoi toi avec les filles ?",
+    });
+    expect(d.directive).toBe("tease");
+    expect(d.allow).toContain("photo");
+    expect(d.state.phase).toBe("PHOTOS");
+  });
+
+  it("réponse vague au hook → push", () => {
+    const d = decideFlirt({
+      ...tour("NONE", "je sais pas trop"),
+      lastAssistantText: "moi c'est Léa, tu cherches quoi toi avec les filles ?",
+    });
+    expect(d.directive).toBe("push");
+    expect(d.allow).toEqual(["rien"]);
+  });
+
+  it("« sexe » est maintenant un mot FORT", () => {
+    expect(isSexTalk("du sexe")).toBe(true);
+  });
+
+  it("après le push, « du sexe » déclenche la série normalement", () => {
+    const d = decideFlirt(tour("NONE", "du sexe"));
+    expect(d.directive).toBe("tease");
+    expect(d.state.phase).toBe("PHOTOS");
   });
 });
 

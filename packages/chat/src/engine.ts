@@ -930,6 +930,9 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       .map((m) => m.text),
     ...input.inbound.map((m) => m.text),
   ];
+  const lastAssistantMsg = [...input.history].reverse().find(
+    (m) => m.direction === "OUT" && (m.author === "ASSISTANT" || m.author === "TEAM"),
+  );
   const flirt = (run.flirt = decideFlirt({
     step: conv.flirt?.step ?? "NONE",
     teases: conv.flirt?.teases ?? 0,
@@ -937,6 +940,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     text: recents[recents.length - 1] ?? "",
     hasPhotos: (input.persona.flirtPhotos ?? []).map((x) => x.slot),
     isMinor: conv.isMinor,
+    isFirstTurn: conv.isFirstAssistantTurn && input.kind === "reply",
+    lastAssistantText: lastAssistantMsg?.text,
   }));
   // Silence dur : la série est terminée (phase DONE déjà persistée) → aucune réponse, aucune relance.
   const inputPhase = (conv.flirt?.step ?? "NONE") as string;
