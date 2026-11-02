@@ -17,7 +17,8 @@
 3. À aucun moment il ne doit écrire « attends je reviens ».
 
 ## Problèmes et actions humaines
-- Aucun.
+- Aucun pour Mehdi. Le contrôle automatique de GitHub est de nouveau vert (il échouait depuis le 1er novembre : un test du paquet Telegram n'avait pas suivi le délai de réponse de Mehdi).
+- À part, pour Léa : un message reçu pile pendant une mise à jour du service peut rester sans réponse (Anir, 19 h 57). Léa n'a pas encore la reprise automatique de Mehdi ; correction proposée comme tâche séparée.
 
 ---
 
