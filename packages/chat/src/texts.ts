@@ -18,6 +18,10 @@ export const FIXED_TEXT_KEYS = [
   "linkNudge",
   // Série de photos : réaction à une photo reçue (elle ne la regarde pas, consigne du client).
   "photoReaction",
+  // Passage à l'équipe déjà annoncé au message d'avant : on ne répète pas la même phrase.
+  "handoffAgain",
+  // Gérant du VIP : dépôt confirmé mais lien du canal VIP introuvable, l'équipe l'envoie.
+  "vipPending",
 ] as const;
 export type FixedTextKey = (typeof FIXED_TEXT_KEYS)[number];
 
@@ -59,6 +63,8 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "ah une seconde jreviens",
     linkNudge: "t la ?",
     photoReaction: "t'es mignon hihi",
+    handoffAgain: "C'est noté, l'équipe a bien ta demande : quelqu'un te répond ici dès que possible.",
+    vipPending: "C'est validé de mon côté : l'équipe t'envoie ton accès au VIP ici dès que possible.",
   },
   en: {
     intro: "I'm {name}, {role} of the channel 😉 How are you?",
@@ -72,6 +78,8 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "one sec, brb",
     linkNudge: "you there?",
     photoReaction: "you're cute hihi",
+    handoffAgain: "Noted, the team has your request: someone will reply here as soon as possible.",
+    vipPending: "All good on my side: the team will send you your VIP access here as soon as possible.",
   },
   es: {
     intro: "Soy {name}, {role} del canal 😉 ¿Qué tal estás?",
@@ -86,6 +94,8 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "un segundo, ya vuelvo",
     linkNudge: "¿estás?",
     photoReaction: "eres mono jiji",
+    handoffAgain: "Anotado, el equipo ya tiene tu solicitud: alguien te responderá aquí lo antes posible.",
+    vipPending: "Todo bien por mi parte: el equipo te enviará tu acceso al VIP aquí lo antes posible.",
   },
   pt: {
     intro: "Eu sou {name}, {role} do canal 😉 Tudo bem com você?",
@@ -100,6 +110,8 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "um segundo, já volto",
     linkNudge: "tá aí?",
     photoReaction: "você é fofo hihi",
+    handoffAgain: "Anotado, a equipe já tem o seu pedido: alguém te responde aqui o quanto antes.",
+    vipPending: "Tudo certo da minha parte: a equipe te envia o acesso ao VIP aqui o quanto antes.",
   },
   de: {
     intro: "Ich bin {name}, {role} des Kanals 😉 Wie geht's dir?",
@@ -115,6 +127,8 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "eine Sekunde, bin gleich wieder da",
     linkNudge: "bist du da?",
     photoReaction: "du bist süß hihi",
+    handoffAgain: "Notiert, das Team hat deine Anfrage: Jemand antwortet dir hier so schnell wie möglich.",
+    vipPending: "Von meiner Seite passt alles: Das Team schickt dir deinen VIP-Zugang hier so schnell wie möglich.",
   },
   it: {
     intro: "Sono {name}, {role} del canale 😉 Come stai?",
@@ -129,6 +143,8 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
     midConv: "un secondo, torno subito",
     linkNudge: "ci sei?",
     photoReaction: "sei carino hihi",
+    handoffAgain: "Ricevuto, il team ha la tua richiesta: qualcuno ti risponderà qui il prima possibile.",
+    vipPending: "Tutto ok da parte mia: il team ti invierà l'accesso al VIP qui il prima possibile.",
   },
 };
 
@@ -158,6 +174,76 @@ export const GIRL_FIXED_TEXTS: Record<ChatLang, Record<"intro" | "isAssistant", 
   it: {
     intro: "Sono {name} 😉 Come stai?",
     isAssistant: "Sarò sincera con te: sono {name}, un'IA, non una persona reale 😊",
+  },
+};
+
+/**
+ * Gérant du VIP (Paris sportifs) : ses textes fixes dans son registre (comme un pote, minuscules, zéro emoji). Les autres
+ * clés gardent les textes communs ; jamais « je reviens » : le gérant du VIP ne fait pas patienter.
+ */
+export const VIP_FIXED_TEXTS: Record<
+  ChatLang,
+  Record<"isAssistant" | "handoff" | "handoffAgain" | "vipPending" | "minorStop", string>
+> = {
+  fr: {
+    isAssistant:
+      "je vais être honnête avec toi, je suis une IA, {role} du canal. dis-moi ce que tu veux savoir sur le vip",
+    handoff:
+      "ça je préfère que l'équipe te réponde direct, je leur fais remonter et quelqu'un te répond ici",
+    handoffAgain: "c'est bon l'équipe a ton message, quelqu'un te répond ici",
+    vipPending: "c'est validé de mon côté, l'équipe t'envoie ton accès au vip ici",
+    minorStop:
+      "le vip c'est réservé aux majeurs (18 ans et plus), donc je peux pas aller plus loin avec toi. prends soin de toi",
+  },
+  en: {
+    isAssistant:
+      "to be honest with you, I'm an AI, {role} of the channel. tell me what you want to know about the VIP",
+    handoff:
+      "I'd rather the team answers you on that, I'm passing it on and someone will reply here",
+    handoffAgain: "the team has your message, someone will reply here",
+    vipPending: "all good on my side, the team will send you your VIP access here",
+    minorStop:
+      "the VIP is for adults only (18+), so I can't go any further with you. take care",
+  },
+  es: {
+    isAssistant:
+      "para ser sincero contigo, soy una IA, {role} del canal. dime qué quieres saber del VIP",
+    handoff:
+      "eso prefiero que te lo responda el equipo, se lo paso y alguien te responde aquí",
+    handoffAgain: "el equipo ya tiene tu mensaje, alguien te responde aquí",
+    vipPending: "todo bien por mi parte, el equipo te envía tu acceso al VIP aquí",
+    minorStop:
+      "el VIP es solo para mayores de edad (18 años o más), así que no puedo seguir contigo. cuídate",
+  },
+  pt: {
+    isAssistant:
+      "pra ser sincero contigo, eu sou uma IA, {role} do canal. me diz o que você quer saber do VIP",
+    handoff:
+      "isso eu prefiro que a equipe te responda, vou passar pra eles e alguém te responde aqui",
+    handoffAgain: "a equipe já tem a sua mensagem, alguém te responde aqui",
+    vipPending: "tudo certo da minha parte, a equipe te manda o acesso ao VIP aqui",
+    minorStop:
+      "o VIP é só para maiores de idade (18 anos ou mais), então não posso continuar contigo. se cuida",
+  },
+  de: {
+    isAssistant:
+      "ich bin ehrlich zu dir: ich bin eine KI, {role} des Kanals. sag mir, was du über den VIP wissen willst",
+    handoff:
+      "das soll dir lieber das Team beantworten, ich gebe es weiter und jemand antwortet dir hier",
+    handoffAgain: "das Team hat deine Nachricht, jemand antwortet dir hier",
+    vipPending: "von meiner Seite passt alles, das Team schickt dir deinen VIP-Zugang hier",
+    minorStop:
+      "der VIP ist nur für Erwachsene (ab 18), deshalb kann ich hier nicht weitermachen. pass auf dich auf",
+  },
+  it: {
+    isAssistant:
+      "per essere sincero con te, sono un'IA, {role} del canale. dimmi cosa vuoi sapere del VIP",
+    handoff:
+      "su questo preferisco che ti risponda il team, lo passo a loro e qualcuno ti risponde qui",
+    handoffAgain: "il team ha il tuo messaggio, qualcuno ti risponde qui",
+    vipPending: "tutto ok da parte mia, il team ti manda l'accesso al VIP qui",
+    minorStop:
+      "il VIP è solo per maggiorenni (18 anni o più), quindi non posso andare avanti con te. abbi cura di te",
   },
 };
 
@@ -206,12 +292,13 @@ export function fixedText(
 ): string {
   const l = chatLangOf(lang) ?? "fr";
   const girl = vars.identity === "GIRL";
+  const vip: Partial<Record<FixedTextKey, string>> = vars.vipManager ? VIP_FIXED_TEXTS[l] : {};
   const template =
     girl && vars.illusion === true && key === "isAssistant"
       ? ILLUSION_IS_ASSISTANT[l]
       : girl && (key === "intro" || key === "isAssistant")
         ? GIRL_FIXED_TEXTS[l][key]
-        : FIXED_TEXTS[l][key];
+        : (vip[key] ?? FIXED_TEXTS[l][key]);
   const values: Record<string, string> = {
     name: vars.name ?? "",
     role: vars.vipManager ? vipManagerRole(l, vars.gender) : assistantRole(l, vars.gender),

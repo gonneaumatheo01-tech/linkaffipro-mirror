@@ -29,3 +29,5 @@ export * from "./engine";
 export * from "./fake";
 export * from "./flirt";
 export * from "./pseudo";
+// Gérant du VIP (Paris sportifs) : règles codées propres à cette persona.
+export * from "./vip";

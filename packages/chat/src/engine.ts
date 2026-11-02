@@ -5,7 +5,7 @@
 // le dernier message quand le lien part. Aucune persistance ici : l'appelant enregistre le résultat.
 import { isAssistantOnlyUniverse, offerButtonTextFor } from "@linkaffipro/core";
 import { detectHandoffIn } from "./handoff";
-import { canSendOffer, decideStage } from "./journey";
+import { canSendOffer, decideStage, offerAllowedNow } from "./journey";
 import { linkNudgeAt, nextFollowUpAt } from "./follow-ups";
 import { mergeFacts } from "./memory";
 import { detectMinorIn } from "./minor";
@@ -32,6 +32,7 @@ import {
 import { turnOutputJsonSchema, type TurnOutput } from "./schema";
 import { mergeStyle, replyLanguage } from "./style";
 import { fixedText, type FixedTextKey } from "./texts";
+import { wordsForm } from "./text-utils";
 import { personaIdentity, personaIllusion } from "./turn-types";
 import type {
   ChatButton,
@@ -62,6 +63,18 @@ import {
   validateTurnOutput,
   type RejectCode,
 } from "./validate";
+import {
+  announcedBook,
+  announcesRegistrationLink,
+  announcesVipAccess,
+  booksMentioned,
+  confirmsDeposit,
+  depositBook,
+  isVipManagerPersona,
+  mentionsDeposit,
+  normalizeBookKey,
+  stripEmojis,
+} from "./vip";
 
 /** Attente avant le nouvel essai sur le même modèle après une panne passagère. */
 export const TRANSIENT_RETRY_DELAY_MS = 2000;
@@ -74,6 +87,11 @@ export const RETRY_LATER_MS = 5 * 60_000;
 export const NEUTRAL_MESSAGE_INTERVAL_MS = 60 * 60_000;
 /** Passages d'un même tour en panne (le premier + 2 nouveaux essais) : ensuite échec définitif, sans nouvel essai. */
 export const MAX_TURN_ATTEMPTS = 3;
+/**
+ * Gérant du VIP : nouvel essai bien plus tôt, sans aucun message d'attente (il ne fait jamais patienter) ; au dernier
+ * passage, l'équipe prend le relais (texte fixe + conversation « à traiter ») au lieu du silence.
+ */
+export const VIP_RETRY_LATER_MS = 45_000;
 
 /** Texte du bouton du canal VIP (Paris sportifs, phase 36), envoyé après un dépôt confirmé. */
 export const VIP_BUTTON_TEXT = "Accéder au canal VIP 🔑";
@@ -198,6 +216,69 @@ function universeAssistant(input: TurnInput): boolean {
   return isAssistantOnlyUniverse(input.persona.universe);
 }
 
+/** Gérant du VIP (Paris sportifs) : règles codées de `vip.ts`, jamais appliquées à une autre persona. */
+function vipOf(input: TurnInput): boolean {
+  return isVipManagerPersona(input.persona);
+}
+
+/** Variables des textes fixes de la persona : prénom, rôle, identité, registre du gérant du VIP. */
+function textVars(input: TurnInput) {
+  return {
+    name: input.persona.name,
+    gender: input.persona.gender,
+    identity: personaIdentity(input.persona),
+    illusion: personaIllusion(input.persona),
+    vipManager: vipOf(input),
+  };
+}
+
+/**
+ * Passage à l'équipe : gérant du VIP dont le dernier message annonçait déjà ce passage → une autre phrase (« l'équipe a
+ * ton message »), jamais deux fois la même d'affilée. Les autres personas gardent la phrase habituelle.
+ */
+function handoffKey(run: Run): "handoff" | "handoffAgain" {
+  const { input } = run;
+  if (!vipOf(input)) return "handoff";
+  const last = [...input.history]
+    .reverse()
+    .find((m) => m.direction === "OUT" && m.author === "ASSISTANT");
+  if (!last) return "handoff";
+  const said = wordsForm(last.text);
+  const vars = textVars(input);
+  const known = (["handoff", "handoffAgain"] as const).flatMap((k) => [
+    fixedText(run.lang, k, vars),
+    fixedText(run.lang, k),
+  ]);
+  return known.some((t) => wordsForm(t) === said) ? "handoffAgain" : "handoff";
+}
+
+/** Passage de ce tour (1 au premier) et dernier passage permis : plus de nouvel essai après lui. */
+function turnPass(run: Run, code: string): { pass: number; final: boolean } {
+  const pass = Math.max(0, Math.floor(run.input.retryCount ?? 0)) + 1;
+  return { pass, final: pass >= MAX_TURN_ATTEMPTS || PERMANENT_CODES.has(code) };
+}
+
+/** Derniers messages de l'assistant (les 3 plus récents) : le bookmaker dont il parlait, le dépôt qu'il demandait. */
+function lastAssistantTexts(input: TurnInput): string[] {
+  return input.history
+    .filter((m) => m.direction === "OUT" && m.author === "ASSISTANT")
+    .slice(-3)
+    .map((m) => m.text);
+}
+
+/**
+ * Gérant du VIP : la personne dit à ce tour avoir fait son dépôt. Une simple confirmation (« c'est bon ») compte quand
+ * il venait de lui parler du dépôt.
+ */
+function depositClaimed(run: Run, inbound: readonly TurnInbound[]): boolean {
+  const { input } = run;
+  if (!vipOf(input) || input.kind !== "reply") return false;
+  return confirmsDeposit(
+    inbound.map((m) => m.text),
+    { askedDeposit: mentionsDeposit(lastAssistantTexts(input)) },
+  );
+}
+
 /** La personne demande l'accès VIP, le lien ou l'inscription dans ce tour (Casino / Paris seulement). */
 function memberAskedOffer(run: Run, inbound: readonly TurnInbound[]): boolean {
   return (
@@ -292,6 +373,7 @@ function buildRequest(
     retryCodes,
     memberAskedOffer: memberAskedOffer(run, inbound),
     memberPhoto: input.kind === "reply" && hasMemberPhoto(inbound),
+    noButtons: !run.deps.sender.capabilities.canSendButtons,
     flirt: run.flirt
       ? {
           allow: run.flirt.allow,
@@ -369,6 +451,12 @@ async function checkResponse(
     });
     return { kind: "ok", output: parsed.output, messages: [], model: call.res.model || call.model };
   }
+  const vip = vipOf(input);
+  // Gérant du VIP : jamais d'emoji. Le code les retire (ce n'est pas un motif de refus) ; un message vidé disparaît.
+  if (vip)
+    parsed.output.messages = parsed.output.messages
+      .map((m) => ({ ...m, text: stripEmojis(m.text) }))
+      .filter((m) => m.text.length > 0);
   const memberTexts = [
     ...(input.summaryMessages ?? []).filter((m) => m.direction === "IN").map((m) => m.text),
     ...input.history.filter((m) => m.direction === "IN").map((m) => m.text),
@@ -395,8 +483,16 @@ async function checkResponse(
     identity: personaIdentity(input.persona),
     illusion: personaIllusion(input.persona),
     interest: input.conversation.style.interest ?? 0,
-    vipManager: input.persona.vipManager === true && input.persona.universe === "sports",
-    noEmojis: input.persona.vipManager === true && input.persona.universe === "sports",
+    vipManager: vip,
+    noEmojis: vip,
+    // Gérant du VIP : un lien ou un accès annoncé doit pouvoir partir à ce message.
+    ...(vip
+      ? {
+          linkAllowedNow: offerAllowedNow(offerConvOf(run, inbound), input.persona, input.kind),
+          vipAccessAllowed: conv.offerSends > 0,
+          depositClaimed: depositClaimed(run, inbound),
+        }
+      : {}),
     botInsists:
       input.kind === "reply" &&
       botQuestionInsists(
@@ -557,7 +653,7 @@ async function stopForMinor(
   deferred: TurnInbound[] = [],
 ): Promise<TurnResult> {
   const conv = run.input.conversation;
-  const text = fixedText(run.lang, "minorStop");
+  const text = fixedText(run.lang, "minorStop", textVars(run.input));
   const r = await safeSend(() => run.deps.sender.sendText(text, { fixedKey: "minorStop" }));
   const stage = stageEvents(conv.stage, "CLOSED");
   // Casino / Paris : la conversation est aussi signalée à l'équipe (« à traiter »), en plus de l'arrêt.
@@ -645,12 +741,14 @@ async function retryLater(
 ): Promise<TurnResult> {
   const { input, deps } = run;
   const now = deps.now();
-  const pass = Math.max(0, Math.floor(input.retryCount ?? 0)) + 1;
-  const final = pass >= MAX_TURN_ATTEMPTS || PERMANENT_CODES.has(code);
+  const { pass, final } = turnPass(run, code);
   const last = input.conversation.lastNeutralAt;
   const lastMember = lastMemberMessageAt(run, inbound);
   const wroteSinceNeutral = !last || (lastMember !== null && lastMember > last.getTime());
+  // Gérant du VIP : jamais de « je reviens » (il ne fait pas patienter) ; le nouvel essai vient vite, sans message.
+  const vip = vipOf(input);
   const canNeutral =
+    !vip &&
     input.kind === "reply" &&
     !final &&
     wroteSinceNeutral &&
@@ -682,7 +780,12 @@ async function retryLater(
         payload: { code, attempts: run.attempts, neutral: sent.length > 0, final, pass },
       },
     ],
-    ...(final ? {} : { retryAt: new Date(now.getTime() + RETRY_LATER_MS), retryCount: pass }),
+    ...(final
+      ? {}
+      : {
+          retryAt: new Date(now.getTime() + (vip ? VIP_RETRY_LATER_MS : RETRY_LATER_MS)),
+          retryCount: pass,
+        }),
     deferredInbound: deferred,
     neutralSent: sent.length > 0,
     sendError,
@@ -705,6 +808,8 @@ async function sendParts(
     vipLink?: string | null;
     /** Ne pas séparer le texte du bouton d'offre (fin de conversation par pseudo). */
     noSplit?: boolean;
+    /** Lien d'offre déjà créé avant l'envoi (gérant du VIP) : utilisé tel quel au lieu d'en créer un. */
+    offerLink?: { url: string; subId: string } | null;
   },
 ): Promise<{
   sent: SentPart[];
@@ -758,7 +863,7 @@ async function sendParts(
     let link: { url: string; subId: string } | null = null;
     if (isLast && opts.withOffer) {
       try {
-        link = await deps.createOfferLink(opts.bookKey ?? undefined);
+        link = opts.offerLink ?? (await deps.createOfferLink(opts.bookKey ?? undefined));
       } catch {
         link = null;
       }
@@ -808,7 +913,9 @@ async function sendParts(
     //       sans texte autour, SAUF quand le visuel de l'offre est joint ou quand noSplit est demandé (pseudo → fin de
     //       conversation, texte et lien restent ensemble).
     const splitPhoto = mediaAssetId && !link && outgoing.trim().length > 0;
-    const splitOffer = link && text.trim().length > 0 && !mediaAssetId && !opts.noSplit;
+    // Sans boutons, le lien du canal VIP part seul lui aussi, juste après le texte.
+    const splitOffer =
+      (link || (vipLink && !canButtons)) && text.trim().length > 0 && !mediaAssetId && !opts.noSplit;
 
     if (splitPhoto || splitOffer) {
       // 1) texte seul (sans l'adresse du lien, qui part ensuite seule)
@@ -893,18 +1000,57 @@ async function sendParts(
 /**
  * Bookmaker du tour (Paris sportifs VIP) : la clé donnée par le modèle si la persona la connaît ; une clé inconnue ne
  * vaut rien. Lien d'inscription demandé sans clé : le premier bookmaker de la liste (sinon le bouton manquerait).
+ * Avec `hints` (gérant du VIP) : le bookmaker nommé juste après l'annonce du lien prime (la personne lit le texte),
+ * puis la clé du modèle, puis le dernier bookmaker dont il parlait (`asked`), puis le premier de la liste.
  */
 export function pickBook(
   persona: PersonaInput,
   selected: string | undefined,
   withOffer: boolean,
+  hints?: { texts?: readonly string[]; asked?: readonly string[] },
 ): string | null {
   const books = persona.bookmakers ?? [];
   if (books.length === 0) return null;
-  const key = selected?.trim();
-  if (key && books.some((b) => b.bookmakerKey === key)) return key;
-  if (!withOffer) return null;
+  if (hints) {
+    // Le bookmaker nommé juste après l'annonce du lien est celui que la personne lit : il prime sur la clé du modèle.
+    const named = announcedBook(hints.texts ?? [], books);
+    if (named) return named;
+    const key = normalizeBookKey(selected, books);
+    if (key) return key;
+    if (!withOffer) return null;
+    // Sans clé : le bookmaker dont il parlait juste avant (celui où la personne n'a pas de compte).
+    const asked = booksMentioned(hints.asked ?? [], books);
+    if (asked.length > 0) return asked[asked.length - 1]!;
+  } else {
+    const key = selected?.trim();
+    if (key && books.some((b) => b.bookmakerKey === key)) return key;
+    if (!withOffer) return null;
+  }
   return [...books].sort((a, b) => a.priority - b.priority)[0]?.bookmakerKey ?? null;
+}
+
+/**
+ * Bookmaker du lien du canal VIP (gérant du VIP) : celui où la personne dit avoir déposé, sinon celui du dernier lien
+ * d'inscription envoyé, sinon la clé du modèle, sinon le dernier nommé dans le texte.
+ */
+function vipBook(
+  input: TurnInput,
+  selected: string | undefined,
+  texts: readonly string[],
+  inbound: readonly TurnInbound[],
+): string | null {
+  const books = input.persona.bookmakers ?? [];
+  const fromMember = depositBook(
+    inbound.map((m) => m.text),
+    books,
+  );
+  if (fromMember) return fromMember;
+  const last = input.conversation.lastOfferBookKey ?? null;
+  if (last && books.some((b) => b.bookmakerKey === last)) return last;
+  const key = normalizeBookKey(selected, books);
+  if (key) return key;
+  const said = booksMentioned(texts, books);
+  return said.length > 0 ? said[said.length - 1]! : null;
 }
 
 /** Résumé roulant après les envois (modèle de repli) : un échec est sans conséquence. */
@@ -995,23 +1141,28 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     ...input.inbound.map((m) => m.text),
   ];
   const series = flirtSeries(input);
-  // Lien armé au tour précédent (série : vendu sans lien ; ailleurs : annoncé sans envoi) : il part à ce tour.
-  const linkWasArmed = conv.facts.includes(ARMED_LINK_FACT);
-  const flirt = (run.flirt = decideFlirt({
-    step: conv.flirt?.step ?? "NONE",
-    teases: conv.flirt?.teases ?? 0,
-    recent: recents.slice(-4, -1),
-    text: recents[recents.length - 1] ?? "",
-    hasPhotos: (input.persona.flirtPhotos ?? []).map((x) => x.slot),
-    isMinor: conv.isMinor,
-    linkArmed: linkWasArmed,
-    hasOffer: input.persona.hasOffer,
-  }));
+  const vip = vipOf(input);
+  // Lien armé au tour précédent (fille seulement — série : vendu sans lien ; sinon : annoncé sans envoi) : il part à ce
+  // tour.
+  const linkWasArmed =
+    personaIdentity(input.persona) === "GIRL" && conv.facts.includes(ARMED_LINK_FACT);
+  // Script de chauffe : uniquement une fille avec série de photos. Jamais calculé ailleurs (Paris sportifs, Casino,
+  // persona sans photos) : aucune de ses règles ne peut toucher ces conversations.
+  const flirt: FlirtDecision | null = series
+    ? (run.flirt = decideFlirt({
+        step: conv.flirt?.step ?? "NONE",
+        teases: conv.flirt?.teases ?? 0,
+        recent: recents.slice(-4, -1),
+        text: recents[recents.length - 1] ?? "",
+        hasPhotos: (input.persona.flirtPhotos ?? []).map((x) => x.slot),
+        isMinor: conv.isMinor,
+        linkArmed: linkWasArmed,
+        hasOffer: input.persona.hasOffer,
+      }))
+    : null;
   // Hors série, les règles générales gardent la main sur le lien ; dans la série, c'est l'action qui décide (jamais
   // de lien avant la chauffe : seulement après le lien, pour le renvoyer s'il l'a perdu).
-  const lienLibre = series
-    ? flirt.state.phase === "LINKED"
-    : flirt.state.phase === "NONE" || flirt.state.phase === "LINKED" || flirt.state.phase === "DONE";
+  const lienLibre = flirt ? flirt.state.phase === "LINKED" : true;
 
   // Jamais de réponse à une conversation fermée ou à un mineur (l'appelant ne devrait pas appeler).
   if (conv.isMinor || conv.stage === "CLOSED")
@@ -1025,7 +1176,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   const minor = detectMinorIn(inbound.map((m) => m.text));
   if (minor.minor) return stopForMinor(run, inbound, "code", minor.age);
 
-  if (series) {
+  if (flirt) {
     // Refus ferme et photos épuisées (DONE) : sa dernière ligne est partie, plus aucune réponse ni relance, même s'il
     // insiste (ce n'est pas un /stop : la conversation reste ouverte, rien ne part).
     if (flirt.silent) return { ...baseResult(run, inbound), outcome: "aborted" };
@@ -1061,7 +1212,9 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   for (;;) {
     if (gen.kind === "minor") return stopForMinor(run, inbound, "model", null);
     if (gen.kind === "cap") return capResult(run, inbound);
-    if (gen.kind === "error" && gen.fatal)
+    // Panne définitive (clé refusée, solde vide) : aucun message… sauf pour le gérant du VIP, qui passe la main à
+    // l'équipe plus bas (jamais de silence).
+    if (gen.kind === "error" && gen.fatal && !(vip && input.kind === "reply"))
       return {
         ...baseResult(run, inbound),
         outcome: "failed",
@@ -1109,8 +1262,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   if (gen.kind === "ok" && gen.output.handoff?.needed && universeAssistant(input)) {
     // Passage à un humain demandé par le modèle : réponse neutre fixe, jamais de lien.
     output = gen.output;
-    fixedKey = "handoff";
-    texts = [fixedText(run.lang, "handoff")];
+    fixedKey = handoffKey(run);
+    texts = [fixedText(run.lang, fixedKey, textVars(input))];
     const reason = gen.output.handoff.reason === "none" ? "off_faq" : gen.output.handoff.reason;
     needsHuman = { reason, source: "model" };
   } else if (gen.kind === "ok") {
@@ -1120,17 +1273,19 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   } else {
     const code = gen.kind === "error" ? gen.code : "invalid_output";
     fixedKey = safeFallbackKey(run, inbound, gen.kind === "rejected" ? gen.codes : []);
+    // Gérant du VIP : jamais de silence. Panne définitive ou dernier passage → l'équipe prend le relais (texte fixe,
+    // conversation « à traiter »), au lieu d'un message sans réponse.
+    const lastChance =
+      vip &&
+      input.kind === "reply" &&
+      ((gen.kind === "error" && gen.fatal) || turnPass(run, code).final);
+    if (!fixedKey && lastChance) fixedKey = "handoff";
     if (!fixedKey) return retryLater(run, inbound, deferred, code);
-    if (fixedKey === "handoff") needsHuman = { reason: "off_faq", source: "check" };
-    texts = [
-      fixedText(run.lang, fixedKey, {
-        name: input.persona.name,
-        gender: input.persona.gender,
-        identity: personaIdentity(input.persona),
-        illusion: personaIllusion(input.persona),
-        vipManager: input.persona.vipManager === true,
-      }),
-    ];
+    if (fixedKey === "handoff") {
+      fixedKey = handoffKey(run);
+      needsHuman = { reason: "off_faq", source: "check" };
+    }
+    texts = [fixedText(run.lang, fixedKey, textVars(input))];
     events.push({
       type: "ai_failed",
       payload: { code, attempts: run.attempts, neutral: false, final: false, fallback: fixedKey },
@@ -1140,21 +1295,22 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   const offerConv = offerConvOf(run, inbound);
   // Une seule action permise autre que « rien » (série : le lien armé) : obligatoire, mais seulement avec un texte du
   // modèle (jamais collée à un texte fixe de repli).
-  const forced = flirt.allow.length === 1 && flirt.allow[0] !== "rien" ? flirt.allow[0]! : null;
+  const forced =
+    flirt && flirt.allow.length === 1 && flirt.allow[0] !== "rien" ? flirt.allow[0]! : null;
   // Action retenue : hors série, lien armé → "lien" ; sinon l'action obligatoire, ou celle du modèle si elle est
-  // permise, sinon « rien ».
+  // permise, sinon « rien » (toujours « rien » hors série : le lien suit alors les règles générales).
   let action: FlirtAction =
     !series && linkWasArmed && input.persona.hasOffer
       ? "lien"
       : forced && output && !needsHuman
         ? forced
-        : output?.action && flirt.allow.includes(output.action)
+        : flirt && output?.action && flirt.allow.includes(output.action)
           ? output.action
           : "rien";
   // Série : un lien annoncé quand la série en est à l'app part à ce tour, avec son annonce (les autres annonces ont été
   // retirées au contrôle de la réponse).
   if (
-    series &&
+    flirt &&
     output &&
     !needsHuman &&
     action !== "lien" &&
@@ -1164,7 +1320,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   )
     action = "lien";
   const photoAssetId =
-    action === "photo" && flirt.photoSlot
+    flirt && action === "photo" && flirt.photoSlot
       ? (input.persona.flirtPhotos?.find((x) => x.slot === flirt.photoSlot)?.assetId ?? null)
       : null;
   let withOffer =
@@ -1173,6 +1329,17 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
         ? true
         : canSendOffer(offerConv, input.persona, output, input.kind) && lienLibre
       : false;
+  // Gérant du VIP : le lien d'inscription annoncé dans le texte part (le modèle oublie parfois send_offer). Une annonce
+  // qui ne pouvait pas partir a déjà été refusée au contrôle de la réponse.
+  if (
+    vip &&
+    output &&
+    !needsHuman &&
+    !withOffer &&
+    announcesRegistrationLink(texts) &&
+    offerAllowedNow(offerConv, input.persona, input.kind)
+  )
+    withOffer = true;
 
   // Pseudo donné dans ce tour (fille) : message de fin, lien forcé si pas encore parti.
   let pseudoGiven = false;
@@ -1206,22 +1373,60 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   )
     texts = [photoLine, ...texts];
 
-  // Phase 25 bis : bookmaker partenaire (Paris sportifs VIP) et lien VIP.
-  const selectedBook = pickBook(input.persona, output?.selected_book, withOffer);
-  let vipLink: string | null = null;
-  // Lien VIP : seulement après un lien d'inscription déjà envoyé, jamais pendant un passage à l'équipe.
-  if (
-    output?.send_vip_link &&
-    selectedBook &&
-    conv.offerSends > 0 &&
+  // Phase 25 bis : bookmaker partenaire (Paris sportifs VIP) et lien VIP. Gérant du VIP : le bookmaker nommé dans le
+  // texte prime (c'est celui que la personne lit), sinon celui dont il parlait juste avant.
+  const selectedBook = pickBook(
+    input.persona,
+    output?.selected_book,
+    withOffer,
+    vip ? { texts, asked: lastAssistantTexts(input) } : undefined,
+  );
+  // Lien VIP : seulement après un lien d'inscription déjà envoyé, jamais pendant un passage à l'équipe. Gérant du VIP :
+  // aussi quand il donne l'accès dans son texte alors que la personne confirme son dépôt (send_vip_link oublié).
+  const wantsVip =
+    output !== null &&
     !needsHuman &&
-    deps.resolveVipLink
-  ) {
+    conv.offerSends > 0 &&
+    (output.send_vip_link === true ||
+      (depositClaimed(run, inbound) && announcesVipAccess(texts)));
+  const vipBookKey = wantsVip
+    ? vip
+      ? vipBook(input, output?.selected_book, texts, inbound)
+      : selectedBook
+    : null;
+  let vipLink: string | null = null;
+  if (wantsVip && vipBookKey && deps.resolveVipLink) {
     try {
-      const vip = await deps.resolveVipLink(selectedBook);
-      vipLink = vip?.url ?? null;
+      const found = await deps.resolveVipLink(vipBookKey);
+      vipLink = found?.url ?? null;
     } catch {
       vipLink = null;
+    }
+  }
+  // Gérant du VIP : accès promis mais aucun lien du canal VIP trouvé → jamais d'annonce sans lien : l'équipe l'envoie.
+  if (vip && wantsVip && !vipLink) {
+    texts = [fixedText(run.lang, "vipPending", textVars(input))];
+    fixedKey = "vipPending";
+    withOffer = false;
+    needsHuman = { reason: "off_faq", source: "check" };
+  }
+
+  // Gérant du VIP : le lien d'inscription est créé AVANT tout envoi, pour ne jamais annoncer un lien qui ne part pas.
+  // Impossible à créer : rien ne part, nouvel essai bientôt ; au dernier passage, l'équipe prend le relais.
+  let offerLink: { url: string; subId: string } | null = null;
+  if (vip && withOffer) {
+    try {
+      offerLink = await deps.createOfferLink(selectedBook ?? undefined);
+    } catch {
+      offerLink = null;
+    }
+    if (!offerLink) {
+      if (!turnPass(run, "offer_link").final) return retryLater(run, inbound, deferred, "offer_link");
+      withOffer = false;
+      vipLink = null;
+      fixedKey = handoffKey(run);
+      texts = [fixedText(run.lang, fixedKey, textVars(input))];
+      needsHuman = { reason: "off_faq", source: "check" };
     }
   }
 
@@ -1232,14 +1437,15 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     bookKey: selectedBook,
     vipLink,
     noSplit: pseudoGiven,
+    offerLink,
   });
   const anySent = sending.sent.length > 0;
   // La série n'avance que sur une action réellement partie.
-  const nextFlirt = anySent ? applyAction(flirt.state, action) : flirt.state;
+  const nextFlirt = flirt ? (anySent ? applyAction(flirt.state, action) : flirt.state) : null;
 
   // Lien armé pour le tour suivant. Série : posé au tour où elle vend l'app sans lien, gardé tant qu'il n'est pas parti
   // et que la série en est à l'app. Ailleurs (fille sans série) : lien annoncé dans le texte mais pas parti.
-  const armLink = series
+  const armLink = flirt
     ? !pseudoGiven &&
       !sending.offerSent &&
       input.persona.hasOffer &&
@@ -1270,7 +1476,11 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   if (sending.offerSent)
     events.push({
       type: "offer_sent",
-      payload: { subId: sending.offerSent.subId, offerSends: conv.offerSends + 1 },
+      payload: {
+        subId: sending.offerSent.subId,
+        offerSends: conv.offerSends + 1,
+        ...(selectedBook ? { bookmakerKey: selectedBook } : {}),
+      },
     });
 
   const now = deps.now();
@@ -1292,9 +1502,9 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   // Série : rien après le refus ferme (WRAP, DONE) ; le lien vient de partir → une seule relance courte, 1 à 2 h après.
   const next =
     anySent && !closeReason && !stopAsked && !needsHuman && !pseudoGiven
-      ? series && (nextFlirt.phase === "WRAP" || nextFlirt.phase === "DONE")
+      ? nextFlirt && (nextFlirt.phase === "WRAP" || nextFlirt.phase === "DONE")
         ? null
-        : series && sending.offerSent
+        : nextFlirt && sending.offerSent
           ? linkNudgeAt(now, deps.random)
           : nextFollowUpAt(
               {
@@ -1317,8 +1527,9 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     outcome: anySent ? "replied" : "failed",
     sent: sending.sent,
     newStage,
-    newFlirtStep: nextFlirt.phase,
-    flirtTeases: encodeProgress(nextFlirt),
+    ...(nextFlirt
+      ? { newFlirtStep: nextFlirt.phase, flirtTeases: encodeProgress(nextFlirt) }
+      : {}),
     stageChanges: stage.changes,
     style: output ? mergeStyle(conv.style, output.style_update, now) : conv.style,
     facts: (() => {
@@ -1340,11 +1551,13 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     nextFollowUpAt: next,
     closeReason,
     sendError: sending.sendError,
-    unsentOfferSubId: sending.unsentOfferSubId,
+    // Lien créé d'avance mais jamais parti (envoi du texte en échec) : à retirer aussi.
+    unsentOfferSubId:
+      sending.unsentOfferSubId ?? (offerLink && !sending.offerSent ? offerLink.subId : null),
     needsHuman: needsHuman && anySent ? needsHuman : null,
     vipLinkSent:
-      sending.vipLinkSent && selectedBook
-        ? { url: sending.vipLinkSent, bookmakerKey: selectedBook }
+      sending.vipLinkSent && vipBookKey
+        ? { url: sending.vipLinkSent, bookmakerKey: vipBookKey }
         : null,
   };
 }
@@ -1477,9 +1690,10 @@ async function handoffByCode(
   run.extraMemberMessages += check.newInbound.length;
   const lateMinor = detectMinorIn(check.newInbound.map((m) => m.text));
   if (lateMinor.minor) return stopForMinor(run, all, "code", lateMinor.age);
-  const sending = await sendParts(run, [fixedText(run.lang, "handoff")], {
+  const key = handoffKey(run);
+  const sending = await sendParts(run, [fixedText(run.lang, key, textVars(input))], {
     withOffer: false,
-    fixedKey: "handoff",
+    fixedKey: key,
   });
   const anySent = sending.sent.length > 0;
   const newStage = anySent

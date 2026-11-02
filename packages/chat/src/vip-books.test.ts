@@ -160,7 +160,7 @@ describe("choix du bookmaker", () => {
       },
     ]);
     const r = await runTurn(input(), deps);
-    expect(systemOf(llm.requests[0])).toContain("Mets selected_book à la clé du bookmaker choisi");
+    expect(systemOf(llm.requests[0])).toContain("selected_book : la clé de ce bookmaker");
     expect(deps.offerBookKeys).toEqual(["betportal"]);
     expect(r.offerSent).toMatchObject({ subId: "TEST00000001", bookmakerKey: "betportal" });
     expect(r.vipLinkSent).toBeNull();
@@ -207,26 +207,38 @@ describe("lien du canal VIP", () => {
     expect(deps.offerLinks).toHaveLength(0);
   });
 
-  it("aucun lien d'inscription envoyé avant : pas de lien VIP", async () => {
-    const { deps } = setup([vipReply]);
+  it("aucun lien d'inscription envoyé avant : pas de lien VIP, ni d'accès annoncé", async () => {
+    const { deps } = setup([
+      vipReply,
+      { messages: ["t'es passé par quel lien frero ? tu connais Celsius Casino ?"], selected_book: "" },
+    ]);
     const r = await runTurn(
       deposited({ conversation: fakeConversation({ memberMessages: 6, offerSends: 0 }) }),
       deps,
     );
+    expect(r.rejected).toContain("vip_access_not_allowed");
     expect(r.vipLinkSent).toBeNull();
+    expect(deps.sender.messages().map((m) => m.text)).toEqual([
+      "t'es passé par quel lien frero ? tu connais Celsius Casino ?",
+    ]);
     expect(deps.sender.messages().at(-1)?.buttons).toBeUndefined();
   });
 
-  it("bookmaker inconnu ou sans lien VIP : rien", async () => {
-    for (const vipLinks of [VIP_LINKS, {}]) {
-      const { deps } = setup(
-        [{ ...vipReply, selected_book: vipLinks === VIP_LINKS ? "winamax" : "celsius" }],
-        { vipLinks },
-      );
-      const r = await runTurn(deposited(), deps);
-      expect(r.vipLinkSent).toBeNull();
-      expect(deps.sender.messages().at(-1)?.buttons).toBeUndefined();
-    }
+  it("bookmaker inconnu pour le modèle : celui où il dit avoir déposé", async () => {
+    const { deps } = setup([{ ...vipReply, selected_book: "winamax" }]);
+    const r = await runTurn(deposited(), deps);
+    expect(r.vipLinkSent).toEqual({ url: VIP_LINKS.celsius, bookmakerKey: "celsius" });
+  });
+
+  it("aucun lien du canal VIP : jamais d'accès annoncé sans lien, l'équipe prend le relais", async () => {
+    const { deps } = setup([vipReply], { vipLinks: {} });
+    const r = await runTurn(deposited(), deps);
+    expect(r.vipLinkSent).toBeNull();
+    expect(deps.sender.messages().map((m) => m.text)).toEqual([
+      fixedText("fr", "vipPending", { name: "Mehdi", gender: "M", vipManager: true }),
+    ]);
+    expect(deps.sender.messages().at(-1)?.buttons).toBeUndefined();
+    expect(r.needsHuman).toEqual({ reason: "off_faq", source: "check" });
   });
 
   it("échec de l'envoi : lien VIP non compté (pas de conversion)", async () => {
@@ -239,13 +251,14 @@ describe("lien du canal VIP", () => {
     expect(r.vipLinkSent).toBeNull();
   });
 
-  it("sans boutons (aperçu « Tester ») : l'adresse du canal VIP à la fin du texte", async () => {
+  it("sans boutons (compte réel, aperçu « Tester ») : l'adresse du canal VIP seule, juste après le texte", async () => {
     const sender = createFakeSender({ capabilities: { canSendButtons: false } });
     const { deps } = setup([vipReply], { sender });
     const r = await runTurn(deposited(), deps);
-    expect(sender.messages().at(-1)?.text).toBe(
-      `gg frero voilà l'accès au canal VIP\n\n${VIP_LINKS.celsius}`,
-    );
+    expect(sender.messages().map((m) => m.text)).toEqual([
+      "gg frero voilà l'accès au canal VIP",
+      VIP_LINKS.celsius,
+    ]);
     expect(r.vipLinkSent?.bookmakerKey).toBe("celsius");
   });
 });

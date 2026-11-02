@@ -65,7 +65,10 @@ function virtualRoleFr(gender: string | null | undefined): string {
 /** Consignes de correction pour un nouvel essai, une par code de rejet. */
 export function correctionFor(
   code: RejectCode | string,
-  persona: Pick<PersonaInput, "name" | "gender" | "identity" | "illusion" | "universe">,
+  persona: Pick<
+    PersonaInput,
+    "name" | "gender" | "identity" | "illusion" | "universe" | "vipManager"
+  >,
 ): string {
   const role = assistantRole("fr", persona.gender);
   // Casino / Paris sportifs : les deux fiches font foi, et jamais de promesse de gain.
@@ -74,6 +77,17 @@ export function correctionFor(
       return "N'écris aucun chiffre ni montant absent de la fiche d'informations et de la fiche de l'offre (pas même un chiffre écrit par la personne). Si la fiche ne répond pas à sa question, mets handoff : { needed : true, reason : off_faq }.";
     if (code === "promise")
       return "Aucune promesse : jamais « gain garanti », « sûr à 100 % », « argent facile », « sans risque », « tu vas gagner ». Parier comporte toujours un risque de perte.";
+  }
+  // Gérant du VIP (Paris sportifs) : son parcours à lui (aucun bouton : le lien part seul après son message).
+  if (persona.vipManager === true && persona.universe === "sports") {
+    if (code === "waiting_phrase")
+      return "Ne fais jamais patienter : aucun « attends », « je reviens », « 2 sec », « je regarde et je te dis ». Réponds tout de suite avec ce que tu sais ; si tu ne sais vraiment pas, mets handoff : { needed : true, reason : off_faq }.";
+    if (code === "link_not_allowed")
+      return "Le lien d'inscription ne part pas à ce message : ne dis pas que tu l'envoies, send_offer : false. Réponds simplement à son message.";
+    if (code === "vip_access_not_allowed")
+      return "Ne lui donne pas l'accès au VIP dans ce message : le lien du VIP part seulement après le lien d'inscription, quand il te confirme avoir fait son dépôt (alors send_vip_link : true). S'il n'a pas encore le lien d'inscription, envoie-le d'abord (send_offer : true et selected_book) ; s'il n'a pas confirmé son dépôt, demande-lui de le faire et de te le dire.";
+    if (code === "link")
+      return "Aucune adresse, aucun nom de domaine ni @pseudo dans tes messages : le lien part tout seul, envoyé par le système juste après ton message.";
   }
   const virtualRole = virtualRoleFr(persona.gender);
   if (personaIllusion(persona)) {
@@ -123,6 +137,12 @@ export function correctionFor(
       return "Zéro emoji : aucun emoji, aucun smiley, aucun symbole décoratif. Texte brut seulement.";
     case "link_announce":
       return "N'annonce pas le lien à ce tour (pas de « je t'envoie le lien », « je te mets le lien ») : il ne part pas maintenant. Le bloc PHOTOS dit quand.";
+    case "waiting_phrase":
+      return "Ne fais jamais patienter (« attends », « je reviens », « 2 sec ») : réponds tout de suite.";
+    case "link_not_allowed":
+      return "Le lien ne part pas à ce message : ne dis pas que tu l'envoies, send_offer : false.";
+    case "vip_access_not_allowed":
+      return "Ne donne pas l'accès au VIP dans ce message : il part seulement après le lien d'inscription et un dépôt confirmé.";
     default:
       return "Respecte toutes les règles ci-dessus.";
   }
@@ -149,6 +169,11 @@ export type SystemPromptContext = {
   memberAskedOffer?: boolean;
   /** Série : la personne a envoyé une photo à ce tour (« t'es mignon hihi » part déjà, envoyé par le code). */
   memberPhoto?: boolean;
+  /**
+   * Envoi sans boutons (compte réel, aperçu « Tester ») : le lien part seul, en texte, juste après le message. Lu par
+   * le prompt de Casino / Paris sportifs (jamais « via le bouton » quand il n'y a pas de bouton).
+   */
+  noButtons?: boolean;
   /** Série de photos de chauffe : consigne du tour et description de la photo à joindre. */
   flirt?: {
     allow: readonly FlirtAction[];

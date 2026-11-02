@@ -171,6 +171,11 @@ export type ConversationState = {
   lastNeutralAt?: Date | null;
   /** Série de photos de chauffe (voir flirt.ts) : étape courante et accroches faites sans réponse. */
   flirt?: { step: FlirtStep; teases: number };
+  /**
+   * Gérant du VIP : bookmaker du dernier lien d'inscription envoyé (événement `offer_sent`), pour le lien du canal VIP
+   * quand ni le modèle ni la personne ne nomment le bookmaker.
+   */
+  lastOfferBookKey?: string | null;
 };
 
 export type TurnKind = "reply" | "follow_up";

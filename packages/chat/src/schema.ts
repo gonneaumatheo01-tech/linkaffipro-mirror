@@ -122,15 +122,26 @@ export const TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
 /** Valeurs permises de `handoff.reason` (« none » quand aucun passage n'est demandé). */
 export const HANDOFF_REASON_VALUES = ["none", ...NEEDS_HUMAN_REASONS] as const;
 
+/** Champs de Rencontres sans `action` (action du script de chauffe des filles : n'existe pas en Casino ni en Paris). */
+const { action: _flirtAction, ...UNIVERSE_BASE_PROPERTIES } = TURN_OUTPUT_JSON_SCHEMA.properties as Record<
+  string,
+  unknown
+>;
+
 /**
- * Schéma des univers Casino et Paris sportifs : celui de Rencontres + `handoff` (requis en mode strict). Rencontres garde
- * exactement son schéma d'avant.
+ * Schéma des univers Casino et Paris sportifs : celui de Rencontres sans `action`, + `handoff` (requis en mode strict).
+ * Rencontres garde exactement son schéma d'avant.
  */
 export const UNIVERSE_TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
   ...TURN_OUTPUT_JSON_SCHEMA,
-  required: [...TURN_OUTPUT_FIELDS, "handoff", "selected_book", "send_vip_link"],
+  required: [
+    ...TURN_OUTPUT_FIELDS.filter((f) => f !== "action"),
+    "handoff",
+    "selected_book",
+    "send_vip_link",
+  ],
   properties: {
-    ...(TURN_OUTPUT_JSON_SCHEMA.properties as Record<string, unknown>),
+    ...UNIVERSE_BASE_PROPERTIES,
     handoff: {
       type: "object",
       additionalProperties: false,

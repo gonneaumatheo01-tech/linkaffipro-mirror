@@ -6,6 +6,7 @@ import type { TurnOutput } from "./schema";
 import type { PersonaIdentity } from "./turn-types";
 import { MAX_TURN_MESSAGES, MIN_TURN_MESSAGES } from "./schema";
 import { escapeRegExp, foldText, matchesAny, visibleLength, wordsForm } from "./text-utils";
+import { announcesRegistrationLink, announcesVipAccess, hasWaitingPhrase } from "./vip";
 
 export const MAX_MESSAGE_CHARS = 300;
 export const MAX_TURN_CHARS = 700;
@@ -35,6 +36,12 @@ export const REJECT_CODES = [
   "emoji",
   // Série de photos : le texte annonce le lien alors qu'il ne part pas à ce tour (posé par le moteur, pas ici).
   "link_announce",
+  // Gérant du VIP : phrase qui fait patienter (« attends », « je reviens », « 2 sec »).
+  "waiting_phrase",
+  // Gérant du VIP : lien d'inscription annoncé alors qu'il ne peut pas partir à ce message.
+  "link_not_allowed",
+  // Gérant du VIP : accès au VIP donné alors qu'aucun lien d'inscription n'est parti.
+  "vip_access_not_allowed",
 ] as const;
 export type RejectCode = (typeof REJECT_CODES)[number];
 
@@ -86,6 +93,12 @@ export type ValidationContext = {
   interest?: number;
   /** Emojis strictement interdits dans les messages (VIP Manager sports). */
   noEmojis?: boolean;
+  /** Gérant du VIP : le lien d'inscription peut-il partir à ce message ? (absent : pas de contrôle) */
+  linkAllowedNow?: boolean;
+  /** Gérant du VIP : un lien d'inscription est déjà parti (l'accès au VIP peut alors être donné). */
+  vipAccessAllowed?: boolean;
+  /** Gérant du VIP : la personne dit à ce tour avoir fait son dépôt. */
+  depositClaimed?: boolean;
 };
 
 export type ValidationResult =
@@ -1002,6 +1015,26 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
     reject("promise", "Promesse de gain, de certitude ou d'argent facile.");
   if (ctx.noEmojis && hasEmoji(joined))
     reject("emoji", "Emojis interdits pour cette persona.");
+  // Gérant du VIP : jamais faire patienter, jamais annoncer un lien ou un accès qui ne part pas.
+  if (ctx.vipManager) {
+    if (hasWaitingPhrase(joined))
+      reject("waiting_phrase", "Phrase qui fait patienter (« attends », « je reviens », « 2 sec »…).");
+    if (ctx.linkAllowedNow === false && announcesRegistrationLink(messages))
+      reject("link_not_allowed", "Annonce le lien d'inscription alors qu'il ne part pas à ce message.");
+    // Accès au VIP annoncé : il faut que le lien du VIP parte à ce message (lien d'inscription déjà envoyé, et
+    // send_vip_link ou dépôt confirmé par la personne). Sinon ce serait une promesse sans lien.
+    if (
+      ctx.vipAccessAllowed !== undefined &&
+      !(ctx.vipAccessAllowed && (output.send_vip_link === true || ctx.depositClaimed === true)) &&
+      announcesVipAccess(messages)
+    )
+      reject(
+        "vip_access_not_allowed",
+        ctx.vipAccessAllowed
+          ? "Donne l'accès au VIP sans dépôt confirmé ni send_vip_link."
+          : "Donne l'accès au VIP alors qu'aucun lien d'inscription n'est parti.",
+      );
+  }
 
   // Action choisie : elle doit être permise, et le texte doit coller à l'action.
   if (ctx.allowedActions) {
