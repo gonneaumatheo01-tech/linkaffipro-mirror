@@ -384,7 +384,7 @@ function toHistoryRow(r: HistorySelected): HistoryRow {
 }
 
 /**
- * Historique AVANT ce tour (sans les messages réclamés par ce tour ni ceux pas encore traités) : 20 derniers messages,
+ * Historique AVANT ce tour (sans les messages réclamés par ce tour ni ceux pas encore traités) : 12 derniers messages,
  * et résumé roulant à faire au-delà de 30 messages hors du résumé (repère `meta.summarized` sur le dernier message
  * déjà résumé).
  */

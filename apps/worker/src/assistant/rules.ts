@@ -34,7 +34,7 @@ import {
 export const CHAT_LOCK_TTL_MS = 90_000;
 /** Verrou pris par un autre tour : nouvel essai dans 3 s. */
 export const CHAT_LOCK_BUSY_RETRY_MS = 3_000;
-/** Résumé roulant demandé au-delà de 30 messages hors du résumé (les 20 derniers restent en clair). */
+/** Résumé roulant demandé au-delà de 30 messages hors du résumé (les 12 derniers restent en clair). */
 export const SUMMARY_TRIGGER_MESSAGES = 30;
 /** Messages anciens lus au plus pour un résumé. */
 export const SUMMARY_MAX_MESSAGES = 200;
@@ -437,7 +437,7 @@ export function toHistoryMessage(r: HistoryRow): HistoryMessage {
 
 /**
  * Résumé roulant (contrat §3.5) : `rows` = messages hors du résumé (après le dernier message déjà résumé), du plus ancien
- * au plus récent, sans ceux du tour. Plus de 30 : les plus anciens au-delà des 20 derniers sont à résumer ; `markId` =
+ * au plus récent, sans ceux du tour. Plus de 30 : les plus anciens au-delà des 12 derniers sont à résumer ; `markId` =
  * dernier message résumé (repère enregistré quand le résumé réussit).
  */
 export function summaryPlan(rows: readonly HistoryRow[]): {

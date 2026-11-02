@@ -1,0 +1,224 @@
+// Série de photos dans un tour complet (persona fille avec photos) : lien jamais avant la chauffe, annonce jamais sans
+// lien, corrections par le code sans nouvel appel, silence après le refus ferme, relance unique « t la ? » après le lien.
+import { describe, expect, it } from "vitest";
+import { runTurn } from "./engine";
+import {
+  createFakeLlm,
+  createFakeTurnDeps,
+  fakeConversation,
+  fakeOutput,
+  fakePersona,
+  fakeSettings,
+} from "./fake";
+import type { FlirtAction, FlirtPhase } from "./flirt";
+import { ARMED_LINK_FACT } from "./pseudo";
+import type { TurnInput } from "./turn-types";
+
+const PHOTOS = [1, 2, 3, 4, 5].map((slot) => ({
+  slot,
+  assetId: `asset-${slot}`,
+  description: `photo ${slot}`,
+}));
+
+const girl = () =>
+  fakePersona({ identity: "GIRL", illusion: true, hasOffer: true, flirtPhotos: PHOTOS });
+
+function tour(
+  step: FlirtPhase,
+  teases: number,
+  text: string | null,
+  over: Partial<TurnInput["conversation"]> = {},
+): TurnInput {
+  const conversation = fakeConversation({
+    stage: "CHAT",
+    assistantTurns: 10,
+    memberMessages: 10,
+    ...over,
+  });
+  conversation.flirt = { step, teases };
+  return {
+    kind: text === null ? "follow_up" : "reply",
+    persona: girl(),
+    settings: fakeSettings(),
+    conversation,
+    history: [],
+    inbound: text === null ? [] : [{ text }],
+  };
+}
+
+const reponse = (text: string, action: FlirtAction, over: Record<string, unknown> = {}) =>
+  fakeOutput({ messages: [text], action, ...over });
+
+describe("pas de lien avant la chauffe", () => {
+  it("en discussion tiède, le lien ne part pas même si le modèle le propose", async () => {
+    const llm = createFakeLlm([
+      reponse("ah cool et tu fais quoi ce soir", "rien", { send_offer: true }),
+    ]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("NONE", 0, "je sors du taf"), deps);
+    expect(res.offerSent).toBeNull();
+    expect(res.newFlirtStep).toBe("NONE");
+  });
+});
+
+describe("annonce du lien sans lien : impossible", () => {
+  it("pendant la série, l'annonce est retirée du texte", async () => {
+    const llm = createFakeLlm([
+      reponse("mmh t'aimes ça hein, attends je t'envoie le lien", "rien", { send_offer: true }),
+    ]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("PHOTOS", 100, "ptn t'es bonne"), deps);
+    expect(res.offerSent).toBeNull();
+    expect(res.sent.map((p) => p.text).join(" ")).not.toMatch(/lien/);
+    expect(res.sent.length).toBeGreaterThan(0);
+    expect(llm.calls).toBe(1);
+  });
+
+  it("une réponse qui n'est qu'une annonce est refaite", async () => {
+    const llm = createFakeLlm([
+      reponse("attends je t'envoie le lien", "rien"),
+      reponse("mmh continue de parler comme ça", "rien"),
+    ]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("PHOTOS", 100, "ptn t'es bonne"), deps);
+    expect(llm.calls).toBe(2);
+    expect(res.rejected).toContain("link_announce");
+    expect(res.sent.map((p) => p.text)).toEqual(["mmh continue de parler comme ça"]);
+    expect(res.offerSent).toBeNull();
+  });
+
+  it("après un refus, une annonce ne repropose jamais le lien", async () => {
+    const llm = createFakeLlm([
+      reponse("dommage, bon tiens je te mets le lien quand meme", "rien"),
+    ]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("REFUSED", 300, "ok"), deps);
+    expect(res.offerSent).toBeNull();
+    expect(res.sent.map((p) => p.text).join(" ")).not.toMatch(/lien/);
+  });
+});
+
+describe("corrigé par le code, sans nouvel appel", () => {
+  it("action lien non permise : ramenée à rien", async () => {
+    const llm = createFakeLlm([reponse("mmh", "lien")]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("PHOTOS", 100, "j'adore"), deps);
+    expect(llm.calls).toBe(1);
+    expect(res.rejected).toContain("action_interdite");
+    expect(res.offerSent).toBeNull();
+    expect(res.sent).toHaveLength(1);
+  });
+
+  it("texte qui refuse pendant que la photo part : la photo ne part pas", async () => {
+    const llm = createFakeLlm([reponse("nan pas maintenant 😏", "photo")]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("PHOTOS", 1, "montre moi"), deps);
+    expect(llm.calls).toBe(1);
+    expect(res.rejected).toContain("contradiction");
+    expect(res.sent.some((p) => p.mediaAssetId)).toBe(false);
+    expect(res.flirtTeases).toBe(2);
+  });
+
+  it("« non plus » n'est pas un refus : la photo part", async () => {
+    const llm = createFakeLlm([reponse("merci t'es pas mal non plus 😏 / tiens", "photo")]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("NONE", 0, "mmh t'es bonne"), deps);
+    expect(res.rejected).not.toContain("contradiction");
+    expect(res.sent.some((p) => p.mediaAssetId)).toBe(true);
+  });
+
+  it("photo non permise : le texte l'annonce, la réponse est refaite", async () => {
+    const llm = createFakeLlm([reponse("tiens", "photo"), reponse("mmh doucement", "rien")]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("PHOTOS", 100, "ok"), deps);
+    expect(llm.calls).toBe(2);
+    expect(res.sent.some((p) => p.mediaAssetId)).toBe(false);
+  });
+
+  it("lien armé : il part même si le modèle choisit rien", async () => {
+    const llm = createFakeLlm([reponse("viens la bas jsuis plus coquine", "rien")]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("OFFER", 301, "mmh", { facts: [ARMED_LINK_FACT] }), deps);
+    expect(llm.calls).toBe(1);
+    expect(res.offerSent).not.toBeNull();
+    expect(res.newFlirtStep).toBe("LINKED");
+    expect(res.facts).not.toContain(ARMED_LINK_FACT);
+  });
+});
+
+describe("silence dur après le refus ferme", () => {
+  it("la dernière ligne (WRAP) part sans relance prévue", async () => {
+    const llm = createFakeLlm([reponse("bon jcontinue la bas moi", "rien")]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("WRAP", 500, "mdr"), deps);
+    expect(res.outcome).toBe("replied");
+    expect(res.newFlirtStep).toBe("DONE");
+    expect(res.nextFollowUpAt).toBeNull();
+  });
+
+  it("ensuite plus aucune réponse, même s'il insiste, et aucun appel au modèle", async () => {
+    const llm = createFakeLlm([]);
+    const deps = createFakeTurnDeps({ llm });
+    for (const text of ["allo ?", "réponds", "t'es la ?"]) {
+      const res = await runTurn(tour("DONE", 500, text), deps);
+      expect(res.outcome).toBe("aborted");
+      expect(res.sent).toHaveLength(0);
+      expect(res.nextFollowUpAt).toBeNull();
+    }
+    expect(llm.calls).toBe(0);
+  });
+
+  it("aucune relance en WRAP ni en DONE", async () => {
+    const llm = createFakeLlm([]);
+    const deps = createFakeTurnDeps({ llm });
+    for (const step of ["WRAP", "DONE"] as const) {
+      const res = await runTurn(tour(step, 500, null), deps);
+      expect(res.outcome).toBe("aborted");
+      expect(res.sent).toHaveLength(0);
+    }
+    expect(llm.calls).toBe(0);
+  });
+});
+
+describe("relance unique après le lien", () => {
+  it("le lien part : une relance est prévue 1 à 2 h après", async () => {
+    const llm = createFakeLlm([reponse("viens on continue la bas", "lien")]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("OFFER", 301, "envoie la suite"), deps);
+    expect(res.offerSent).not.toBeNull();
+    const delay = res.nextFollowUpAt!.getTime() - deps.now().getTime();
+    expect(delay).toBeGreaterThanOrEqual(55 * 60_000);
+    expect(delay).toBeLessThanOrEqual(2 * 3_600_000);
+  });
+
+  it("la relance : « t la ? », texte fixe, sans appel au modèle, puis plus rien", async () => {
+    const llm = createFakeLlm([]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(
+      tour("LINKED", 300, null, { offerSends: 1, stage: "LINK_SENT" }),
+      deps,
+    );
+    expect(res.outcome).toBe("replied");
+    expect(res.sent.map((p) => p.text)).toEqual(["t la ?"]);
+    expect(res.sent[0]!.fixedKey).toBe("linkNudge");
+    expect(res.offerSent).toBeNull();
+    expect(res.followUpCount).toBe(1);
+    expect(res.nextFollowUpAt).toBeNull();
+    const again = await runTurn(
+      tour("LINKED", 300, null, { offerSends: 1, stage: "FOLLOW_UP", followUpCount: 1 }),
+      deps,
+    );
+    expect(again.outcome).toBe("aborted");
+    expect(again.sent).toHaveLength(0);
+    expect(llm.calls).toBe(0);
+  });
+
+  it("il écrit pendant la préparation de la relance : elle n'a plus lieu d'être", async () => {
+    const llm = createFakeLlm([]);
+    const deps = createFakeTurnDeps({ llm, beforeSend: [{ newInbound: [{ text: "ouais" }] }] });
+    const res = await runTurn(tour("LINKED", 300, null, { offerSends: 1 }), deps);
+    expect(res.outcome).toBe("aborted");
+    expect(res.sent).toHaveLength(0);
+    expect(res.deferredInbound.map((m) => m.text)).toEqual(["ouais"]);
+  });
+});

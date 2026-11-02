@@ -166,7 +166,8 @@ describe("pseudo donné → fin de conversation", () => {
 // ─────────────────────────────────────────────────
 
 describe("lien annoncé mais pas parti → lien armé au tour suivant", () => {
-  it("reproduit le bug : le modèle annonce le lien dans le texte mais le lien ne part pas", async () => {
+  // Changé volontairement (tâche 6) : une annonce quand la série en est à l'app fait partir le lien dans le même tour.
+  it("le lien annoncé quand la série en est à l'app part dans le même tour", async () => {
     const llm = createFakeLlm(() =>
       fakeOutput({
         messages: ["attends je t'envoie le lien"],
@@ -196,8 +197,9 @@ describe("lien annoncé mais pas parti → lien armé au tour suivant", () => {
     );
 
     expect(res.outcome).toBe("replied");
-    expect(res.offerSent).toBeNull();
-    expect(res.facts).toContain(ARMED_LINK_FACT);
+    expect(res.offerSent).not.toBeNull();
+    expect(res.facts).not.toContain(ARMED_LINK_FACT);
+    expect(res.newFlirtStep).toBe("LINKED");
   });
 
   it("tour suivant : le lien armé part", async () => {
@@ -269,7 +271,8 @@ describe("lien annoncé mais pas parti → lien armé au tour suivant", () => {
     expect(res.facts).not.toContain(ARMED_LINK_FACT);
   });
 
-  it("pas d'armement si le texte n'annonce pas le lien", async () => {
+  // Changé volontairement (tâche 6) : le tour qui suit la photo 3 vend l'app sans lien et arme le lien.
+  it("tour de vente sans lien : le lien est armé pour le tour suivant", async () => {
     const llm = createFakeLlm(() =>
       fakeOutput({
         messages: ["mdr tkt"],
@@ -300,6 +303,7 @@ describe("lien annoncé mais pas parti → lien armé au tour suivant", () => {
 
     expect(res.outcome).toBe("replied");
     expect(res.offerSent).toBeNull();
-    expect(res.facts).not.toContain(ARMED_LINK_FACT);
+    expect(res.facts).toContain(ARMED_LINK_FACT);
+    expect(res.newFlirtStep).toBe("OFFER");
   });
 });

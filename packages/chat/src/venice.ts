@@ -288,6 +288,7 @@ export function veniceRequestBody(req: LlmRequest): Record<string, unknown> {
       : {}),
     venice_parameters: { include_venice_system_prompt: false, enable_web_search: "off" },
     ...(req.reasoning ? { reasoning: { enabled: false } } : {}),
+    ...(req.cacheKey ? { prompt_cache_key: req.cacheKey } : {}),
   };
 }
 

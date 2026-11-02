@@ -3,8 +3,9 @@
  *
  * Le code décide de ce qui est PERMIS à ce tour (rien / photo n / lien) à partir d'une petite machine à états ; le
  * prompt dit au modèle ce qui est permis ; le modèle choisit son action et écrit le texte en conséquence. Une action
- * interdite est refusée et le message est régénéré, et un texte qui refuse alors que la photo part est refusé aussi :
- * le texte colle donc toujours à ce qui part réellement.
+ * interdite est ramenée par le code à ce qui est permis (sans nouvel appel, sauf une photo non permise : régénérée), et
+ * un texte qui refuse alors que la photo part garde son refus sans la photo : le texte colle donc toujours à ce qui part
+ * réellement. Une annonce du lien sans lien est impossible (voir `runTurn`).
  *
  * Aucune dépendance à la base, au réseau ou à l'horloge : l'appelant persiste l'état et envoie.
  */
@@ -56,16 +57,20 @@ export type FlirtState = {
 
 /** Consigne de rédaction pour ce tour (voir `flirtPromptBlock`). */
 export type FlirtDirective =
-  "none" | "play_hard" | "tease" | "wait" | "link" | "explain" | "gift" | "wrap";
+  "none" | "play_hard" | "tease" | "wait" | "sell" | "link" | "explain" | "gift" | "wrap";
 
 export type FlirtDecision = {
   /** État mis à jour (échanges comptés). */
   state: FlirtState;
-  /** Actions autorisées ce tour, dans l'ordre de préférence. */
+  /** Actions autorisées ce tour, dans l'ordre de préférence. Une seule action autre que « rien » : obligatoire. */
   allow: FlirtAction[];
   /** Photo armée si l'action « photo » est permise. */
   photoSlot: number | null;
   directive: FlirtDirective;
+  /** Elle vend l'app à ce tour sans lien : le lien est armé et part au tour suivant, annoncé dans ce tour-là. */
+  armLink?: boolean;
+  /** Refus ferme et photos épuisées : plus aucune réponse, ni relance (ce n'est pas un /stop). */
+  silent?: boolean;
 };
 
 export type FlirtInput = {
@@ -78,6 +83,10 @@ export type FlirtInput = {
   /** Emplacements de photos réellement disponibles. */
   hasPhotos: readonly number[];
   isMinor?: boolean;
+  /** Lien armé au tour précédent (fait `ARMED_LINK_FACT`) : il part à ce tour. */
+  linkArmed?: boolean;
+  /** Offre liée à la persona (absent = oui) : sans offre, jamais de lien. */
+  hasOffer?: boolean;
 };
 
 /** Nombre d'accroches sans envoi avant de forcer (compatibilité). */
@@ -107,19 +116,30 @@ export function hasStarted(phase: FlirtPhase): boolean {
 // Lecture du message
 // ------------------------------------------------------------------
 
+// Début de mot (voir `hasWord`) : « niqu » ne trouve plus « unique », ni « nue » « continue ». Un espace final exige
+// le mot entier (« cul » sans « culture »).
 const FORTS = [
   "bz",
-  "bais",
+  "baise",
+  "baiser",
+  "baiz",
   "niqu",
   "bite",
-  "queue",
-  "doigt",
-  "tremp",
-  "mouill",
+  "ma queue",
+  "ta queue",
+  "sa queue",
+  "doigte",
+  "doigter",
+  "trempee",
+  "mouille",
+  "mouiller",
   "bander",
-  "bande",
+  "je bande",
+  "jbande",
+  "tu bandes",
   "sucer",
   "suce",
+  "pipe",
   "seins",
   "nichons",
   "foutre",
@@ -127,35 +147,87 @@ const FORTS = [
   "orgasme",
   "chatte",
   "a poil",
-  "a poils",
   "nue",
   "nu ",
-  "excite",
-  "excitant",
+  "nus ",
+  "excit",
   "bandante",
   "levrette",
   "envie de toi",
+  "envie de te ",
   "penetr",
   "branl",
+  "sexe",
+  "sex ",
+  "cul ",
+  "fesses",
+  "t es bonne",
+  "tes bonne",
+  "trop bonne",
+  "tellement bonne",
+  "grave bonne",
+  "es chaude",
+  "suis chaud",
+  "jsuis chaud",
+  "me chauffe",
+  "tu portes quoi",
+  "t as quoi sur toi",
+  "sous vet",
+  "lingerie",
+  "string",
+  "culotte",
+  "soutif",
+  "lecher",
+  "se voir",
+  "on se voit",
+  "se rencontrer",
+  "te rencontrer",
+  "viens chez",
+  "venir chez",
+  "plan cul",
 ];
 
 const DOUX = [
   "chaud",
-  "chaude",
+  "chauff",
   "envie",
   "corps",
   "peau",
   "caresse",
-  "caresser",
   "embrass",
+  "bisou",
+  "calin",
   "langue",
   "collant",
-  "collante",
   "bonne",
   "jolie",
+  "belle",
+  "canon",
+  "mignonne",
+  "magnifique",
+  "craquante",
+  "charmante",
+  "sublime",
+  "bombe",
   "sexy",
   "desirable",
+  "coquin",
+  "dispo",
+  "seule",
+  "bb",
+  "bebe",
+  "cherie",
+  "tu me plais",
+  "tu me fais",
+  "tu fais quoi la",
+  "tu fais quoi ce soir",
+  "au lit",
+  "ton lit",
 ];
+
+/** Formules de politesse retirées avant de compter les mots doux : « bonne nuit » ou « belle journée » ne chauffent pas. */
+const POLITESSES =
+  /\b(bonne|belle) (nuit|journee|soiree|chance|annee|fete|semaine|continuation|matinee|aprem)\b/g;
 
 const OUI = ["oui", "ouais", "vas y", "vas-y", "go", "carrement", "grave", "ok"];
 
@@ -174,7 +246,26 @@ const NON = [
   "rester ici",
 ];
 
-const PHOTO = ["photo", "photos", "pic", "image", "selfie", "montre", "montrer", "envoie"];
+// Début de mot aussi : « pic » ne trouve plus « typique », ni « envoie » seul « je t'envoie un message ».
+const PHOTO = [
+  "photo",
+  "pic ",
+  "pics",
+  "image",
+  "selfie",
+  "nude",
+  "montre",
+  "envoie moi",
+  "envoie une",
+  "envoie des",
+  "envoie en",
+  "envoie ca",
+  "fais voir",
+  "fait voir",
+  "a quoi tu ressembles",
+  "voir ta tete",
+  "voir ton corps",
+];
 
 const SUITE = ["suite", "apres", "autres", "plus", "reste", "encore", "d autres"];
 
@@ -194,19 +285,33 @@ function has(text: string, mots: readonly string[]): boolean {
   return mots.some((m) => n.includes(m));
 }
 
-export function isSexTalk(text: string): boolean {
-  return has(text, FORTS);
+/** Comme `has`, mais chaque entrée doit commencer un mot (ponctuation ignorée). */
+function hasWord(text: string, mots: readonly string[]): boolean {
+  const n = ` ${normalize(text).replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ")} `;
+  return mots.some((m) => n.includes(` ${m}`));
 }
 
-/** Vrai si la conversation est chaude : un mot fort suffit, deux mots doux dans les trois derniers messages aussi. */
+/** Nombre d'entrées de la liste trouvées dans le texte (début de mot). */
+function countWords(text: string, mots: readonly string[]): number {
+  return mots.filter((m) => hasWord(text, [m])).length;
+}
+
+export function isSexTalk(text: string): boolean {
+  return hasWord(text, FORTS);
+}
+
+/**
+ * Vrai si la conversation est chaude : un mot fort suffit (phrase cash, au premier message comme ailleurs), deux mots
+ * doux dans les trois derniers messages aussi (« t'es belle, tu me plais »).
+ */
 export function isHot(recent: readonly string[], text: string): boolean {
   const texts = [...recent.slice(-3), text];
   if (texts.some((t) => isSexTalk(t))) return true;
-  return texts.filter((t) => has(t, DOUX)).length >= 2;
+  return texts.reduce((n, t) => n + countWords(normalize(t).replace(POLITESSES, " "), DOUX), 0) >= 2;
 }
 
 export function asksPhoto(text: string): boolean {
-  return has(text, PHOTO);
+  return hasWord(text, PHOTO);
 }
 
 export function isYes(text: string): boolean {
@@ -249,13 +354,17 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
   if (input.isMinor) return rien();
 
   switch (state.phase) {
-    // Rien en cours : la série ne démarre que sur du sexe. Une demande de photo seule laisse jouer l'autre script.
+    // Rien en cours : la chauffe ou une demande de photo démarre la série à ce tour, sans condition d'échanges (le soft
+    // s'arrête net). Sans photo 1, une demande de photo seule fait genre.
     case "NONE": {
-      if (isSexTalk(input.text) || isHot(input.recent, input.text)) {
+      // Sans aucune photo de chauffe (Casino, Paris, persona sans série), la série n'existe pas : rien ne bouge.
+      if (input.hasPhotos.length === 0) return rien();
+      const chaud = isSexTalk(input.text) || isHot(input.recent, input.text);
+      if (!chaud && asksPhoto(input.text) && !photo(1)) return rien("play_hard");
+      if (chaud || asksPhoto(input.text)) {
         const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
         return photoDispo(s, 1, "tease");
       }
-      if (asksPhoto(input.text)) return rien("play_hard");
       return rien();
     }
 
@@ -269,35 +378,43 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
       return photoDispo(s, suivant, "tease");
     }
 
-    // La 3 est partie : on parle, on tease, et le lien attend qu'il en veuille vraiment plus.
+    // La 3 est partie : elle vend l'app (sans lien) et le lien est armé ; il part au tour suivant, annoncé dans ce
+    // tour-là. S'il en réclame déjà, il part tout de suite. Jamais collé sans phrase d'amenée.
     case "OFFER": {
       if (isRefusal(input.text))
         return rien("explain", { ...state, phase: "REFUSED", exchanges: 0 });
       const s: FlirtState = { ...state, exchanges: state.exchanges + 1 };
-      if (s.exchanges >= 1 && (asksPhoto(input.text) || has(input.text, SUITE)))
-        return { state: s, allow: ["lien", "rien"], photoSlot: null, directive: "link" };
-      return rien("wait", s);
+      if (input.hasOffer === false) return rien("wait", s);
+      if (input.linkArmed || (s.exchanges >= 1 && (asksPhoto(input.text) || has(input.text, SUITE))))
+        return { state: s, allow: ["lien"], photoSlot: null, directive: "link" };
+      return { ...rien("sell", s), armLink: true };
     }
 
-    // Lien parti : on discute. Un refus bascule sur les cadeaux.
+    // Lien parti : on discute. Un refus bascule sur les cadeaux ; une demande de photo, la suite est sur l'app.
     case "LINKED": {
       if (isRefusal(input.text))
         return rien("explain", { ...state, phase: "REFUSED", exchanges: 0 });
-      return rien("none", { ...state, exchanges: state.exchanges + 1 });
+      const s: FlirtState = { ...state, exchanges: state.exchanges + 1 };
+      return rien(asksPhoto(input.text) ? "play_hard" : "none", s);
     }
 
     // Il a refusé le site : on discute d'abord, puis un cadeau, après MIN_ECHANGES_APRES_REFUS.
     case "REFUSED": {
       const s: FlirtState = { ...state, exchanges: state.exchanges + 1 };
       const suivant = state.lastPhoto + 1;
-      if (s.exchanges < MIN_ECHANGES_APRES_REFUS) return rien("wait", s);
-      if (suivant > MAX_PHOTOS) return rien("wait", s);
+      if (s.exchanges < MIN_ECHANGES_APRES_REFUS)
+        return rien(asksPhoto(input.text) ? "play_hard" : "wait", s);
+      if (suivant > MAX_PHOTOS) return rien(asksPhoto(input.text) ? "play_hard" : "wait", s);
       return photoDispo(s, suivant, "gift");
     }
 
     // Après la 5 : une ligne pour dire qu'on continue là-bas.
     case "WRAP":
       return rien("wrap", { phase: "DONE", lastPhoto: state.lastPhoto, exchanges: 0 });
+
+    // Refus ferme et photos épuisées : sa dernière ligne est partie, elle ne répond plus du tout.
+    case "DONE":
+      return { ...rien("none", state), silent: true };
 
     default:
       return rien("none", { ...state, exchanges: state.exchanges + 1 });
@@ -331,12 +448,14 @@ const ACTION_LABEL: Record<FlirtAction, string> = { rien: "rien", photo: "photo"
 const DIRECTIVE_HINT: Record<FlirtDirective, string> = {
   none: "",
   play_hard:
-    "Il demande une photo et la série n'a pas commencé : dis que tu n'envoies pas de photos ici.",
-  tease: "Fais court : tu chauffes, tu annonces, tu ne décris pas tout.",
-  wait: "Rien à envoyer ce tour : réagis à ce qu'il vient de dire et tease, sans promettre de photo tout de suite.",
-  link: "Tu envoies l'app : dis en une ligne que le reste n'est pas ici et que Telegram n'est pas sûr.",
+    "Il réclame une photo mais tu n'en envoies plus ici : dis-le en jouant (« la suite c'est sur l'appli, j'envoie pas plus sur telegram »), sans lien.",
+  tease:
+    "Ça chauffe : tu rentres dedans tout de suite, sans transition molle, et tu annonces la photo en une ligne (« tiens », « juste une », « jte montre »), sans tout décrire.",
+  wait: "Rien à envoyer ce tour : réagis à ce qu'il vient de dire et tease, sans promettre de photo tout de suite et sans revenir aux questions de base (ville, taf, âge).",
+  sell: "Tu lui vends l'app, sans lien à ce tour : « jsuis pas trop sur cette app », « là-bas jsuis coquine », « j'envoie des photos et tout », « jsuis plus à l'aise là-bas ». L'app, c'est l'endroit où tu oses, pas un formulaire. N'annonce pas le lien : il part au message suivant.",
+  link: "Tu envoies l'app maintenant (action lien) : une phrase chaude qui l'amène (« viens sur l'app, là-bas jsuis plus coquine », « jte montre la suite là-bas »). Le lien est ajouté par le système.",
   explain:
-    "Il a refusé l'app : explique en une ligne pourquoi (n'importe qui peut enregistrer), sans renvoyer de lien, et dis que t'as autre chose à montrer.",
+    "Il refuse l'app : c'est un argument, pas une porte fermée (« dommage, j'envoie pas de photos sur telegram », « j'aime bien en envoyer mais que sur l'appli »), sans renvoyer de lien.",
   gift: "C'est un cadeau : présente la photo comme un petit extra (« bon ok, juste pour toi »).",
   wrap: "Tu dis que tu continues là-bas, en une ligne, sans renvoyer de lien.",
 };
@@ -366,7 +485,8 @@ export function flirtPromptBlock(d: {
     lines.push(
       `Si tu envoies l'app : action "lien", une phrase qui l'amène, le lien est ajouté par le système.`,
     );
-  if (d.allow.length === 1) lines.push(`N'envoie rien : action "rien".`);
+  if (d.allow.length === 1 && d.allow[0] === "rien") lines.push(`N'envoie rien : action "rien".`);
+  else if (d.allow.length === 1) lines.push(`Action obligatoire ce tour : "${d.allow[0]}".`);
   const hint = DIRECTIVE_HINT[d.directive];
   if (hint) lines.push(hint);
   return lines;

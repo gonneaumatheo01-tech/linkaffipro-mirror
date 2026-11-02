@@ -33,6 +33,8 @@ export const REJECT_CODES = [
   "explicit_too_early",
   // Emojis interdits (VIP Manager sports).
   "emoji",
+  // Série de photos : le texte annonce le lien alors qu'il ne part pas à ce tour (posé par le moteur, pas ici).
+  "link_announce",
 ] as const;
 export type RejectCode = (typeof REJECT_CODES)[number];
 
@@ -895,7 +897,8 @@ function orderCodes(codes: Set<RejectCode>): RejectCode[] {
 
 /** Texte qui refuse (« non », « pas maintenant »...). */
 export function saysNo(text: string): boolean {
-  const t = wordsForm(text);
+  // « non plus » n'est pas un refus (« t'es pas mal non plus », « moi non plus »).
+  const t = wordsForm(text).replace(/\bnon plus\b/g, "");
   return /\b(non|nan|bof)\b/.test(t) || t.includes("pas maintenant") || t.includes("plus tard");
 }
 

@@ -233,12 +233,12 @@ describe("historique et résumé roulant", () => {
       markId: null,
     });
   });
-  it("au-delà : les plus anciens hors des 20 derniers, repère sur le dernier résumé", () => {
+  it("au-delà : les plus anciens hors des 12 derniers, repère sur le dernier résumé", () => {
     const p = summaryPlan(rows(31));
     expect(p.needsSummary).toBe(true);
-    expect(p.summaryMessages).toHaveLength(11);
+    expect(p.summaryMessages).toHaveLength(19);
     expect(p.summaryMessages[0]).toMatchObject({ direction: "IN", text: "message 0" });
-    expect(p.markId).toBe("m10");
+    expect(p.markId).toBe("m18");
   });
 });
 

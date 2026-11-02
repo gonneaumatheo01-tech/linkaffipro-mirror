@@ -2,8 +2,9 @@
  * Tour de conversation d'un compte reel sur message prive entrant (phase 18, tache 04).
  * Porte depuis apps/worker/src/assistant/turn.ts le strict necessaire : le worker ne traite pas ces conversations
  * (bot fantome en mode STANDARD), c'est ce process qui tient la session et donc le tour.
- * Hors perimetre pour l'instant : relances, limites du jour, reprise par l'equipe, resume roulant,
- * regroupement des messages arrives pendant la preparation.
+ * Hors perimetre pour l'instant : limites du jour, reprise par l'equipe, resume roulant, regroupement des messages
+ * arrives pendant la preparation. Relances : seulement « t la ? », une fois, apres le lien de la serie de photos
+ * (`startLinkNudges`).
  */
 import type { FlirtStep } from "@linkaffipro/chat";
 import { randomUUID } from "node:crypto";
@@ -152,7 +153,7 @@ function parseMedia(raw: unknown): ChatMedia | null {
   return typeof kind === "string" ? (raw as ChatMedia) : null;
 }
 
-/** 20 derniers messages AVANT ce tour, du plus ancien au plus recent. */
+/** Derniers messages (`HISTORY_LIMIT`) AVANT ce tour, du plus ancien au plus recent. */
 async function loadHistory(conversationId: string, inboundIds: readonly string[]): Promise<HistoryMessage[]> {
   const rows = await prisma.conversationMessage.findMany({
     where: { conversationId, NOT: { id: { in: [...inboundIds] } } },
@@ -301,6 +302,7 @@ async function runConversationTurn(
   inbound: ReadonlyArray<PendingInbound>,
   peer: TransportPeer,
   persona: PersonaRow | null,
+  kind: "reply" | "follow_up" = "reply",
 ): Promise<void> {
   const conv = await prisma.conversation.findUniqueOrThrow({
     where: { id: conversationId },
@@ -325,7 +327,7 @@ async function runConversationTurn(
   const history = await loadHistory(conv.id, inboundIds);
   const modelId = persona.model?.trim() || cfg.defaultModel;
   const input: TurnInput = {
-    kind: "reply",
+    kind,
     persona: {
       ...toPersonaInput(persona, account.label),
       flirtPhotos: await loadFlirtPhotos(persona.id),
@@ -393,6 +395,13 @@ async function runConversationTurn(
     // Sans ca, le tour suivant les reprend et elle repond deux fois (avec une question repetee).
     // Ils sont marques avec ce turnId pour que la boucle de `processIncoming` ne les reprenne pas.
     beforeSend: async () => {
+      // Relance : un message arrive entre-temps → elle n'a plus lieu d'etre ; il reste a traiter par un vrai tour.
+      if (kind === "follow_up") {
+        const waiting = await prisma.conversationMessage.count({
+          where: { conversationId: conv.id, direction: "IN", turnId: null },
+        });
+        return { abort: waiting > 0, newInbound: [] };
+      }
       const rows = await prisma.conversationMessage.findMany({
         where: { conversationId: conv.id, direction: "IN", turnId: null },
         orderBy: { createdAt: "asc" },
@@ -453,7 +462,7 @@ async function runConversationTurn(
 }
 
 /** Etat de la conversation apres le tour (les messages sortants sont deja ecrits par le transport). */
-function turnPatch(result: TurnResult, now: Date): Prisma.ConversationUpdateInput {
+export function turnPatch(result: TurnResult, now: Date): Prisma.ConversationUpdateInput {
   const replied = result.sent.length > 0;
   const data: Prisma.ConversationUpdateInput = {
     stage: result.newStage,
@@ -471,6 +480,13 @@ function turnPatch(result: TurnResult, now: Date): Prisma.ConversationUpdateInpu
     data.flirtStep = result.newFlirtStep;
     data.flirtTeases = result.flirtTeases ?? 0;
   }
+  // Relance : seulement « t la ? » quand le lien de la serie vient de partir (prevue par le moteur) ; toute autre
+  // reponse l'efface.
+  if (replied) {
+    data.followUpCount = result.followUpCount;
+    data.nextFollowUpAt =
+      result.offerSent && result.newFlirtStep === "LINKED" ? result.nextFollowUpAt : null;
+  }
   // Mineur, compte bloque ou injoignable : conversation fermee, plus aucune reponse.
   if (result.closeReason) {
     data.status = "CLOSED";
@@ -485,6 +501,131 @@ function turnPatch(result: TurnResult, now: Date): Prisma.ConversationUpdateInpu
 
 async function persistTurn(conversationId: string, result: TurnResult, now: Date): Promise<void> {
   await prisma.conversation.update({ where: { id: conversationId }, data: turnPatch(result, now) });
+}
+
+// ------------------------------------------------------------------
+// Relance « t la ? » apres le lien
+// ------------------------------------------------------------------
+
+const NUDGE_SWEEP_MS = 60_000;
+
+/**
+ * Relances dues de ce compte, verifiees chaque minute : seulement « t la ? », une fois, quand le lien de la serie
+ * vient de partir et qu'il n'a rien ecrit depuis. Rend la fonction d'arret.
+ */
+export function startLinkNudges(account: TurnAccount): () => void {
+  let running = false;
+  const timer = setInterval(() => {
+    if (running || !account.botId) return;
+    running = true;
+    void sweepLinkNudges({ ...account, botId: account.botId })
+      .catch((err: unknown) =>
+        logger.error(
+          { compte: account.label, err: err instanceof Error ? err.message : String(err) },
+          "relances en erreur",
+        ),
+      )
+      .finally(() => {
+        running = false;
+      });
+  }, NUDGE_SWEEP_MS);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
+async function sweepLinkNudges(account: ReadyAccount): Promise<void> {
+  const due = await prisma.conversation.findMany({
+    where: {
+      botId: account.botId,
+      status: "BOT",
+      stoppedAt: null,
+      isMinor: false,
+      flirtStep: "LINKED",
+      followUpCount: 0,
+      offerSends: { gt: 0 },
+      nextFollowUpAt: { lte: new Date() },
+    },
+    select: {
+      id: true,
+      nextFollowUpAt: true,
+      lastInboundAt: true,
+      lastAssistantAt: true,
+      member: { select: { telegramUserId: true, username: true } },
+    },
+    orderBy: { nextFollowUpAt: "asc" },
+    take: 10,
+  });
+  for (const c of due) {
+    if (busy.has(c.id)) continue;
+    // Reclamee une seule fois (effacee avant l'envoi) : jamais deux « t la ? ».
+    const claimed = await prisma.conversation.updateMany({
+      where: { id: c.id, nextFollowUpAt: c.nextFollowUpAt },
+      data: { nextFollowUpAt: null },
+    });
+    if (claimed.count === 0) continue;
+    // Il a ecrit depuis le dernier message : plus de relance.
+    if (c.lastInboundAt && (!c.lastAssistantAt || c.lastInboundAt > c.lastAssistantAt)) continue;
+    const waiting = await prisma.conversationMessage.count({
+      where: { conversationId: c.id, direction: "IN", turnId: null },
+    });
+    if (waiting > 0) continue;
+    const peer = await resolvePeer(account.client, c.member);
+    if (!peer) {
+      logger.warn(
+        { compte: account.label, conversation: c.id },
+        "relance : destinataire introuvable",
+      );
+      continue;
+    }
+    busy.add(c.id);
+    try {
+      const row = await prisma.telegramUserAccount.findUnique({
+        where: { id: account.id },
+        select: { persona: { include: personaInclude } },
+      });
+      const persona = row?.persona ?? null;
+      await runConversationTurn(account, c.id, [], peer, persona, "follow_up");
+      // Messages arrives pendant la relance (gardes en base, tour occupe) : traites maintenant, comme `processIncoming`.
+      for (let round = 0; round < 3; round++) {
+        const rest = await prisma.conversationMessage.findMany({
+          where: { conversationId: c.id, direction: "IN", turnId: null },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, text: true, createdAt: true, media: true },
+        });
+        if (rest.length === 0) break;
+        const pending = rest.map((r) => ({ ...r, media: parseMedia(r.media) }));
+        await runConversationTurn(account, c.id, pending, peer, persona);
+      }
+    } finally {
+      busy.delete(c.id);
+    }
+  }
+}
+
+/** Pair GramJS d'un membre hors evenement : cache de la session, puis son @, puis les discussions recentes. */
+async function resolvePeer(
+  client: TelegramClient,
+  member: { telegramUserId: bigint; username: string | null },
+): Promise<TransportPeer | null> {
+  const id = Number(member.telegramUserId);
+  try {
+    return await client.getInputEntity(id);
+  } catch {
+    // pas dans le cache de la session (redemarrage)
+  }
+  if (member.username) {
+    try {
+      return await client.getInputEntity(member.username);
+    } catch {
+      // @ change ou supprime
+    }
+  }
+  try {
+    await client.getDialogs({ limit: 100 });
+    return await client.getInputEntity(id);
+  } catch {
+    return null;
+  }
 }
 
 /** Délai aléatoire entre min et max (secondes → ms). 0 si la persona n'a pas de délai configuré. */

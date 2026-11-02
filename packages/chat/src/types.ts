@@ -34,6 +34,11 @@ export type LlmRequest = {
   jsonSchema?: { name: string; schema: Record<string, unknown> };
   /** Le modèle raisonne-t-il (on coupe alors le raisonnement : `reasoning: { enabled: false }`) ? */
   reasoning?: boolean;
+  /**
+   * Clé de cache du prompt (`prompt_cache_key`) : les requêtes qui commencent pareil (même persona) sont envoyées au
+   * même endroit, leur début est facturé au tarif « en cache ».
+   */
+  cacheKey?: string;
 };
 
 export type LlmUsage = { inputTokens: number; outputTokens: number };

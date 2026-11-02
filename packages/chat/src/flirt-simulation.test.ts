@@ -11,6 +11,7 @@ import {
   fakeSettings,
 } from "./fake";
 import type { FlirtAction } from "./flirt";
+import { announcesLink } from "./pseudo";
 import type { HistoryMessage, TurnInput } from "./turn-types";
 
 const PHOTOS = [1, 2, 3, 4, 5].map((slot) => ({
@@ -108,6 +109,64 @@ describe("simulation de la série de photos", () => {
     expect(photos[3]!.tour - (liens[0]! + 1)).toBeGreaterThanOrEqual(2);
     // Le modèle a bien tenté une action interdite, et le code l'a refusée.
     expect(rejets).toContain("action_interdite");
+  });
+
+  it("lien annoncé = lien envoyé dans le même tour (bug de production)", async () => {
+    // Modèle qui annonce le lien dès que la série est en attente de lien, sans choisir lui-même l'action « lien ».
+    const annonce = createFakeLlm((req) => {
+      const system = req.messages.find((m) => m.role === "system")?.content ?? "";
+      const permises = (/Actions permises : ([^\n]+)/.exec(system)?.[1] ?? "rien").toLowerCase();
+      if (permises.includes("photo"))
+        return fakeOutput({ messages: ["attends, juste une"], action: "photo" });
+      return fakeOutput({
+        messages: ["la bas jsuis plus coquine, attends je t'envoie le lien"],
+        action: "rien",
+      });
+    });
+    const deps = createFakeTurnDeps({ llm: annonce });
+    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });
+    conv.flirt = { step: "NONE", teases: 0 };
+    const persona = fakePersona({
+      identity: "GIRL",
+      illusion: true,
+      hasOffer: true,
+      flirtPhotos: PHOTOS,
+    });
+    const history: HistoryMessage[] = [];
+    const tours: { annonce: boolean; lien: boolean }[] = [];
+    for (const texte of [
+      "j'ai trop envie de toi",
+      "grave",
+      "mmh",
+      "continue",
+      "ptn t'es bonne",
+      "j'adore",
+      "ah ouais ?",
+      "ok",
+    ]) {
+      const res = await runTurn(
+        {
+          kind: "reply",
+          persona,
+          settings: fakeSettings(),
+          conversation: conv,
+          history: [...history],
+          inbound: [{ text: texte }],
+        },
+        deps,
+      );
+      const textes = res.sent.map((p) => p.text);
+      tours.push({ annonce: announcesLink(textes), lien: res.offerSent !== null });
+      if (res.newFlirtStep) conv.flirt = { step: res.newFlirtStep, teases: res.flirtTeases ?? 0 };
+      conv.facts = res.facts;
+      if (res.offerSent) conv.offerSends += 1;
+      history.push({ direction: "IN", author: "MEMBER", text: texte });
+      for (const p of res.sent)
+        history.push({ direction: "OUT", author: "ASSISTANT", text: p.text });
+    }
+    // Jamais une annonce sans le lien dans le même tour, et le lien finit bien par partir.
+    for (const t of tours) if (t.annonce) expect(t.lien).toBe(true);
+    expect(tours.some((t) => t.lien)).toBe(true);
   });
 
   it("moins de 18 ans : plus de photo ni de lien", async () => {

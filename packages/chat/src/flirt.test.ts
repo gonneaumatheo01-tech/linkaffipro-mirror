@@ -41,6 +41,54 @@ describe("lecture du message", () => {
     expect(asksPhoto("envoie une photo")).toBe(true);
     expect(isRefusal("non je reste ici")).toBe(true);
   });
+
+  // Tâche 2 : formulations réelles de mecs qui parlent direct, au premier message.
+  it.each([
+    "t'es bonne",
+    "tu portes quoi",
+    "ça te dit de te montrer",
+    "on peut se voir ?",
+    "t'as un gros cul",
+    "ça me chauffe grave",
+    "jsuis chaud là",
+    "tu me fais bander",
+    "t'es excitée ?",
+    "envoie moi une pic",
+  ])("« %s » démarre la série au premier message", (text) => {
+    const d = decideFlirt(tour("NONE", text));
+    expect(d.state.phase).toBe("PHOTOS");
+    expect(d.photoSlot).toBe(1);
+  });
+
+  it("« tu fais quoi là » seul reste doux ; avec un deuxième signal doux, la série démarre", () => {
+    expect(decideFlirt(tour("NONE", "tu fais quoi là")).state.phase).toBe("NONE");
+    expect(decideFlirt(tour("NONE", "tu fais quoi là bb ?")).state.phase).toBe("PHOTOS");
+    expect(
+      decideFlirt({ step: "NONE", teases: 0, recent: ["t'es trop belle"], text: "tu fais quoi là", hasPhotos: photos })
+        .state.phase,
+    ).toBe("PHOTOS");
+  });
+
+  it.each([
+    "salut ça va",
+    "slt cv ?",
+    "bonne nuit, belle journée demain",
+    "je fais la queue à la poste",
+    "c'est unique comme truc",
+    "je continue demain",
+    "une bande de potes",
+    "je t'envoie un message plus tard",
+    "c'est typique de paris",
+    "j'ai envie de dormir",
+  ])("« %s » ne démarre pas la série", (text) => {
+    expect(decideFlirt(tour("NONE", text)).state.phase).toBe("NONE");
+  });
+
+  it("une persona sans photo de chauffe (Casino, Paris) n'entre jamais dans la série", () => {
+    const d = decideFlirt(tour("NONE", "t'es bonne, envoie une photo", 0, []));
+    expect(d.state.phase).toBe("NONE");
+    expect(d.allow).toEqual(["rien"]);
+  });
 });
 
 describe("état rangé dans deux colonnes", () => {
@@ -61,10 +109,40 @@ describe("démarrage", () => {
     expect(d.photoSlot).toBeNull();
   });
 
-  it("une demande de photo seule fait genre", () => {
+  // Changé volontairement (tâche 1) : une demande de photo démarre la série au lieu de la fermer.
+  it("une demande de photo démarre la série et arme la photo 1", () => {
     const d = decideFlirt(tour("NONE", "envoie une photo"));
+    expect(d.state.phase).toBe("PHOTOS");
+    expect(d.directive).toBe("tease");
+    expect(d.allow).toContain("photo");
+    expect(d.photoSlot).toBe(1);
+  });
+
+  it("une demande de photo sans photo 1 fait genre", () => {
+    const d = decideFlirt(tour("NONE", "envoie une photo", 0, [2, 3]));
     expect(d.directive).toBe("play_hard");
     expect(d.allow).toEqual(["rien"]);
+  });
+
+  it("série épuisée ou refusée : une demande de photo fait genre", () => {
+    expect(decideFlirt(tour("REFUSED", "envoie une photo", apres("REFUSED", 5, 3))).directive).toBe(
+      "play_hard",
+    );
+    expect(decideFlirt(tour("LINKED", "montre moi encore", apres("LINKED", 3, 0))).directive).toBe(
+      "play_hard",
+    );
+  });
+
+  it("bascule immédiate : en pleine discussion tiède, la chauffe démarre la série à ce tour", () => {
+    const d = decideFlirt({
+      step: "NONE",
+      teases: 7,
+      recent: ["je sors du taf", "ouais tranquille", "paris et toi"],
+      text: "t'as un gros cul toi",
+      hasPhotos: photos,
+    });
+    expect(d.state.phase).toBe("PHOTOS");
+    expect(d.photoSlot).toBe(1);
   });
 
   it("le sexe démarre la série et arme la photo 1", () => {

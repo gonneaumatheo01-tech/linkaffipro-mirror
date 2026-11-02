@@ -6,7 +6,7 @@
 import { isAssistantOnlyUniverse, offerButtonTextFor } from "@linkaffipro/core";
 import { detectHandoffIn } from "./handoff";
 import { canSendOffer, decideStage } from "./journey";
-import { nextFollowUpAt } from "./follow-ups";
+import { linkNudgeAt, nextFollowUpAt } from "./follow-ups";
 import { mergeFacts } from "./memory";
 import { detectMinorIn } from "./minor";
 import { asksForOfferAccess } from "./offer-request";
@@ -21,7 +21,7 @@ import {
   withTyping,
 } from "./rhythm";
 import { parisWallClock } from "./paris-time";
-import { ARMED_LINK_FACT, announcesLink, extractPseudo } from "./pseudo";
+import { ARMED_LINK_FACT, announcesLink, extractPseudo, stripLinkAnnouncement } from "./pseudo";
 import {
   applyAction,
   decideFlirt,
@@ -216,6 +216,49 @@ function memberMessagesNow(run: Run): number {
   return run.input.conversation.memberMessages + run.extraMemberMessages;
 }
 
+/** Série de photos de chauffe (fille avec photos) : le lien, les relances et le silence suivent la série (`flirt.ts`). */
+function flirtSeries(input: TurnInput): boolean {
+  return personaIdentity(input.persona) === "GIRL" && (input.persona.flirtPhotos ?? []).length > 0;
+}
+
+/** Conversation vue par les règles générales du lien (`canSendOffer`). */
+function offerConvOf(run: Run, inbound: readonly TurnInbound[]) {
+  const conv = run.input.conversation;
+  return {
+    memberMessages: memberMessagesNow(run),
+    offerSends: conv.offerSends,
+    isMinor: conv.isMinor,
+    isFirstAssistantTurn: conv.isFirstAssistantTurn,
+    memberAskedOffer: memberAskedOffer(run, inbound),
+  };
+}
+
+/**
+ * Série de photos : le lien peut-il partir à ce tour ? Oui quand la série en est à l'app (OFFER : une annonce le fait
+ * partir tout de suite), ou après le lien si les règles générales permettent de le renvoyer. Jamais avant la chauffe
+ * (NONE, PHOTOS) ni après un refus.
+ */
+function seriesLinkMayLeave(run: Run, output: TurnOutput, inbound: readonly TurnInbound[]): boolean {
+  const { input } = run;
+  if (!input.persona.hasOffer || !run.flirt) return false;
+  const phase = run.flirt.state.phase;
+  if (phase === "OFFER") return true;
+  return (
+    phase === "LINKED" && canSendOffer(offerConvOf(run, inbound), input.persona, output, input.kind)
+  );
+}
+
+/**
+ * Série de photos : codes que le code corrige lui-même, sans nouvel appel au modèle. Action non permise : ramenée à ce
+ * qui est permis (sauf une photo non permise, que le texte annonce : régénérée). Texte qui refuse pendant que la photo
+ * part : la photo ne part pas, le texte reste.
+ */
+function seriesSoftCodes(codes: readonly RejectCode[], output: TurnOutput): RejectCode[] {
+  return codes.filter(
+    (c) => c === "contradiction" || (c === "action_interdite" && output.action !== "photo"),
+  );
+}
+
 function buildRequest(
   run: Run,
   model: string,
@@ -251,6 +294,7 @@ function buildRequest(
           photo:
             input.persona.flirtPhotos?.find((x) => x.slot === run.flirt?.photoSlot)?.description ??
             null,
+          phase: run.flirt.state.phase,
         }
       : undefined,
   });
@@ -261,6 +305,8 @@ function buildRequest(
     maxTokens: input.settings.maxTokens,
     jsonSchema: turnOutputJsonSchema(input.persona.universe),
     reasoning: input.settings.modelSupportsReasoning(model),
+    // Série de photos : le début du prompt est le même pour toute la persona (voir `buildSystemPrompt`).
+    ...(flirtSeries(input) ? { cacheKey: `persona:${input.persona.name}` } : {}),
   };
 }
 
@@ -352,7 +398,9 @@ async function checkResponse(
         inbound.map((m) => m.text),
       ),
   });
-  if (!v.ok) {
+  const series = flirtSeries(input);
+  const soft = !v.ok && series ? seriesSoftCodes(v.codes, parsed.output) : [];
+  if (!v.ok && soft.length < v.codes.length) {
     await recordUsage(run, {
       model: call.model,
       res: call.res,
@@ -362,6 +410,27 @@ async function checkResponse(
     });
     run.rejected.push(...v.codes);
     return { kind: "rejected", codes: v.codes };
+  }
+  // Codes corrigés par le code (série de photos) : gardés au journal du tour, sans nouvel appel.
+  run.rejected.push(...soft);
+  if (soft.includes("contradiction")) parsed.output.action = "rien";
+  let messages = v.messages;
+  // Série de photos : jamais une annonce du lien sans le lien. S'il ne peut pas partir à ce tour, l'annonce est retirée,
+  // et la réponse est refaite s'il ne reste rien.
+  if (series && announcesLink(messages) && !seriesLinkMayLeave(run, parsed.output, inbound)) {
+    const kept = stripLinkAnnouncement(messages);
+    if (kept.length === 0) {
+      await recordUsage(run, {
+        model: call.model,
+        res: call.res,
+        ok: false,
+        error: `rejected:link_announce :: ${messages.join(" / ")}`,
+        attempt: call.attempt,
+      });
+      run.rejected.push("link_announce");
+      return { kind: "rejected", codes: ["link_announce"] };
+    }
+    messages = kept;
   }
   await recordUsage(run, {
     model: call.model,
@@ -373,7 +442,7 @@ async function checkResponse(
   return {
     kind: "ok",
     output: parsed.output,
-    messages: v.messages,
+    messages,
     model: call.res.model || call.model,
   };
 }
@@ -910,6 +979,9 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       .map((m) => m.text),
     ...input.inbound.map((m) => m.text),
   ];
+  const series = flirtSeries(input);
+  // Lien armé au tour précédent (série : vendu sans lien ; ailleurs : annoncé sans envoi) : il part à ce tour.
+  const linkWasArmed = conv.facts.includes(ARMED_LINK_FACT);
   const flirt = (run.flirt = decideFlirt({
     step: conv.flirt?.step ?? "NONE",
     teases: conv.flirt?.teases ?? 0,
@@ -917,10 +989,14 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     text: recents[recents.length - 1] ?? "",
     hasPhotos: (input.persona.flirtPhotos ?? []).map((x) => x.slot),
     isMinor: conv.isMinor,
+    linkArmed: linkWasArmed,
+    hasOffer: input.persona.hasOffer,
   }));
-  // Hors série, les règles générales gardent la main sur le lien ; dans la série, c'est l'action qui décide.
-  const lienLibre =
-    flirt.state.phase === "NONE" || flirt.state.phase === "LINKED" || flirt.state.phase === "DONE";
+  // Hors série, les règles générales gardent la main sur le lien ; dans la série, c'est l'action qui décide (jamais
+  // de lien avant la chauffe : seulement après le lien, pour le renvoyer s'il l'a perdu).
+  const lienLibre = series
+    ? flirt.state.phase === "LINKED"
+    : flirt.state.phase === "NONE" || flirt.state.phase === "LINKED" || flirt.state.phase === "DONE";
 
   // Jamais de réponse à une conversation fermée ou à un mineur (l'appelant ne devrait pas appeler).
   if (conv.isMinor || conv.stage === "CLOSED")
@@ -933,6 +1009,21 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   // 1. Âge déclaré de moins de 18 ans : arrêt avant tout appel au modèle.
   const minor = detectMinorIn(inbound.map((m) => m.text));
   if (minor.minor) return stopForMinor(run, inbound, "code", minor.age);
+
+  if (series) {
+    // Refus ferme et photos épuisées (DONE) : sa dernière ligne est partie, plus aucune réponse ni relance, même s'il
+    // insiste (ce n'est pas un /stop : la conversation reste ouverte, rien ne part).
+    if (flirt.silent) return { ...baseResult(run, inbound), outcome: "aborted" };
+    // Relance après le lien : une seule, courte (« t la ? »), texte fixe sans appel au modèle ; ensuite silence. Les
+    // autres relances de la série suivent les règles générales.
+    if (input.kind === "follow_up" && flirt.state.phase === "LINKED") {
+      if (conv.followUpCount > 0 || conv.offerSends === 0)
+        return { ...baseResult(run, inbound), outcome: "aborted" };
+      return linkNudge(run, inbound);
+    }
+    if (input.kind === "follow_up" && (flirt.state.phase === "WRAP" || flirt.state.phase === "DONE"))
+      return { ...baseResult(run, inbound), outcome: "aborted" };
+  }
 
   // 1 bis. Casino / Paris : demande d'argent, réclamation ou insulte repérée par le code → réponse neutre fixe et
   // passage à l'équipe, sans appel au modèle (aucun coût, aucune réponse risquée).
@@ -1027,22 +1118,32 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     });
   }
 
-  const offerConv = {
-    memberMessages: memberMessagesNow(run),
-    offerSends: conv.offerSends,
-    isMinor: conv.isMinor,
-    isFirstAssistantTurn: conv.isFirstAssistantTurn,
-    memberAskedOffer: memberAskedOffer(run, inbound),
-  };
-  // Lien armé au tour précédent (annonce sans envoi) : il part maintenant.
-  const linkWasArmed = conv.facts.includes(ARMED_LINK_FACT);
-  // Action retenue : lien armé → "lien" ; sinon celle du modèle si elle est permise, sinon « rien ».
-  const action: FlirtAction =
-    linkWasArmed && input.persona.hasOffer
+  const offerConv = offerConvOf(run, inbound);
+  // Une seule action permise autre que « rien » (série : le lien armé) : obligatoire, mais seulement avec un texte du
+  // modèle (jamais collée à un texte fixe de repli).
+  const forced = flirt.allow.length === 1 && flirt.allow[0] !== "rien" ? flirt.allow[0]! : null;
+  // Action retenue : hors série, lien armé → "lien" ; sinon l'action obligatoire, ou celle du modèle si elle est
+  // permise, sinon « rien ».
+  let action: FlirtAction =
+    !series && linkWasArmed && input.persona.hasOffer
       ? "lien"
-      : output?.action && flirt.allow.includes(output.action)
-        ? output.action
-        : "rien";
+      : forced && output && !needsHuman
+        ? forced
+        : output?.action && flirt.allow.includes(output.action)
+          ? output.action
+          : "rien";
+  // Série : un lien annoncé quand la série en est à l'app part à ce tour, avec son annonce (les autres annonces ont été
+  // retirées au contrôle de la réponse).
+  if (
+    series &&
+    output &&
+    !needsHuman &&
+    action !== "lien" &&
+    flirt.state.phase === "OFFER" &&
+    input.persona.hasOffer &&
+    announcesLink(texts)
+  )
+    action = "lien";
   const photoAssetId =
     action === "photo" && flirt.photoSlot
       ? (input.persona.flirtPhotos?.find((x) => x.slot === flirt.photoSlot)?.assetId ?? null)
@@ -1097,14 +1198,20 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   // La série n'avance que sur une action réellement partie.
   const nextFlirt = anySent ? applyAction(flirt.state, action) : flirt.state;
 
-  // Lien annoncé dans le texte mais action refusée (pas dans allow) et pas parti : on arme pour le tour suivant.
-  const armLink =
-    !pseudoGiven &&
-    !linkWasArmed &&
-    !sending.offerSent &&
-    input.persona.hasOffer &&
-    personaIdentity(input.persona) === "GIRL" &&
-    announcesLink(texts);
+  // Lien armé pour le tour suivant. Série : posé au tour où elle vend l'app sans lien, gardé tant qu'il n'est pas parti
+  // et que la série en est à l'app. Ailleurs (fille sans série) : lien annoncé dans le texte mais pas parti.
+  const armLink = series
+    ? !pseudoGiven &&
+      !sending.offerSent &&
+      input.persona.hasOffer &&
+      flirt.state.phase === "OFFER" &&
+      (flirt.armLink === true ? anySent : linkWasArmed)
+    : !pseudoGiven &&
+      !linkWasArmed &&
+      !sending.offerSent &&
+      input.persona.hasOffer &&
+      personaIdentity(input.persona) === "GIRL" &&
+      announcesLink(texts);
 
   // 5. Étape, événements, style, faits, relance.
   let newStage = anySent
@@ -1143,20 +1250,25 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   // « Arrête de m'écrire », « unsubscribe »… au milieu d'un message : réponse polie, puis aucune relance.
   const stopAsked = input.kind === "reply" && inbound.some((m) => mentionsStopRequest(m.text));
   // Conversation passée à l'équipe ou pseudo donné : aucune relance de l'assistante.
+  // Série : rien après le refus ferme (WRAP, DONE) ; le lien vient de partir → une seule relance courte, 1 à 2 h après.
   const next =
     anySent && !closeReason && !stopAsked && !needsHuman && !pseudoGiven
-      ? nextFollowUpAt(
-          {
-            status: "BOT",
-            stage: newStage,
-            isMinor: false,
-            stoppedAt: null,
-            followUpCount,
-            lastAssistantAt: now,
-          },
-          input.persona,
-          deps.random,
-        )
+      ? series && (nextFlirt.phase === "WRAP" || nextFlirt.phase === "DONE")
+        ? null
+        : series && sending.offerSent
+          ? linkNudgeAt(now, deps.random)
+          : nextFollowUpAt(
+              {
+                status: "BOT",
+                stage: newStage,
+                isMinor: false,
+                stoppedAt: null,
+                followUpCount,
+                lastAssistantAt: now,
+              },
+              input.persona,
+              deps.random,
+            )
       : null;
   const summary =
     anySent && !sending.sendError && !input.deferSummary ? await rollingSummary(run) : undefined;
@@ -1195,6 +1307,50 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       sending.vipLinkSent && selectedBook
         ? { url: sending.vipLinkSent, bookmakerKey: selectedBook }
         : null,
+  };
+}
+
+/**
+ * Série de photos : relance unique après le lien (« t la ? »), texte fixe sans appel au modèle. Relecture avant l'envoi
+ * (reprise par l'équipe, /stop, message arrivé entre-temps : la relance n'a plus lieu d'être). Ensuite plus de relance.
+ */
+async function linkNudge(run: Run, inbound: TurnInbound[]): Promise<TurnResult> {
+  const { input, deps } = run;
+  const conv = input.conversation;
+  const check = await deps.beforeSend();
+  if (check.abort || check.newInbound.length > 0)
+    return { ...baseResult(run, inbound), outcome: "aborted", deferredInbound: check.newInbound };
+  const sending = await sendParts(run, [fixedText(run.lang, "linkNudge")], {
+    withOffer: false,
+    fixedKey: "linkNudge",
+  });
+  const anySent = sending.sent.length > 0;
+  const newStage = anySent
+    ? decideStage({
+        current: conv.stage,
+        proposed: null,
+        offerSent: false,
+        kind: "follow_up",
+        isFirstAssistantTurn: conv.isFirstAssistantTurn,
+        offerSendsBefore: conv.offerSends,
+      })
+    : conv.stage;
+  const stage = stageEvents(conv.stage, newStage);
+  return {
+    ...baseResult(run, inbound),
+    outcome: anySent ? "replied" : "failed",
+    sent: sending.sent,
+    newStage,
+    stageChanges: stage.changes,
+    events: stage.events,
+    followUpCount: anySent ? conv.followUpCount + 1 : conv.followUpCount,
+    nextFollowUpAt: null,
+    closeReason: sending.sendError?.blocked
+      ? "BLOCKED"
+      : sending.sendError?.unreachable
+        ? "UNREACHABLE"
+        : null,
+    sendError: sending.sendError,
   };
 }
 

@@ -180,13 +180,13 @@ export type TurnInput = {
   persona: PersonaInput;
   settings: TurnSettings;
   conversation: ConversationState;
-  /** Derniers messages AVANT ce tour (les 20 derniers sont envoyés au modèle), sans les messages entrants du tour. */
+  /** Derniers messages AVANT ce tour (les 12 derniers sont envoyés au modèle), sans les messages entrants du tour. */
   history: HistoryMessage[];
   /** Messages de la personne de ce tour (vide pour une relance). */
   inbound: TurnInbound[];
   /** Plus de 30 messages hors du résumé : un résumé roulant est demandé après les envois. */
   needsSummary?: boolean;
-  /** Messages anciens (au-delà des 20 derniers) à fondre dans le résumé. */
+  /** Messages anciens (au-delà des 12 derniers) à fondre dans le résumé. */
   summaryMessages?: HistoryMessage[];
   /** Motif du coût (« TEST » pour le bouton « Tester ») ; sinon REPLY ou FOLLOW_UP selon `kind`. */
   usagePurpose?: UsagePurpose;

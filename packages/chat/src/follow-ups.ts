@@ -56,6 +56,14 @@ export function shiftOutOfQuietHours(d: Date): Date {
   return d;
 }
 
+/**
+ * Série de photos : relance unique quand le lien vient de partir et qu'il ne répond pas, 1 à 2 h après l'envoi (heures
+ * calmes → 10 h). Texte fixe court (« t la ? »), puis silence.
+ */
+export function linkNudgeAt(sentAt: Date, random: () => number = Math.random): Date {
+  return shiftOutOfQuietHours(new Date(sentAt.getTime() + (1 + random()) * HOUR_MS));
+}
+
 /** Nombre de relances permis par la persona (0 à 2, jamais plus de 2). */
 export function followUpsAllowed(rules: Pick<FollowUpRules, "followUpsMax">): number {
   const n = Math.round(rules.followUpsMax);

@@ -11,7 +11,12 @@ import { NewMessage, type NewMessageEvent } from "telegram/events";
 import { loadUserbotSettings } from "./settings";
 import { transcribe } from "./transcribe";
 import { logger } from "./logger";
-import { handleIncomingPrivate, type IncomingPrivate, type TurnAccount } from "./turn";
+import {
+  handleIncomingPrivate,
+  startLinkNudges,
+  type IncomingPrivate,
+  type TurnAccount,
+} from "./turn";
 
 export type LiveAccount = {
   id: string;
@@ -41,17 +46,23 @@ async function toIncomingPrivate(
   if (!event.isPrivate || msg.out || !msg.senderId) return null;
   const legende = msg.message?.trim() ?? "";
   const vocal = isVoiceMessage(msg);
+  // Autocollant : un salut ou une réaction, jamais avalé ni pris pour un vocal ; son texte est son emoji.
+  const sticker = vocal ? null : stickerEmoji(msg);
   // Un vocal n'a pas de texte : on ne le jette pas, il sera transcrit.
-  if (!legende && !vocal) return null;
+  if (!legende && !vocal && sticker === null) return null;
   const sender = await msg.getSender().catch(() => undefined);
   if (!(sender instanceof Api.User) || sender.bot || sender.self) return null;
   const peer = (await msg.getInputChat().catch(() => undefined)) ?? msg.chatId ?? sender;
-  const text = vocal ? ((await voiceText(client, msg)) ?? "") : legende;
+  const text = vocal ? ((await voiceText(client, msg)) ?? "") : (sticker ?? legende);
   return {
     telegramUserId: BigInt(msg.senderId.toString()),
     telegramMessageId: msg.id,
     text,
-    media: vocal ? ({ kind: "voice" } as const) : null,
+    media: vocal
+      ? ({ kind: "voice" } as const)
+      : sticker !== null
+        ? ({ kind: "sticker" } as const)
+        : null,
     peer,
     firstName: sender.firstName ?? null,
     lastName: sender.lastName ?? null,
@@ -69,6 +80,16 @@ function isVoiceMessage(msg: Api.Message): boolean {
   return doc.attributes.some(
     (a) => a instanceof Api.DocumentAttributeAudio && Boolean(a.voice),
   );
+}
+
+/** Emoji d'un autocollant (vide s'il n'en a pas), ou null si le message n'est pas un autocollant. */
+function stickerEmoji(msg: Api.Message): string | null {
+  const media = msg.media;
+  if (!(media instanceof Api.MessageMediaDocument)) return null;
+  const doc = media.document;
+  if (!(doc instanceof Api.Document)) return null;
+  const attr = doc.attributes.find((a) => a instanceof Api.DocumentAttributeSticker);
+  return attr instanceof Api.DocumentAttributeSticker ? (attr.alt ?? "").trim() : null;
 }
 
 /** Texte du vocal, ou null si Telegram ou la transcription a echoue. */
@@ -131,12 +152,15 @@ export async function startAccount(account: AccountToStart): Promise<LiveAccount
     },
     new NewMessage({ incoming: true }),
   );
+  // Seule relance du compte réel : « t la ? » une fois, 1 à 2 h après le lien (série de photos).
+  const stopNudges = startLinkNudges(turnAccount);
 
   return {
     id: account.id,
     label: account.label,
     client,
     stop: async () => {
+      stopNudges();
       await client.disconnect().catch(() => undefined);
       await client.destroy().catch(() => undefined);
     },
