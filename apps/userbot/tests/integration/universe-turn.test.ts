@@ -81,6 +81,49 @@ function fakeClient() {
 const TAG = `ubit${Date.now().toString(36)}`;
 let seq = 0;
 const uniq = () => `${TAG}${++seq}`;
+/**
+ * Marques de ce qu'il crée : retiré à la fin, et au début (restes d'un essai interrompu). Un compte laissé en base
+ * fausserait les autres suites (la recherche par compte réel de la Prospection compte les comptes actifs).
+ */
+const PHONE_PREFIX = "test-ubit-";
+const PROGRAM_PREFIX = "Prog ubit";
+
+async function cleanup(): Promise<void> {
+  const accounts = await prisma.telegramUserAccount.findMany({
+    where: { phone: { startsWith: PHONE_PREFIX } },
+    select: { id: true, botId: true, personaId: true },
+  });
+  const botIds = accounts.flatMap((a) => (a.botId ? [a.botId] : []));
+  const personaIds = accounts.flatMap((a) => (a.personaId ? [a.personaId] : []));
+  const convs = await prisma.conversation.findMany({
+    where: { botId: { in: botIds } },
+    select: { id: true, memberId: true },
+  });
+  const conversationId = { in: convs.map((c) => c.id) };
+  const memberIds = [...new Set(convs.map((c) => c.memberId))];
+  const programs = await prisma.affiliateProgram.findMany({
+    where: { name: { startsWith: PROGRAM_PREFIX } },
+    select: { id: true },
+  });
+  const programId = { in: programs.map((p) => p.id) };
+  await prisma.$transaction([
+    prisma.conversationEvent.deleteMany({ where: { conversationId } }),
+    prisma.conversationMessage.deleteMany({ where: { conversationId } }),
+    prisma.aiConversationUsage.deleteMany({ where: { conversationId } }),
+    prisma.assistantOfferLink.deleteMany({ where: { conversationId } }),
+    prisma.conversation.deleteMany({ where: { id: conversationId } }),
+    prisma.event.deleteMany({
+      where: { OR: [{ botId: { in: botIds } }, { memberId: { in: memberIds } }] },
+    }),
+    prisma.member.deleteMany({ where: { id: { in: memberIds } } }),
+    prisma.telegramUserAccount.deleteMany({ where: { id: { in: accounts.map((a) => a.id) } } }),
+    prisma.trackingLink.deleteMany({ where: { personaId: { in: personaIds } } }),
+    prisma.persona.deleteMany({ where: { id: { in: personaIds } } }),
+    prisma.bot.deleteMany({ where: { id: { in: botIds } } }),
+    prisma.affiliateCampaign.deleteMany({ where: { programId } }),
+    prisma.affiliateProgram.deleteMany({ where: { id: programId } }),
+  ]);
+}
 
 async function makeAccount(universe: "sports" | "dating") {
   const program = await prisma.affiliateProgram.create({ data: { name: `Prog ${uniq()}` } });
@@ -134,7 +177,7 @@ async function makeAccount(universe: "sports" | "dating") {
   const row = await prisma.telegramUserAccount.create({
     data: {
       label: persona.name,
-      phone: `+33${Date.now()}${++seq}`,
+      phone: `${PHONE_PREFIX}${uniq()}`,
       sessionEncrypted: "x",
       status: "ACTIVE",
       isActive: true,
@@ -185,8 +228,11 @@ async function messages(conversationId: string) {
 
 const metaOf = (m: { meta: unknown }) => (m.meta ?? {}) as Record<string, unknown>;
 
+beforeAll(cleanup);
+
 afterAll(async () => {
   await drainUniverseTurns(0);
+  await cleanup();
   await prisma.$disconnect();
 });
 

@@ -399,6 +399,8 @@ describe("assistant de conversation (base réelle, Venice et Telegram simulés)"
     });
     expect(offerEvents).toHaveLength(1);
     expect(offerEvents[0]?.payload).toMatchObject({ subId: link.subId, offerSends: 1 });
+    // Depuis le 1er novembre, le lien part seul juste après le texte : le texte du modèle d'abord, puis le bouton sous
+    // une flèche (Telegram refuse un message vide).
     const outWithOffer = await prisma.conversationMessage.findFirstOrThrow({
       where: {
         conversationId: conv.id,
@@ -406,7 +408,18 @@ describe("assistant de conversation (base réelle, Venice et Telegram simulés)"
         meta: { path: ["offerSubId"], equals: link.subId },
       },
     });
-    expect(outWithOffer.text).toBe("Je te montre l'app dont je te parlais 😊");
+    expect(outWithOffer.text).toBe("👇");
+    const textBeforeOffer = await prisma.conversationMessage.findFirstOrThrow({
+      where: {
+        conversationId: conv.id,
+        direction: "OUT",
+        text: "Je te montre l'app dont je te parlais 😊",
+      },
+    });
+    expect(textBeforeOffer.createdAt.getTime()).toBeLessThanOrEqual(outWithOffer.createdAt.getTime());
+    expect(
+      (textBeforeOffer.meta as { offerSubId?: string | null } | null)?.offerSubId ?? null,
+    ).toBeNull();
 
     // 4. Un second envoi du lien porte un sub-ID neuf (unique par envoi).
     await receive(conv.id, "Tu peux me le renvoyer ?");
