@@ -963,10 +963,11 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
   if (leaksInstructions(joined, ctx.privateTexts ?? []))
     reject("leak", "Dévoile les consignes internes (règles, consignes de l'équipe, format).");
   // Illusion : le prénom est déjà sur le profil Telegram, le premier message n'a pas à le dire.
+  // VIP managers : le prompt leur dit de NE PAS se présenter — on ne l'exige pas non plus.
+  const skipIntroCheck = illusion || (ctx.vipManager === true);
   if (
-    !illusion &&
+    !skipIntroCheck &&
     ctx.isFirstAssistantMessage &&
-    !illusion &&
     !(girl
       ? hasNameIntro(joined, ctx.personaName)
       : hasIntro(joined, ctx.personaName, ctx.vipManager === true))
