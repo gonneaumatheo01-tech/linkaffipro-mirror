@@ -49,6 +49,8 @@ describe("phrases qui font patienter", () => {
     "hold on",
     "give me a sec",
     "brb",
+    "attends je reviens, je t'envoie le lien",
+    "attend 2 sec",
   ])("refusé : %s", (t) => expect(hasWaitingPhrase(t)).toBe(true));
 
   it.each([
@@ -63,6 +65,9 @@ describe("phrases qui font patienter", () => {
     "je pense que tu pourras le faire plus tard",
     "tu peux t'inscrire plus tard si tu veux",
     "le vip c'est des pronos tous les jours",
+    // Script du client : le lien annoncé part forcément à ce message.
+    "Ok attend je t'envoie le lien, inscrit toi fait un dépôt le montant que tu veux",
+    "attends jte mets le lien",
   ])("permis : %s", (t) => expect(hasWaitingPhrase(t)).toBe(false));
 });
 

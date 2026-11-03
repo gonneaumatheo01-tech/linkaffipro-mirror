@@ -10,6 +10,28 @@ export function isVipManagerPersona(p: Pick<PersonaInput, "vipManager" | "univer
   return p.vipManager === true && p.universe === "sports";
 }
 
+// ------------------------------------------------------------------
+// Script du client (3 novembre 2026), mot pour mot, en français
+// ------------------------------------------------------------------
+
+/** Premier message : ce que sont les tirs cadrés et la seule condition du VIP. */
+export const VIP_SCRIPT_PITCH =
+  "Salut, dcp je t'explique en gros les tir cadrés ils sont dispo que sur nos book partenaires (ya pas sur wina ect), et pour avoir accès au vip il faut uniquement que tu sois joueur sur un de nos book. C'est bon pour toi ?";
+
+/** Question sur un bookmaker (le premier de la liste, puis le suivant s'il a déjà un compte). */
+export function vipScriptAskBook(label: string): string {
+  return `Tu connais ${label} ? t'as un compte dessus ?`;
+}
+
+/** Envoi du lien d'inscription (le lien part tout seul juste après ce message). */
+export const VIP_SCRIPT_LINK =
+  "Ok attend je t'envoie le lien, inscrit toi fait un dépôt le montant que tu veux et quand c'est fait je t'envoi le lien du vip, t'auras accès au bet tir cadré.";
+
+/** Le texte parle du VIP, des bookmakers ou des tirs cadrés (premier message : le script le remplace alors). */
+export function talksAboutVip(texts: readonly string[]): boolean {
+  return texts.some((t) => /\b(?:vip|book|books|bookmakers?|tirs?)\b/.test(norm(t)));
+}
+
 /** Minuscules sans accents, apostrophes typographiques ramenées à « ' ». */
 function norm(text: string): string {
   return foldText(text).replace(/[’‘`´]/g, "'");
@@ -32,6 +54,10 @@ function sentences(text: string): { body: string; question: boolean }[] {
 
 /** Sujet devant « attend(s) » : ce n'est plus un ordre (« on attend », « qui attend »). */
 const ATTENDS_SUBJECTS = new Set(["je", "j", "tu", "t", "on", "il", "elle", "nous", "vous", "ils", "elles", "qui", "ca"]);
+
+/** Juste après « attend » : « je t'envoie le lien » (mots déjà découpés, sans apostrophe). */
+const SENDS_LINK_NOW =
+  /^(?:je t|je te|jt|jte|j t|j te) (?:envoie|envoi|envois|mets|met|file|passe|balance) (?:le |ton )?lien\b/;
 
 const WAITING_PATTERNS: readonly RegExp[] = [
   // « je reviens », « jreviens », « j'reviens », « je reviens vers toi », « je te reviens »
@@ -63,7 +89,8 @@ const WAITING_PATTERNS: readonly RegExp[] = [
 /**
  * Vrai si le texte fait patienter la personne (« attends », « je reviens », « 2 sec », « je regarde et je te dis »…) :
  * le gérant du VIP répond toujours tout de suite, ou passe la main à l'équipe. « j'attends », « t'attends quoi » et
- * « attendre » ne comptent pas.
+ * « attendre » ne comptent pas, ni « attend je t'envoie le lien » du script (le lien annoncé part forcément à ce
+ * message : une annonce qui ne peut pas partir est refusée à part).
  */
 export function hasWaitingPhrase(text: string): boolean {
   const t = norm(text);
@@ -71,7 +98,9 @@ export function hasWaitingPhrase(text: string): boolean {
   for (let i = 0; i < tokens.length; i++) {
     const w = tokens[i];
     if (w !== "attends" && w !== "attend") continue;
-    if (!ATTENDS_SUBJECTS.has(tokens[i - 1] ?? "")) return true;
+    if (ATTENDS_SUBJECTS.has(tokens[i - 1] ?? "")) continue;
+    if (SENDS_LINK_NOW.test(tokens.slice(i + 1, i + 6).join(" "))) continue;
+    return true;
   }
   return WAITING_PATTERNS.some((re) => re.test(t));
 }

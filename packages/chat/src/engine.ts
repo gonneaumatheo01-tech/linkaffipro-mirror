@@ -80,6 +80,9 @@ import {
   mentionsDeposit,
   normalizeBookKey,
   stripEmojis,
+  talksAboutVip,
+  VIP_SCRIPT_LINK,
+  VIP_SCRIPT_PITCH,
 } from "./vip";
 
 /** Attente avant le nouvel essai sur le même modèle après une panne passagère. */
@@ -1419,6 +1422,14 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     fixedKey = "vipPending";
     withOffer = false;
     needsHuman = { reason: "off_faq", source: "check" };
+  }
+
+  // Gérant du VIP : le script du client, mot pour mot (en français) : l'envoi du lien d'inscription, et le premier
+  // message quand il parle du VIP (une réponse à tout autre sujet reste celle du modèle).
+  if (vip && output && !needsHuman && fixedKey === null && run.lang === "fr") {
+    if (withOffer && !vipLink) texts = [VIP_SCRIPT_LINK];
+    else if (conv.isFirstAssistantTurn && !withOffer && !vipLink && talksAboutVip(texts))
+      texts = [VIP_SCRIPT_PITCH];
   }
 
   // Gérant du VIP : le lien d'inscription est créé AVANT tout envoi, pour ne jamais annoncer un lien qui ne part pas.

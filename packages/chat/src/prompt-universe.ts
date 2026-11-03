@@ -17,6 +17,7 @@ import { assistantRole, fixedText, vipManagerRole } from "./texts";
 import type { PersonaBookmakerInput } from "./turn-types";
 import type { ConversationStage } from "./types";
 import { MAX_MESSAGE_CHARS, MAX_TURN_CHARS } from "./validate";
+import { VIP_SCRIPT_LINK, VIP_SCRIPT_PITCH, vipScriptAskBook } from "./vip";
 
 type AssistantUniverse = "casino" | "sports";
 
@@ -58,7 +59,7 @@ function virtualRoleFr(gender: string | null | undefined, vipManager = false): s
 
 /** Rôle du gérant du VIP (Paris sportifs) : remplace la ligne de rôle de l'univers. */
 const VIP_MANAGER_ROLE_LINE =
-  "Ton rôle : gérer l'accès au groupe VIP gratuit du canal. Tu réponds à ses questions sur le VIP, les pronostics et l'inscription, tu proposes les bookmakers partenaires dans l'ordre (voir PARCOURS INSCRIPTION BOOKMAKER), et une fois le dépôt confirmé, le système envoie le lien du canal VIP.";
+  "Ton rôle : gérer l'accès au groupe VIP gratuit du canal. Tu réponds à ses questions sur le VIP, les pronostics et l'inscription, tu suis le SCRIPT avec les bookmakers partenaires dans l'ordre, et une fois le dépôt confirmé, le système envoie le lien du canal VIP.";
 
 /** Lignes de la fiche d'informations pour le prompt. */
 export function faqPromptLines(faq: readonly PersonaFaqEntry[] | null | undefined): string[] {
@@ -92,6 +93,34 @@ function bookmakerFlowSection(books: readonly PersonaBookmakerInput[]): string[]
     "6. Après l'envoi du lien : demande-lui de s'inscrire via le lien, de faire un premier dépôt, et de te confirmer quand c'est fait.",
     "7. Quand la personne confirme avoir déposé → mets send_vip_link : true et selected_book à la clé du bookmaker sur lequel elle a déposé. Le système lui enverra automatiquement le lien du canal VIP.",
     "8. Si après plusieurs relances elle n'a toujours pas déposé → mets handoff : { needed: true, reason: \"off_faq\" } pour passer la main à l'équipe.",
+    "9. Ne mentionne jamais selected_book ni send_vip_link dans tes messages. Ce sont des champs techniques invisibles pour la personne.",
+  );
+  return lines;
+}
+
+/**
+ * Gérant du VIP : parcours des bookmakers selon le script du client (3 novembre 2026), phrases à écrire mot pour mot.
+ * Le code remplace de toute façon le premier message et l'envoi du lien par le texte exact (en français).
+ */
+function vipScriptSection(books: readonly PersonaBookmakerInput[], lang: string): string[] {
+  if (books.length === 0) return [];
+  const first = books[0]!;
+  const exact = lang === "fr" ? "mot pour mot" : `traduite fidèlement en ${LANGUAGE_NAMES_FR[lang as keyof typeof LANGUAGE_NAMES_FR] ?? lang}`;
+  const lines: string[] = ["", "BOOKMAKERS PARTENAIRES (propose-les dans cet ordre)"];
+  for (const b of books) lines.push(`${b.priority}. ${b.label} (clé : ${b.bookmakerKey})`);
+  lines.push(
+    "",
+    `SCRIPT (prioritaire sur les exemples de registre : chaque phrase entre guillemets s'écrit ${exact}, seule dans ton message)`,
+    `1. Ton premier message : « ${VIP_SCRIPT_PITCH} »`,
+    `2. Quand il dit oui (« oui vasy », « ok », « grave »…) : « ${vipScriptAskBook(first.label)} »`,
+    "3. S'il a déjà un compte dessus : la même question avec le bookmaker suivant de la liste (« " +
+      vipScriptAskBook(books[1]?.label ?? "<bookmaker suivant>") +
+      " »), jusqu'à en trouver un où il n'a pas de compte.",
+    `4. Dès qu'il n'a pas de compte sur le bookmaker dont vous parlez (ou qu'il te demande le lien) : « ${VIP_SCRIPT_LINK} », avec send_offer : true et selected_book : la clé de ce bookmaker. Le lien part tout seul juste après ton message.`,
+    '5. S\'il a un compte sur TOUS les bookmakers → handoff : { needed: true, reason: "off_faq" }.',
+    "6. Quand il confirme avoir fait son dépôt → send_vip_link : true et selected_book : la clé du bookmaker où il a déposé. Le système lui envoie le lien du canal VIP.",
+    "7. S'il dit non, hésite ou pose une question : réponds-lui court avec la fiche d'informations, sans insister, puis reprends le script là où vous en étiez.",
+    "8. Ne repose jamais une étape à laquelle il a déjà répondu (s'il dit déjà qu'il n'a pas de compte sur le premier bookmaker, passe à l'étape 4).",
     "9. Ne mentionne jamais selected_book ni send_vip_link dans tes messages. Ce sont des champs techniques invisibles pour la personne.",
   );
   return lines;
@@ -146,7 +175,7 @@ function offerSection(ctx: SystemPromptContext, universe: AssistantUniverse): st
 
   // Gérant du VIP : le parcours des bookmakers décide du moment (jamais avant de savoir où il n'a pas de compte).
   if (universe === "sports" && p.vipManager === true && hasBooks)
-    return `Lien d'inscription permis à ce message. Suis le PARCOURS INSCRIPTION BOOKMAKER : dès qu'il te dit qu'il n'a pas de compte sur le bookmaker dont vous parlez, ou qu'il te demande le lien, envoie-le maintenant : send_offer : true, selected_book : la clé de ce bookmaker, stage : PROPOSAL ; ${ctx.noButtons ? `le ${loose}` : `un bouton « ${button} » s'ajoutera sous ton dernier message, annonce-le simplement, sans jamais écrire d'adresse`}.${again}`;
+    return `Lien d'inscription permis à ce message. Suis le SCRIPT : dès qu'il te dit qu'il n'a pas de compte sur le bookmaker dont vous parlez, ou qu'il te demande le lien, envoie-le maintenant : send_offer : true, selected_book : la clé de ce bookmaker, stage : PROPOSAL ; ${ctx.noButtons ? `le ${loose}` : `un bouton « ${button} » s'ajoutera sous ton dernier message, annonce-le simplement, sans jamais écrire d'adresse`}.${again}`;
   if (ctx.memberAskedOffer)
     return ctx.noButtons
       ? `La personne demande l'accès, le lien ou l'inscription : réponds-lui et envoie le lien maintenant (send_offer : true, stage : PROPOSAL).${bookNote} Le ${loose}.${again}`
@@ -179,7 +208,8 @@ function vipFinalCheck(ctx: SystemPromptContext, linkNow: boolean): string[] {
     ctx.isFirstAssistantTurn
       ? "- Ne te présente pas : ni ton prénom, ni ton rôle."
       : "- Ne te présente pas et ne redis pas bonjour : vous parlez déjà.",
-    "- Aucune phrase qui fait patienter : jamais « attends », « je reviens », « 2 sec », « je regarde et je te dis ». Tu réponds maintenant avec ce que tu sais, ou tu mets handoff.",
+    "- Aucune phrase qui fait patienter : jamais « attends », « je reviens », « 2 sec », « je regarde et je te dis » (seule exception : « Ok attend je t'envoie le lien » de l'étape 4 du SCRIPT, avec send_offer : true). Tu réponds maintenant avec ce que tu sais, ou tu mets handoff.",
+    ...(books ? ["- Suis le SCRIPT : chaque phrase entre guillemets mot pour mot, à l'étape où vous en êtes."] : []),
     linkNow
       ? `- Si tu lui dis que tu envoies le lien d'inscription, mets send_offer : true${books ? " et selected_book : la clé du bookmaker dont tu parles" : ""}.${ctx.noButtons ? " Le lien part tout seul juste après ton message : ne parle jamais de bouton." : ""}`
       : "- Pas de lien d'inscription à ce message : ne dis pas que tu l'envoies, send_offer : false.",
@@ -188,7 +218,7 @@ function vipFinalCheck(ctx: SystemPromptContext, linkNow: boolean): string[] {
       : ctx.offerSends > 0
         ? "- Lien du VIP : seulement quand il te confirme avoir fait son dépôt ; mets alors send_vip_link : true et selected_book : la clé du bookmaker où il a déposé. Sinon, ne dis jamais que tu lui donnes l'accès."
         : "- Lien du VIP : impossible à ce message (aucun lien d'inscription envoyé) : ne dis jamais que tu lui donnes l'accès au VIP, send_vip_link : false.",
-    "- Ne repose jamais une question à laquelle il a déjà répondu plus haut : passe à l'étape suivante du parcours.",
+    "- Ne repose jamais une question à laquelle il a déjà répondu plus haut : passe à l'étape suivante du SCRIPT.",
   ];
 }
 
@@ -264,9 +294,9 @@ export function buildUniverseSystemPrompt(
     "",
     "FORME",
     "- Texte brut, comme sur une messagerie : pas de markdown (aucun astérisque, dièse, tiret de liste, accent grave ni crochet), pas de balise.",
-    `- 1 ou 2 messages courts : ${MAX_MESSAGE_CHARS} caractères au plus chacun, ${MAX_TURN_CHARS} au total. Une seule question à la fois.`,
+    `- 1 ou 2 messages courts : ${MAX_MESSAGE_CHARS} caractères au plus chacun, ${MAX_TURN_CHARS} au total. Une seule question à la fois${vip ? " (les phrases du SCRIPT restent telles quelles)" : ""}.`,
     vip
-      ? "- Tu parles comme un mec normal de 20 ans, en français de tous les jours (« salut », « oe », « tkt », « frérot » de temps en temps, sans en faire trop). Zéro emoji, jamais. Messages courts et naturels. Pas de phrases de pub, pas de listes, pas de ton de service client. Tu ne poses pas une question à chaque message : parfois tu réponds juste et tu t'arrêtes.\n- Ne dis JAMAIS « attends », « je reviens », « 2 sec », « j'arrive », « un instant », ni aucune phrase qui fait patienter. Tu as TOUJOURS la réponse sous la main : réponds directement avec ce que tu sais (FAQ, fiche d'offre). Si tu ne sais vraiment pas, passe à l'équipe (handoff), mais ne fais JAMAIS patienter."
+      ? "- Tu parles comme un mec normal de 20 ans, en français de tous les jours (« salut », « oe », « tkt », « frérot » de temps en temps, sans en faire trop). Zéro emoji, jamais. Messages courts et naturels. Pas de phrases de pub, pas de listes, pas de ton de service client. Tu ne poses pas une question à chaque message : parfois tu réponds juste et tu t'arrêtes.\n- Ne dis JAMAIS « attends », « je reviens », « 2 sec », « j'arrive », « un instant », ni aucune phrase qui fait patienter (seule exception : « Ok attend je t'envoie le lien » de l'étape 4 du SCRIPT, quand le lien part à ce message). Tu as TOUJOURS la réponse sous la main : réponds directement avec ce que tu sais (FAQ, fiche d'offre). Si tu ne sais vraiment pas, passe à l'équipe (handoff), mais ne fais JAMAIS patienter."
       : "- Clair, poli et chaleureux, sans en faire trop ; un emoji de temps en temps au plus. Tutoie la personne, sauf si elle te vouvoie.",
     "- Ne répète jamais une phrase déjà dite dans les derniers messages.",
     "",
@@ -290,7 +320,7 @@ export function buildUniverseSystemPrompt(
     universe === "sports" && p.bookmakers
       ? [...p.bookmakers].sort((a, b) => a.priority - b.priority)
       : [];
-  if (books.length > 0) lines.push(...bookmakerFlowSection(books));
+  if (books.length > 0) lines.push(...(vip ? vipScriptSection(books, ctx.lang) : bookmakerFlowSection(books)));
 
   lines.push(
     "",
@@ -316,8 +346,8 @@ export function buildUniverseSystemPrompt(
       lines.push(
         "",
         "PREMIER MESSAGE",
-        ctx.memberAskedOffer && first
-          ? `C'est ton premier message dans cette conversation et il te parle déjà du VIP : ne lui redemande PAS s'il est là pour le VIP, et ne te présente pas (ni prénom, ni rôle). Réponds-lui en une phrase courte que le VIP est gratuit et réservé aux joueurs des bookmakers partenaires, puis demande-lui s'il connaît ${first.label} et s'il a déjà un compte dessus (étapes 1 et 2 du PARCOURS INSCRIPTION BOOKMAKER). Pas encore de lien.`
+        first
+          ? `C'est ton premier message dans cette conversation : écris l'étape 1 du SCRIPT, exactement, et rien d'autre (ne te présente pas, ne lui demande pas s'il est là pour le VIP, pas encore de lien). Seule exception : si son message n'a rien à voir avec le VIP ni les paris (vente de pub, autre sujet), réponds-y directement sans te présenter.`
           : `C'est ton premier message dans cette conversation : ne te présente PAS, ne dis pas ton prénom, ne dis pas ton rôle. Va droit au but : demande-lui directement s'il est là pour le VIP, comme un pote qui parle cash (en ${LANGUAGE_NAMES_FR[ctx.lang]}, par exemple : « yo frero t la pr le vip ? »). Si sa question porte sur autre chose, réponds-y directement sans te présenter.`,
       );
     } else {

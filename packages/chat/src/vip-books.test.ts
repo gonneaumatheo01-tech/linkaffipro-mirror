@@ -16,6 +16,7 @@ import {
 import { buildSystemPrompt } from "./prompt";
 import { checkTurnOutput } from "./schema";
 import { fixedText } from "./texts";
+import { VIP_SCRIPT_LINK, VIP_SCRIPT_PITCH } from "./vip";
 import { hasIntro } from "./validate";
 import type { PersonaInput, TurnInput } from "./turn-types";
 
@@ -86,8 +87,18 @@ describe("prompt : bookmakers partenaires", () => {
     const order = ["1. Celsius Casino", "2. Bet Portal", "3. Sportaza"].map((l) => p.indexOf(l));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    expect(p).toContain("PARCOURS INSCRIPTION BOOKMAKER");
+    // Gérant du VIP : le script du client, mot pour mot, à la place du parcours générique.
+    expect(p).toContain("SCRIPT (prioritaire sur les exemples de registre");
+    expect(p).not.toContain("PARCOURS INSCRIPTION BOOKMAKER");
+    expect(p).toContain(`« ${VIP_SCRIPT_PITCH} »`);
+    expect(p).toContain("« Tu connais Celsius Casino ? t'as un compte dessus ? »");
+    expect(p).toContain("« Tu connais Bet Portal ? t'as un compte dessus ? »");
+    expect(p).toContain(`« ${VIP_SCRIPT_LINK} », avec send_offer : true`);
     expect(p).toContain('"selected_book":""');
+    // Autre persona de Paris sportifs : parcours générique, sans le script.
+    const plain = buildSystemPrompt({ ...ctx, persona: mehdi({ vipManager: false }) });
+    expect(plain).toContain("PARCOURS INSCRIPTION BOOKMAKER");
+    expect(plain).not.toContain(VIP_SCRIPT_PITCH);
     expect(p).toContain("send_vip_link : true UNIQUEMENT");
   });
 

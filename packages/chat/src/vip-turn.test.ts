@@ -14,6 +14,7 @@ import {
   type FakeTurnDepsOptions,
 } from "./fake";
 import { fixedText } from "./texts";
+import { VIP_SCRIPT_LINK, VIP_SCRIPT_PITCH } from "./vip";
 import type { HistoryMessage, PersonaInput, TurnInput } from "./turn-types";
 import { VeniceError } from "./types";
 
@@ -154,10 +155,8 @@ describe("gérant du VIP : lien annoncé = lien envoyé", () => {
     const { deps } = setup([{ messages: ["parfait bg je t'envoie le lien d'inscription"] }]);
     const r = await runTurn(input(afterBetportal), deps);
     expect(deps.offerBookKeys).toEqual(["betportal"]);
-    expect(texts(deps)).toEqual([
-      "parfait bg je t'envoie le lien d'inscription",
-      deps.offerLinks[0]!.url,
-    ]);
+    // Le texte du script remplace le sien : l'envoi du lien est toujours dit avec les mots du client.
+    expect(texts(deps)).toEqual([VIP_SCRIPT_LINK, deps.offerLinks[0]!.url]);
     expect(r.offerSent?.bookmakerKey).toBe("betportal");
     expect(r.events).toContainEqual({
       type: "offer_sent",
@@ -206,9 +205,8 @@ describe("gérant du VIP : lien annoncé = lien envoyé", () => {
       deps,
     );
     expect(r.rejected).toContain("vip_access_not_allowed");
-    expect(texts(deps)).toEqual([
-      "yo le vip c'est gratuit, tu connais Celsius Casino ? t'as un compte dessus ?",
-    ]);
+    // Premier message qui parle du VIP : le script du client, mot pour mot.
+    expect(texts(deps)).toEqual([VIP_SCRIPT_PITCH]);
     expect(deps.offerLinks).toHaveLength(0);
   });
 
@@ -336,5 +334,106 @@ describe("les autres personas ne changent pas", () => {
     const r = await runTurn(input({ persona: mehdi({ vipManager: false }) }), deps);
     expect(deps.sender.messages()).toEqual([]);
     expect(r.needsHuman ?? null).toBeNull();
+  });
+});
+
+describe("gérant du VIP : script du client (3 novembre 2026)", () => {
+  const first = (text: string, language: "fr" | "en" = "fr") => ({
+    conversation: fakeConversation({
+      memberMessages: 1,
+      assistantTurns: 0,
+      isFirstAssistantTurn: true,
+      stage: "WELCOME",
+      memberLanguageCode: language,
+      style: { language },
+    }),
+    history: [],
+    inbound: [{ id: "in-1", text }],
+  });
+
+  it("premier message : le texte du client mot pour mot, même si le modèle l'a dit autrement", async () => {
+    const { deps } = setup([{ messages: ["yo frero t la pr le vip ?"] }]);
+    const r = await runTurn(input(first("salut")), deps);
+    expect(texts(deps)).toEqual([VIP_SCRIPT_PITCH]);
+    expect(r.rejected).toEqual([]);
+    expect(deps.offerLinks).toHaveLength(0);
+  });
+
+  it("premier message sans rapport avec le VIP : la réponse du modèle reste", async () => {
+    const { deps } = setup([{ messages: ["salut, dis moi ce que tu cherches"] }]);
+    await runTurn(input(first("salut c'est pour une collaboration")), deps);
+    expect(texts(deps)).toEqual(["salut, dis moi ce que tu cherches"]);
+  });
+
+  it("premier message en anglais : pas de texte français imposé", async () => {
+    const { deps } = setup([{ messages: ["hey, the vip is free for players of our partner books, ok for you?"] }]);
+    await runTurn(input(first("hi, how do i join the vip?", "en")), deps);
+    expect(texts(deps)).toEqual(["hey, the vip is free for players of our partner books, ok for you?"]);
+  });
+
+  it("« oui vasy » → la question sur le premier bookmaker, telle quelle", async () => {
+    const ask = "Tu connais Celsius Casino ? t'as un compte dessus ?";
+    const { deps } = setup([{ messages: [ask] }]);
+    const r = await runTurn(
+      input({
+        conversation: fakeConversation({ memberMessages: 2, assistantTurns: 1, stage: "WELCOME" }),
+        history: [inn("salut"), out(VIP_SCRIPT_PITCH)],
+        inbound: [{ id: "in-2", text: "Oui vasy" }],
+      }),
+      deps,
+    );
+    expect(texts(deps)).toEqual([ask]);
+    expect(r.rejected).toEqual([]);
+  });
+
+  it("« non j'ai pas de compte » → « Ok attend je t'envoie le lien… » accepté, puis le lien de ce bookmaker", async () => {
+    const { deps } = setup([
+      { messages: [VIP_SCRIPT_LINK], send_offer: true, stage: "PROPOSAL", selected_book: "celsiuscasino" },
+    ]);
+    const r = await runTurn(
+      input({
+        conversation: fakeConversation({ memberMessages: 3, assistantTurns: 2, stage: "WELCOME" }),
+        history: [
+          inn("salut"),
+          out(VIP_SCRIPT_PITCH),
+          inn("Oui vasy"),
+          out("Tu connais Celsius Casino ? t'as un compte dessus ?"),
+        ],
+        inbound: [{ id: "in-3", text: "Non j'ai pas de compte" }],
+      }),
+      deps,
+    );
+    expect(r.rejected).toEqual([]);
+    expect(deps.offerBookKeys).toEqual(["celsiuscasino"]);
+    expect(texts(deps)).toEqual([VIP_SCRIPT_LINK, deps.offerLinks[0]!.url]);
+  });
+
+  it("« attend je t'envoie le lien » sans lien possible à ce message : refusé", async () => {
+    const { deps } = setup([{ messages: [VIP_SCRIPT_LINK] }, { messages: [VIP_SCRIPT_LINK] }]);
+    const r = await runTurn(input(first("salut je veux le vip")), deps);
+    expect(r.rejected).toContain("link_not_allowed");
+    expect(deps.offerLinks).toHaveLength(0);
+  });
+
+  it("dépôt confirmé après le script : « c bon c fait » donne le lien du VIP", async () => {
+    const { deps } = setup([
+      { messages: ["parfait frero voila l'accès au vip"], send_vip_link: true, selected_book: "celsiuscasino" },
+    ]);
+    const r = await runTurn(
+      input({
+        conversation: fakeConversation({
+          memberMessages: 4,
+          assistantTurns: 3,
+          stage: "LINK_SENT",
+          offerSends: 1,
+          lastOfferBookKey: "celsiuscasino",
+        }),
+        history: [inn("Non j'ai pas de compte"), out(VIP_SCRIPT_LINK)],
+        inbound: [{ id: "in-4", text: "C bon c fait" }],
+      }),
+      deps,
+    );
+    expect(r.rejected).toEqual([]);
+    expect(r.vipLinkSent).toEqual({ url: VIP_LINKS.celsiuscasino, bookmakerKey: "celsiuscasino" });
   });
 });
