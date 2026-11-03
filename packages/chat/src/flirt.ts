@@ -542,24 +542,18 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
   if (tunnel) return tunnel;
 
   switch (state.phase) {
-    // Rien en cours : la chauffe ou une demande de photo démarre le tunnel (7 messages scriptés, zéro appel IA).
-    // Sans aucune photo de chauffe, la série n'existe pas : rien ne bouge.
+    // Rien en cours : entrée directe dans le tunnel scripté (7 messages linéaires vers un lien, zéro appel IA).
+    // Sans photo de chauffe, la série n'existe pas : rien ne bouge.
     case "NONE": {
       if (input.hasPhotos.length === 0) return rien();
-      const chaud = isSexTalk(input.text) || isHot(input.recent, input.text);
-      if (!chaud && asksPhoto(input.text) && !photo(1)) return rien("play_hard");
-      if (chaud || asksPhoto(input.text)) {
-        // Entrée dans le tunnel scripté : T1 → envoie le 1er message, avance vers T2.
-        const entry = TUNNEL_SCRIPT[0]!;
-        return {
-          state: { phase: "T2" as FlirtPhase, lastPhoto: 0, exchanges: 0 },
-          allow: ["rien"],
-          photoSlot: null,
-          directive: "none" as FlirtDirective,
-          scripted: { texts: entry.texts, key: entry.key },
-        };
-      }
-      return rien();
+      const entry = TUNNEL_SCRIPT[0]!;
+      return {
+        state: { phase: "T2" as FlirtPhase, lastPhoto: 0, exchanges: 0 },
+        allow: ["rien"],
+        photoSlot: null,
+        directive: "none" as FlirtDirective,
+        scripted: { texts: entry.texts, key: entry.key },
+      };
     }
 
     // Série en cours : une photo tous les MIN_ECHANGES_ENTRE_PHOTOS messages, pas plus.

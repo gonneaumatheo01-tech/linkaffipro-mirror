@@ -48,26 +48,12 @@ function prompt(
 }
 
 describe("prompt de la série de photos", () => {
-  it("elle provoque et tranche, sans mots qui hésitent", () => {
-    const p = prompt("NONE", 0, "ça va");
+  // NONE entre désormais directement dans le tunnel scripté (zéro IA, pas de prompt). Les tests de provocation et d'app
+  // ne s'appliquent plus à NONE. On vérifie que la provocation reste présente sur PHOTOS (conversations pré-tunnel).
+  it("elle provoque et tranche sur PHOTOS", () => {
+    const p = prompt("PHOTOS", 101, "ptn t'es bonne");
     expect(p).toContain("tu cherches quoi ici toi ?");
     expect(p).toContain("« du sexe ? 😏 »");
-    expect(p).toContain("« on verra »");
-    expect(p).not.toContain("ca depend comment c'est utilise");
-  });
-
-  it("pas encore chaud : la provocation est redite à la fin, avec la consigne du tour", () => {
-    const p = prompt("NONE", 0, "ça va");
-    expect(p.lastIndexOf("Pas encore chaud : à ce tour tu provoques")).toBeGreaterThan(
-      p.indexOf("AVANT D'ENVOYER"),
-    );
-    expect(prompt("PHOTOS", 101, "ptn t'es bonne")).not.toContain("Pas encore chaud");
-  });
-
-  it("pas d'app tant que ce n'est pas chaud", () => {
-    const p = prompt("NONE", 0, "ça va");
-    expect(p).toContain("Pas d'app ni de lien maintenant");
-    expect(p).not.toContain("d'ailleurs ici y'a trop de mecs bizarres");
   });
 
   it("tour de vente : chaude de fou, pas à l'aise d'être trop chaude sur telegram, grave chaude sur l'appli", () => {

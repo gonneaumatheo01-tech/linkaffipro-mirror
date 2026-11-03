@@ -61,28 +61,19 @@ describe("lecture du message", () => {
     expect(d.scripted!.key).toBe("tunnel1");
   });
 
-  it("« tu fais quoi là » seul reste doux ; avec un deuxième signal doux, le tunnel démarre", () => {
-    expect(decideFlirt(tour("NONE", "tu fais quoi là")).state.phase).toBe("NONE");
-    expect(decideFlirt(tour("NONE", "tu fais quoi là bb ?")).state.phase).toBe("T2");
-    expect(
-      decideFlirt({ step: "NONE", teases: 0, recent: ["t'es trop belle"], text: "tu fais quoi là", hasPhotos: photos })
-        .state.phase,
-    ).toBe("T2");
-  });
-
   it.each([
+    "tu fais quoi là",
     "salut ça va",
     "slt cv ?",
-    "bonne nuit, belle journée demain",
+    "bonne nuit",
     "je fais la queue à la poste",
     "c'est unique comme truc",
-    "je continue demain",
-    "une bande de potes",
-    "je t'envoie un message plus tard",
-    "c'est typique de paris",
     "j'ai envie de dormir",
-  ])("« %s » ne démarre pas la série", (text) => {
-    expect(decideFlirt(tour("NONE", text)).state.phase).toBe("NONE");
+  ])("« %s » entre directement dans le tunnel (plus d'attente de chauffe)", (text) => {
+    const d = decideFlirt(tour("NONE", text));
+    expect(d.state.phase).toBe("T2");
+    expect(d.scripted).toBeDefined();
+    expect(d.scripted!.key).toBe("tunnel1");
   });
 
   it("une persona sans photo de chauffe (Casino, Paris) n'entre jamais dans la série", () => {
@@ -104,10 +95,11 @@ describe("état rangé dans deux colonnes", () => {
 });
 
 describe("démarrage", () => {
-  it("rien ne démarre sans sexe", () => {
+  it("n'importe quel message en NONE démarre le tunnel", () => {
     const d = decideFlirt(tour("NONE", "ça va et toi"));
-    expect(d.allow).toEqual(["rien"]);
-    expect(d.photoSlot).toBeNull();
+    expect(d.state.phase).toBe("T2");
+    expect(d.scripted).toBeDefined();
+    expect(d.scripted!.key).toBe("tunnel1");
   });
 
   // Changé (tunnel) : une demande de photo démarre le tunnel scripté au lieu de la série de photos.
@@ -118,10 +110,10 @@ describe("démarrage", () => {
     expect(d.scripted!.texts[0]).toContain("Salut bb");
   });
 
-  it("une demande de photo sans photo 1 fait genre", () => {
+  it("une demande de photo sans photo 1 entre quand même dans le tunnel", () => {
     const d = decideFlirt(tour("NONE", "envoie une photo", 0, [2, 3]));
-    expect(d.directive).toBe("play_hard");
-    expect(d.allow).toEqual(["rien"]);
+    expect(d.state.phase).toBe("T2");
+    expect(d.scripted).toBeDefined();
   });
 
   it("série épuisée ou refusée : une demande de photo fait genre", () => {

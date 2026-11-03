@@ -1156,6 +1156,15 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   // tour.
   const linkWasArmed =
     personaIdentity(input.persona) === "GIRL" && conv.facts.includes(ARMED_LINK_FACT);
+  // Silence immédiat : anciennes phases de la série (PHOTOS → DONE) et conversations NONE existantes (Léa a déjà
+  // répondu). Exécuté AVANT decideFlirt : ces conversations ne recalculent pas la machine à états.
+  if (series) {
+    const OLD_SERIES_PHASES = ["PHOTOS", "OFFER", "LINKED", "REFUSED", "WRAP", "DONE"];
+    if (OLD_SERIES_PHASES.includes(conv.flirt?.step ?? ""))
+      return { ...baseResult(run, inbound), outcome: "aborted" };
+    if ((conv.flirt?.step ?? "NONE") === "NONE" && conv.assistantTurns > 0)
+      return { ...baseResult(run, inbound), outcome: "aborted" };
+  }
   // Script de chauffe : uniquement une fille avec série de photos. Jamais calculé ailleurs (Paris sportifs, Casino,
   // persona sans photos) : aucune de ses règles ne peut toucher ces conversations.
   const flirt: FlirtDecision | null = series
@@ -1187,13 +1196,6 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   if (minor.minor) return stopForMinor(run, inbound, "code", minor.age);
 
   if (flirt) {
-    // Anciennes conversations (série de photos PHOTOS → DONE) : silence total, le tunnel scripté remplace la série.
-    const OLD_SERIES_PHASES = ["PHOTOS", "OFFER", "LINKED", "REFUSED", "WRAP", "DONE"];
-    if (OLD_SERIES_PHASES.includes(conv.flirt?.step ?? ""))
-      return { ...baseResult(run, inbound), outcome: "aborted" };
-    // Conversation en NONE qui ne déclenche pas le tunnel : silence (Léa ne répond que par le tunnel scripté).
-    if ((conv.flirt?.step ?? "NONE") === "NONE" && !isTunnelPhase(flirt.state.phase))
-      return { ...baseResult(run, inbound), outcome: "aborted" };
     if (flirt.silent) return { ...baseResult(run, inbound), outcome: "aborted" };
     // Relance après le lien : une seule, courte (« t la ? »), texte fixe sans appel au modèle ; ensuite silence. Les
     // autres relances de la série suivent les règles générales.

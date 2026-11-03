@@ -79,7 +79,7 @@ describe("anciennes conversations (série de photos) : silence total", () => {
 describe("simulation de la série de photos (conversations en cours)", () => {
   it("moins de 18 ans : plus de photo ni de lien", async () => {
     const deps = createFakeTurnDeps({ llm: modele() });
-    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });
+    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 0, memberMessages: 0 });
     conv.flirt = { step: "NONE", teases: 0 };
     const persona = fakePersona({
       identity: "GIRL",
@@ -118,7 +118,7 @@ describe("simulation du tunnel scripté", () => {
       return fakeOutput({ messages: ["oui bb"], action: "rien" });
     });
     const deps = createFakeTurnDeps({ llm });
-    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });
+    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 0, memberMessages: 0 });
     conv.flirt = { step: "NONE", teases: 0 };
     const persona = fakePersona({
       identity: "GIRL",
@@ -200,7 +200,7 @@ describe("simulation du tunnel scripté", () => {
       return fakeOutput({ messages: ["oui"], action: "rien" });
     });
     const deps = createFakeTurnDeps({ llm });
-    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });
+    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 0, memberMessages: 0 });
     conv.flirt = { step: "NONE", teases: 0 };
     const persona = fakePersona({
       identity: "GIRL",
