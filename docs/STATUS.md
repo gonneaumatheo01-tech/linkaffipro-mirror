@@ -1,3 +1,20 @@
+# Statut — 3 novembre 2026 : Mehdi suit le script du client mot pour mot
+
+## Fait
+- ✅ Script du client en ligne : premier message (« Salut, dcp je t'explique… C'est bon pour toi ? »), « Tu connais Celsius Casino ? t'as un compte dessus ? » (puis Betportal, Sportaza s'il a déjà un compte), « Ok attend je t'envoie le lien… t'auras accès au bet tir cadré. » + le lien, puis le lien du VIP après le dépôt.
+- ⚠️ La mise en ligne de 16 h 01 (session de Léa, depuis une branche sans le travail de Mehdi) avait retiré le script et les corrections du 2 novembre : d'où « yo frero t la pr le vip? » et « attends je reviens 2 sec » entre 16 h et 17 h 47. Les deux travaux sont fusionnés (Léa garde son tunnel), les trois services remis en ligne à 17 h 47 ; la session de Léa est prévenue de fusionner `main` avant chaque mise en ligne.
+- ✅ Vérifié après la mise en ligne avec la vraie IA, sans rien envoyer : 42 tours (parcours complet, compte déjà existant, « c quoi les tirs cadrés ? », « c'est payant ? », vente de pub, « Slt », « 👋 », « VIP », « Yes frR », « Nan jai pas de compte dessus ») : chaque phrase du script mot pour mot, aucun « je reviens », 0 problème.
+- Crédit Venice rechargé (9,63 $ restants à 17 h 50).
+
+## Test de 5 minutes
+1. Depuis un autre compte Telegram, écrire « VIP » à Mehdi : il doit répondre le premier message du script, mot pour mot (2 à 3 minutes).
+2. Répondre « oui vasy », puis « non j'ai pas de compte » : le message « Ok attend je t'envoie le lien… » arrive avec le lien Celsius.
+
+## Problèmes et actions humaines
+- Les conversations d'Enzo et de shhs381 sont reprises en main par l'équipe (statut « Équipe ») : Mehdi ne leur répond plus tant qu'on ne les lui rend pas.
+
+---
+
 # Statut — 2 novembre 2026 : Mehdi ne fait plus jamais patienter
 
 ## Fait
