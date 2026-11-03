@@ -11,8 +11,7 @@ import {
   fakeSettings,
 } from "./fake";
 import type { FlirtAction } from "./flirt";
-import { announcesLink } from "./pseudo";
-import type { HistoryMessage, TurnInput } from "./turn-types";
+import type { HistoryMessage } from "./turn-types";
 
 const PHOTOS = [1, 2, 3, 4, 5].map((slot) => ({
   slot,
@@ -55,120 +54,29 @@ function modele() {
   });
 }
 
-describe("simulation de la série de photos", () => {
-  it("déroulé complet avec refus du site", async () => {
-    const deps = createFakeTurnDeps({ llm: modele() });
+describe("anciennes conversations (série de photos) : silence total", () => {
+  it("plusieurs messages sur une conversation PHOTOS → aucune réponse, aucun appel modèle", async () => {
+    let modelCalls = 0;
+    const llm = createFakeLlm(() => { modelCalls++; return fakeOutput({ messages: ["oui"], action: "rien" }); });
+    const deps = createFakeTurnDeps({ llm });
     const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });
-    conv.flirt = { step: "NONE", teases: 0 };
-    const persona = fakePersona({
-      identity: "GIRL",
-      illusion: true,
-      hasOffer: true,
-      flirtPhotos: PHOTOS,
-    });
-    const history: HistoryMessage[] = [];
-    const photos: { tour: number; slot: number }[] = [];
-    const liens: number[] = [];
-    const rejets: string[] = [];
+    conv.flirt = { step: "PHOTOS", teases: 100 };
+    const persona = fakePersona({ identity: "GIRL", illusion: true, hasOffer: true, flirtPhotos: PHOTOS });
 
-    for (const [i, texte] of SCRIPT.entries()) {
-      const input: TurnInput = {
-        kind: "reply",
-        persona,
-        settings: fakeSettings(),
-        conversation: conv,
-        history: [...history],
-        inbound: [{ text: texte }],
-      };
-      const res = await runTurn(input, deps);
-      const asset = res.sent.find((p) => p.mediaAssetId)?.mediaAssetId ?? null;
-      const slot = asset ? Number(asset.split("-")[1]) : null;
-      if (slot) photos.push({ tour: i + 1, slot });
-      if (res.offerSent) liens.push(i + 1);
-      rejets.push(...res.rejected);
-      console.log(`${i + 1}. LUI  ${texte}`);
-      console.log(
-        `   ELLE ${res.sent.map((p) => p.text).join(" / ")}${slot ? `   [PHOTO ${slot}]` : ""}${
-          res.offerSent ? "   [LIEN]" : ""
-        }`,
-      );
-      if (res.newFlirtStep) conv.flirt = { step: res.newFlirtStep, teases: res.flirtTeases ?? 0 };
-      for (const p of res.sent)
-        history.push({ direction: "OUT", author: "ASSISTANT", text: p.text });
-      history.push({ direction: "IN", author: "MEMBER", text: texte });
-    }
-
-    expect(photos.map((p) => p.slot)).toEqual([1, 2, 3, 4, 5]);
-    expect(liens).toHaveLength(1);
-    // Une photo tous les deux échanges : jamais deux tours de suite.
-    for (let i = 1; i < photos.length; i++)
-      expect(photos[i]!.tour - photos[i - 1]!.tour).toBeGreaterThanOrEqual(2);
-    // Aucun lien sur le message qui suit la photo 3.
-    expect(liens[0]!).toBeGreaterThanOrEqual(photos[2]!.tour + 1);
-    // La photo 4 seulement après deux échanges depuis le refus.
-    expect(photos[3]!.tour - (liens[0]! + 1)).toBeGreaterThanOrEqual(2);
-    // Le modèle a bien tenté une action interdite, et le code l'a refusée.
-    expect(rejets).toContain("action_interdite");
-  });
-
-  it("lien annoncé = lien envoyé dans le même tour (bug de production)", async () => {
-    // Modèle qui annonce le lien dès que la série est en attente de lien, sans choisir lui-même l'action « lien ».
-    const annonce = createFakeLlm((req) => {
-      const system = req.messages.find((m) => m.role === "system")?.content ?? "";
-      const permises = (/Actions permises : ([^\n]+)/.exec(system)?.[1] ?? "rien").toLowerCase();
-      if (permises.includes("photo"))
-        return fakeOutput({ messages: ["attends, juste une"], action: "photo" });
-      return fakeOutput({
-        messages: ["la bas jsuis plus coquine, attends je t'envoie le lien"],
-        action: "rien",
-      });
-    });
-    const deps = createFakeTurnDeps({ llm: annonce });
-    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });
-    conv.flirt = { step: "NONE", teases: 0 };
-    const persona = fakePersona({
-      identity: "GIRL",
-      illusion: true,
-      hasOffer: true,
-      flirtPhotos: PHOTOS,
-    });
-    const history: HistoryMessage[] = [];
-    const tours: { annonce: boolean; lien: boolean }[] = [];
-    for (const texte of [
-      "j'ai trop envie de toi",
-      "grave",
-      "mmh",
-      "continue",
-      "ptn t'es bonne",
-      "j'adore",
-      "ah ouais ?",
-      "ok",
-    ]) {
+    for (const texte of SCRIPT.slice(0, 5)) {
       const res = await runTurn(
-        {
-          kind: "reply",
-          persona,
-          settings: fakeSettings(),
-          conversation: conv,
-          history: [...history],
-          inbound: [{ text: texte }],
-        },
+        { kind: "reply", persona, settings: fakeSettings(), conversation: conv, history: [], inbound: [{ text: texte }] },
         deps,
       );
-      const textes = res.sent.map((p) => p.text);
-      tours.push({ annonce: announcesLink(textes), lien: res.offerSent !== null });
-      if (res.newFlirtStep) conv.flirt = { step: res.newFlirtStep, teases: res.flirtTeases ?? 0 };
-      conv.facts = res.facts;
-      if (res.offerSent) conv.offerSends += 1;
-      history.push({ direction: "IN", author: "MEMBER", text: texte });
-      for (const p of res.sent)
-        history.push({ direction: "OUT", author: "ASSISTANT", text: p.text });
+      expect(res.outcome).toBe("aborted");
+      expect(res.sent).toHaveLength(0);
+      expect(res.offerSent).toBeNull();
     }
-    // Jamais une annonce sans le lien dans le même tour, et le lien finit bien par partir.
-    for (const t of tours) if (t.annonce) expect(t.lien).toBe(true);
-    expect(tours.some((t) => t.lien)).toBe(true);
+    expect(modelCalls).toBe(0);
   });
+});
 
+describe("simulation de la série de photos (conversations en cours)", () => {
   it("moins de 18 ans : plus de photo ni de lien", async () => {
     const deps = createFakeTurnDeps({ llm: modele() });
     const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });
@@ -195,5 +103,198 @@ describe("simulation de la série de photos", () => {
     expect(res.outcome).toBe("minor");
     expect(res.sent.some((p) => p.mediaAssetId)).toBe(false);
     expect(res.offerSent).toBeNull();
+  });
+});
+
+// ------------------------------------------------------------------
+// Tunnel scripté (7 messages, zéro appel IA, puis silence)
+// ------------------------------------------------------------------
+
+describe("simulation du tunnel scripté", () => {
+  it("déroulé complet T1→T7→silence (zéro appel au modèle)", async () => {
+    let modelCalls = 0;
+    const llm = createFakeLlm(() => {
+      modelCalls++;
+      return fakeOutput({ messages: ["oui bb"], action: "rien" });
+    });
+    const deps = createFakeTurnDeps({ llm });
+    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });
+    conv.flirt = { step: "NONE", teases: 0 };
+    const persona = fakePersona({
+      identity: "GIRL",
+      illusion: true,
+      hasOffer: true,
+      flirtPhotos: PHOTOS,
+    });
+    const history: HistoryMessage[] = [];
+    const resultats: { tour: number; textes: string[]; photo: boolean; lien: boolean }[] = [];
+
+    const MESSAGES = [
+      "t'es bonne bb",       // → T1 scripté (entre dans le tunnel)
+      "ouais",               // → T2
+      "continue",            // → T3 (photo)
+      "ptn",                 // → T4
+      "grave",               // → T5
+      "ok",                  // → T6 (lien)
+      "merci",               // → T7
+      "salut ?",             // → T_DONE silence
+    ];
+
+    for (const [i, texte] of MESSAGES.entries()) {
+      const res = await runTurn(
+        {
+          kind: "reply",
+          persona,
+          settings: fakeSettings(),
+          conversation: conv,
+          history: [...history],
+          inbound: [{ text: texte }],
+        },
+        deps,
+      );
+      const asset = res.sent.find((p) => p.mediaAssetId)?.mediaAssetId ?? null;
+      const textes = res.sent.map((p) => p.text);
+      resultats.push({
+        tour: i + 1,
+        textes,
+        photo: asset !== null,
+        lien: res.offerSent !== null,
+      });
+      console.log(
+        `${i + 1}. LUI  ${texte}\n   ELLE ${textes.join(" / ")}${asset ? "   [PHOTO]" : ""}${
+          res.offerSent ? "   [LIEN]" : ""
+        }${res.outcome === "aborted" ? "   [SILENCE]" : ""}`,
+      );
+      if (res.newFlirtStep) conv.flirt = { step: res.newFlirtStep, teases: res.flirtTeases ?? 0 };
+      conv.facts = res.facts;
+      if (res.offerSent) conv.offerSends += 1;
+      for (const p of res.sent)
+        history.push({ direction: "OUT", author: "ASSISTANT", text: p.text });
+      history.push({ direction: "IN", author: "MEMBER", text: texte });
+    }
+
+    // Zéro appel au modèle sur tout le tunnel.
+    expect(modelCalls).toBe(0);
+
+    // Tour 1 (entrée) : texte « Salut bb ».
+    expect(resultats[0]!.textes[0]).toContain("Salut bb");
+
+    // Tour 3 : photo de chauffe (slot 3).
+    expect(resultats[2]!.photo).toBe(true);
+
+    // Tour 6 : lien d'inscription.
+    expect(resultats[5]!.lien).toBe(true);
+    expect(resultats[5]!.textes[0]).toContain("créer ton compte");
+
+    // Tour 7 : dernier message du tunnel.
+    expect(resultats[6]!.textes[0]).toContain("en live a cette heure ci");
+
+    // Tour 8 : silence total (aborted).
+    expect(resultats[7]!.textes).toHaveLength(0);
+  });
+
+  it("refus en plein tunnel : « pas grave tkt » puis silence", async () => {
+    let modelCalls = 0;
+    const llm = createFakeLlm(() => {
+      modelCalls++;
+      return fakeOutput({ messages: ["oui"], action: "rien" });
+    });
+    const deps = createFakeTurnDeps({ llm });
+    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });
+    conv.flirt = { step: "NONE", teases: 0 };
+    const persona = fakePersona({
+      identity: "GIRL",
+      illusion: true,
+      hasOffer: true,
+      flirtPhotos: PHOTOS,
+    });
+    const history: HistoryMessage[] = [];
+
+    // Tour 1 : entrée dans le tunnel.
+    const r1 = await runTurn(
+      { kind: "reply", persona, settings: fakeSettings(), conversation: conv, history, inbound: [{ text: "t'es bonne" }] },
+      deps,
+    );
+    if (r1.newFlirtStep) conv.flirt = { step: r1.newFlirtStep, teases: r1.flirtTeases ?? 0 };
+    history.push({ direction: "IN", author: "MEMBER", text: "t'es bonne" });
+    for (const p of r1.sent) history.push({ direction: "OUT", author: "ASSISTANT", text: p.text });
+    console.log(`1. LUI  t'es bonne\n   ELLE ${r1.sent.map((p) => p.text).join(" / ")}`);
+
+    // Tour 2 : refus.
+    const r2 = await runTurn(
+      { kind: "reply", persona, settings: fakeSettings(), conversation: conv, history: [...history], inbound: [{ text: "non je veux pas" }] },
+      deps,
+    );
+    console.log(`2. LUI  non je veux pas\n   ELLE ${r2.sent.map((p) => p.text).join(" / ")}`);
+    expect(r2.sent[0]?.text).toBe("pas grave tkt");
+    if (r2.newFlirtStep) conv.flirt = { step: r2.newFlirtStep, teases: r2.flirtTeases ?? 0 };
+    history.push({ direction: "IN", author: "MEMBER", text: "non je veux pas" });
+    for (const p of r2.sent) history.push({ direction: "OUT", author: "ASSISTANT", text: p.text });
+
+    // Tour 3 : silence.
+    const r3 = await runTurn(
+      { kind: "reply", persona, settings: fakeSettings(), conversation: conv, history: [...history], inbound: [{ text: "allo ?" }] },
+      deps,
+    );
+    console.log(`3. LUI  allo ?\n   ELLE [${r3.outcome}]`);
+    expect(r3.outcome).toBe("aborted");
+    expect(r3.sent).toHaveLength(0);
+
+    expect(modelCalls).toBe(0);
+  });
+
+  it("FAQ « c'est payant ? » après le tunnel : réponse scriptée, puis silence", async () => {
+    let modelCalls = 0;
+    const llm = createFakeLlm(() => {
+      modelCalls++;
+      return fakeOutput({ messages: ["oui bb c'est cool"], action: "rien" });
+    });
+    const deps = createFakeTurnDeps({ llm });
+    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 12, memberMessages: 12 });
+    // Simuler que le tunnel est terminé.
+    conv.flirt = { step: "T_DONE", teases: 0 };
+    const persona = fakePersona({
+      identity: "GIRL",
+      illusion: true,
+      hasOffer: true,
+      flirtPhotos: PHOTOS,
+    });
+
+    // Question FAQ « payant » → réponse scriptée.
+    const r1 = await runTurn(
+      { kind: "reply", persona, settings: fakeSettings(), conversation: conv, history: [], inbound: [{ text: "c'est payant ?" }] },
+      deps,
+    );
+    console.log(`1. LUI  c'est payant ?\n   ELLE ${r1.sent.map((p) => p.text).join(" / ")}`);
+    expect(r1.sent[0]?.text).toBe("Nonnn pas du tout");
+    if (r1.newFlirtStep) conv.flirt = { step: r1.newFlirtStep, teases: r1.flirtTeases ?? 0 };
+
+    // Message suivant : silence.
+    const r2 = await runTurn(
+      { kind: "reply", persona, settings: fakeSettings(), conversation: conv, history: [], inbound: [{ text: "ok merci" }] },
+      deps,
+    );
+    console.log(`2. LUI  ok merci\n   ELLE [${r2.outcome}]`);
+    expect(r2.outcome).toBe("aborted");
+
+    // Zéro appel au modèle : tout est scripté.
+    expect(modelCalls).toBe(0);
+  });
+
+  it("relance (follow_up) pendant le tunnel : silence", async () => {
+    const deps = createFakeTurnDeps({ llm: modele() });
+    const conv = fakeConversation({ stage: "CHAT", assistantTurns: 5, memberMessages: 5 });
+    conv.flirt = { step: "T4", teases: 0 };
+    const persona = fakePersona({
+      identity: "GIRL",
+      illusion: true,
+      hasOffer: true,
+      flirtPhotos: PHOTOS,
+    });
+    const res = await runTurn(
+      { kind: "follow_up", persona, settings: fakeSettings(), conversation: conv, history: [], inbound: [] },
+      deps,
+    );
+    expect(res.outcome).toBe("aborted");
   });
 });

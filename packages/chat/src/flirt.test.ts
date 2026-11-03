@@ -54,19 +54,20 @@ describe("lecture du message", () => {
     "tu me fais bander",
     "t'es excitée ?",
     "envoie moi une pic",
-  ])("« %s » démarre la série au premier message", (text) => {
+  ])("« %s » démarre le tunnel au premier message", (text) => {
     const d = decideFlirt(tour("NONE", text));
-    expect(d.state.phase).toBe("PHOTOS");
-    expect(d.photoSlot).toBe(1);
+    expect(d.state.phase).toBe("T2");
+    expect(d.scripted).toBeDefined();
+    expect(d.scripted!.key).toBe("tunnel1");
   });
 
-  it("« tu fais quoi là » seul reste doux ; avec un deuxième signal doux, la série démarre", () => {
+  it("« tu fais quoi là » seul reste doux ; avec un deuxième signal doux, le tunnel démarre", () => {
     expect(decideFlirt(tour("NONE", "tu fais quoi là")).state.phase).toBe("NONE");
-    expect(decideFlirt(tour("NONE", "tu fais quoi là bb ?")).state.phase).toBe("PHOTOS");
+    expect(decideFlirt(tour("NONE", "tu fais quoi là bb ?")).state.phase).toBe("T2");
     expect(
       decideFlirt({ step: "NONE", teases: 0, recent: ["t'es trop belle"], text: "tu fais quoi là", hasPhotos: photos })
         .state.phase,
-    ).toBe("PHOTOS");
+    ).toBe("T2");
   });
 
   it.each([
@@ -109,13 +110,12 @@ describe("démarrage", () => {
     expect(d.photoSlot).toBeNull();
   });
 
-  // Changé volontairement (tâche 1) : une demande de photo démarre la série au lieu de la fermer.
-  it("une demande de photo démarre la série et arme la photo 1", () => {
+  // Changé (tunnel) : une demande de photo démarre le tunnel scripté au lieu de la série de photos.
+  it("une demande de photo démarre le tunnel scripté", () => {
     const d = decideFlirt(tour("NONE", "envoie une photo"));
-    expect(d.state.phase).toBe("PHOTOS");
-    expect(d.directive).toBe("tease");
-    expect(d.allow).toContain("photo");
-    expect(d.photoSlot).toBe(1);
+    expect(d.state.phase).toBe("T2");
+    expect(d.scripted).toBeDefined();
+    expect(d.scripted!.texts[0]).toContain("Salut bb");
   });
 
   it("une demande de photo sans photo 1 fait genre", () => {
@@ -133,7 +133,7 @@ describe("démarrage", () => {
     );
   });
 
-  it("bascule immédiate : en pleine discussion tiède, la chauffe démarre la série à ce tour", () => {
+  it("bascule immédiate : en pleine discussion tiède, la chauffe démarre le tunnel", () => {
     const d = decideFlirt({
       step: "NONE",
       teases: 7,
@@ -141,15 +141,15 @@ describe("démarrage", () => {
       text: "t'as un gros cul toi",
       hasPhotos: photos,
     });
-    expect(d.state.phase).toBe("PHOTOS");
-    expect(d.photoSlot).toBe(1);
+    expect(d.state.phase).toBe("T2");
+    expect(d.scripted).toBeDefined();
   });
 
-  it("le sexe démarre la série et arme la photo 1", () => {
+  it("le sexe démarre le tunnel scripté", () => {
     const d = decideFlirt(tour("NONE", "j'ai envie de toi"));
-    expect(d.state.phase).toBe("PHOTOS");
-    expect(d.allow).toContain("photo");
-    expect(d.photoSlot).toBe(1);
+    expect(d.state.phase).toBe("T2");
+    expect(d.scripted).toBeDefined();
+    expect(d.scripted!.key).toBe("tunnel1");
   });
 
   it("sans photo disponible, elle accroche quand même", () => {

@@ -32,6 +32,7 @@ import {
   applyAction,
   decideFlirt,
   encodeProgress,
+  isTunnelPhase,
   type FlirtAction,
   type FlirtDecision,
 } from "./flirt";
@@ -1032,8 +1033,10 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   if (minor.minor) return stopForMinor(run, inbound, "code", minor.age);
 
   if (series) {
-    // Refus ferme et photos épuisées (DONE) : sa dernière ligne est partie, plus aucune réponse ni relance, même s'il
-    // insiste (ce n'est pas un /stop : la conversation reste ouverte, rien ne part).
+    // Anciennes conversations (série de photos PHOTOS → DONE) : silence total, le tunnel scripté remplace la série.
+    const OLD_SERIES_PHASES = ["PHOTOS", "OFFER", "LINKED", "REFUSED", "WRAP", "DONE"];
+    if (OLD_SERIES_PHASES.includes(conv.flirt?.step ?? ""))
+      return { ...baseResult(run, inbound), outcome: "aborted" };
     if (flirt.silent) return { ...baseResult(run, inbound), outcome: "aborted" };
     // Relance après le lien : une seule, courte (« t la ? »), texte fixe sans appel au modèle ; ensuite silence. Les
     // autres relances de la série suivent les règles générales.
@@ -1044,10 +1047,16 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     }
     if (input.kind === "follow_up" && (flirt.state.phase === "WRAP" || flirt.state.phase === "DONE"))
       return { ...baseResult(run, inbound), outcome: "aborted" };
+    // Tunnel scripté : pas de relance (elle ne prend jamais l'initiative).
+    if (input.kind === "follow_up" && isTunnelPhase(flirt.state.phase))
+      return { ...baseResult(run, inbound), outcome: "aborted" };
     // Photo reçue sans un mot : « t'es mignon hihi », texte fixe sans appel au modèle (consigne du client : elle ne
     // regarde pas la photo). La série n'avance pas.
     if (input.kind === "reply" && hasMemberPhoto(inbound) && inbound.every((m) => !m.text.trim()))
       return photoReaction(run, inbound);
+    // Tunnel scripté : textes fixes envoyés sans appel au modèle (zéro coût IA). Le moteur n'appelle jamais
+    // generate() pour un tour scripté ; seul T_FAQ (question inédite sur l'app) tombe dans le chemin normal.
+    if (flirt.scripted) return scriptedTunnelTurn(run, inbound, flirt);
   }
 
   // 1 bis. Casino / Paris : demande d'argent, réclamation ou insulte repérée par le code → réponse neutre fixe et
@@ -1356,6 +1365,80 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       sending.vipLinkSent && selectedBook
         ? { url: sending.vipLinkSent, bookmakerKey: selectedBook }
         : null,
+  };
+}
+
+/**
+ * Tunnel scripté : textes fixes envoyés sans appel au modèle (zéro coût IA). La photo de chauffe (T3) et le lien
+ * d'inscription (T6) passent par les mécanismes existants de `sendParts`. Aucune relance programmée.
+ */
+async function scriptedTunnelTurn(
+  run: Run,
+  inbound: TurnInbound[],
+  flirt: FlirtDecision,
+): Promise<TurnResult> {
+  const { input, deps } = run;
+  const conv = input.conversation;
+  const scripted = flirt.scripted!;
+
+  const check = await deps.beforeSend();
+  if (check.abort)
+    return { ...baseResult(run, inbound), outcome: "aborted", deferredInbound: check.newInbound };
+  const lateMinor = detectMinorIn(check.newInbound.map((m) => m.text));
+  if (lateMinor.minor)
+    return stopForMinor(run, [...inbound, ...check.newInbound], "code", lateMinor.age);
+  if (check.newInbound.length > 0 && input.kind === "follow_up")
+    return { ...baseResult(run, inbound), outcome: "aborted", deferredInbound: check.newInbound };
+
+  const photoAssetId = flirt.photoSlot
+    ? (input.persona.flirtPhotos?.find((x) => x.slot === flirt.photoSlot)?.assetId ?? null)
+    : null;
+  const texts = scripted.texts.length > 0 ? scripted.texts : photoAssetId ? [""] : ["…"];
+
+  const sending = await sendParts(run, texts, {
+    withOffer: scripted.withOffer === true,
+    fixedKey: null,
+    photoAssetId,
+  });
+  const anySent = sending.sent.length > 0;
+  const newStage = anySent
+    ? decideStage({
+        current: conv.stage,
+        proposed: sending.offerSent ? "PROPOSAL" : null,
+        offerSent: Boolean(sending.offerSent),
+        kind: input.kind,
+        isFirstAssistantTurn: conv.isFirstAssistantTurn,
+        offerSendsBefore: conv.offerSends,
+      })
+    : conv.stage;
+  const stage = stageEvents(conv.stage, newStage);
+  const events: TurnEvent[] = [...stage.events];
+  if (sending.offerSent)
+    events.push({
+      type: "offer_sent",
+      payload: { subId: sending.offerSent.subId, offerSends: conv.offerSends + 1 },
+    });
+  return {
+    ...baseResult(run, inbound),
+    outcome: anySent ? "replied" : "failed",
+    sent: sending.sent,
+    newStage,
+    newFlirtStep: flirt.state.phase,
+    flirtTeases: encodeProgress(flirt.state),
+    stageChanges: stage.changes,
+    facts: conv.facts.filter((x) => x !== ARMED_LINK_FACT),
+    offerSent: sending.offerSent,
+    events,
+    deferredInbound: check.newInbound,
+    followUpCount: 0,
+    nextFollowUpAt: null,
+    closeReason: sending.sendError?.blocked
+      ? "BLOCKED"
+      : sending.sendError?.unreachable
+        ? "UNREACHABLE"
+        : null,
+    sendError: sending.sendError,
+    unsentOfferSubId: sending.unsentOfferSubId,
   };
 }
 

@@ -38,6 +38,16 @@ export const FLIRT_PHASES = [
   "REFUSED",
   "WRAP",
   "DONE",
+  // Tunnel scripté (7 messages linéaires vers un lien d'inscription, puis silence).
+  "T1",
+  "T2",
+  "T3",
+  "T4",
+  "T5",
+  "T6",
+  "T7",
+  "T_FAQ",
+  "T_DONE",
 ] as const;
 export type FlirtPhase = (typeof FLIRT_PHASES)[number];
 /** Ancien nom, gardé pour les types de l'appelant. */
@@ -71,6 +81,11 @@ export type FlirtDecision = {
   armLink?: boolean;
   /** Refus ferme et photos épuisées : plus aucune réponse, ni relance (ce n'est pas un /stop). */
   silent?: boolean;
+  /**
+   * Tunnel scripté : texte(s) fixe(s) à envoyer à ce tour, SANS appel au modèle. Zéro appel IA. Le moteur envoie ces
+   * textes dans l'ordre et passe à l'étape suivante. `scriptedKey` identifie la clé de texte fixe (pour le journal).
+   */
+  scripted?: { texts: string[]; key: string; withOffer?: boolean };
 };
 
 export type FlirtInput = {
@@ -334,6 +349,175 @@ export function isEngaged(text: string): boolean {
 }
 
 // ------------------------------------------------------------------
+// Tunnel scripté (7 messages linéaires vers un lien d'inscription)
+// ------------------------------------------------------------------
+
+/** Les 7 messages du tunnel, dans l'ordre. Pas de photo slot 3 ici : c'est un assetId, géré par le moteur. */
+export const TUNNEL_SCRIPT: readonly { key: string; texts: string[]; withOffer?: boolean }[] = [
+  { key: "tunnel1", texts: ["Salut bb, tu veux venir sur le live ?"] },
+  { key: "tunnel2", texts: ["regarde ce qu'il t'attend"] },
+  // Étape 3 : photo (la 3e photo de chauffe). Le moteur l'envoie comme un media.
+  { key: "tunnel3", texts: [] },
+  { key: "tunnel4", texts: ["t'es pas prêt en live je suis grave chaude dessus jme doigte et tout 🤭"] },
+  { key: "tunnel5", texts: ["je t'envoie l'appli pour les live bb, je live souvent dessus"] },
+  {
+    key: "tunnel6",
+    texts: ["Tiens créer ton compte et vérifie ton mail on peut pas accéder au live sans ça."],
+    withOffer: true,
+  },
+  {
+    key: "tunnel7",
+    texts: [
+      "Je te dirai quand je serai en live bb. Mais si tu veux regarde les autres filles y'en a plein sur l'appli qui sont en live a cette heure ci",
+    ],
+  },
+];
+
+/** Phase tunnel → index dans TUNNEL_SCRIPT (0-based). */
+const TUNNEL_PHASE_INDEX: Record<string, number> = {
+  T1: 0,
+  T2: 1,
+  T3: 2,
+  T4: 3,
+  T5: 4,
+  T6: 5,
+  T7: 6,
+};
+
+/** FAQ scriptées du tunnel : question détectée → réponse fixe + clé. */
+const TUNNEL_FAQ: { detect: (text: string) => boolean; key: string; text: string }[] = [
+  {
+    detect: (t) => /\b(payant|payer|gratuit|cout|prix|argent|money|pay|free|euro|cher)\b/.test(normalize(t)),
+    key: "tunnelFaqFree",
+    text: "Nonnn pas du tout",
+  },
+  {
+    detect: (t) =>
+      /\b(t.?es? dessus|tu y es|es.tu dessus|t.?es? la.?bas|tu es dessus|you on it|t.?es? sur l.?appli)\b/.test(
+        normalize(t),
+      ),
+    key: "tunnelFaqOnIt",
+    text: "Ouii bb parfois mais y'a aussi mes copines dessus",
+  },
+];
+
+/** Détecte un refus ferme dans le contexte du tunnel. */
+function isTunnelRefusal(text: string): boolean {
+  return isRefusal(text);
+}
+
+/** Détecte une question liée à l'app dans le tunnel (après T_DONE, pour briser le silence). */
+export function isTunnelAppQuestion(text: string): boolean {
+  const n = normalize(text);
+  if (TUNNEL_FAQ.some((f) => f.detect(n))) return true;
+  return /\b(appli|app|live|compte|mail|inscription|inscrire|s.?inscrire|verif|lien|link|comment|how)\b/.test(n);
+}
+
+/** Phase tunnel suivante après la phase donnée. */
+function nextTunnelPhase(phase: FlirtPhase): FlirtPhase {
+  const order: FlirtPhase[] = ["T1", "T2", "T3", "T4", "T5", "T6", "T7"];
+  const i = order.indexOf(phase);
+  if (i < 0 || i >= order.length - 1) return "T_DONE";
+  return order[i + 1]!;
+}
+
+/** Vrai si la phase est une phase du tunnel scripté. */
+export function isTunnelPhase(phase: string): boolean {
+  return phase.startsWith("T") && (phase in TUNNEL_PHASE_INDEX || phase === "T_FAQ" || phase === "T_DONE");
+}
+
+/** Décision du tunnel scripté. Retourne null si la phase n'est pas une phase tunnel. */
+function decideTunnel(input: FlirtInput): FlirtDecision | null {
+  const state = decodeState(input.step, input.teases);
+  if (!isTunnelPhase(state.phase)) return null;
+
+  const rien = (s: FlirtState = state): FlirtDecision => ({
+    state: s,
+    allow: ["rien"],
+    photoSlot: null,
+    directive: "none",
+  });
+
+  if (input.isMinor) return rien();
+
+  // T_DONE : silence total, sauf questions sur l'app.
+  if (state.phase === "T_DONE") {
+    // Question sur l'app → réponse FAQ scriptée, puis retour au silence.
+    const faq = TUNNEL_FAQ.find((f) => f.detect(normalize(input.text)));
+    if (faq) {
+      return {
+        ...rien({ ...state, phase: "T_DONE", exchanges: state.exchanges + 1 }),
+        scripted: { texts: [faq.text], key: faq.key },
+      };
+    }
+    if (isTunnelAppQuestion(input.text)) {
+      // Question sur l'app non couverte par la FAQ : appel au modèle (prompt court).
+      return { ...rien({ ...state, phase: "T_FAQ", exchanges: state.exchanges + 1 }) };
+    }
+    // Tout autre message : silence.
+    return { ...rien(state), silent: true };
+  }
+
+  // T_FAQ : le modèle a répondu au tour précédent. Retour au silence.
+  if (state.phase === "T_FAQ") {
+    const faq = TUNNEL_FAQ.find((f) => f.detect(normalize(input.text)));
+    if (faq) {
+      return {
+        ...rien({ ...state, phase: "T_DONE", exchanges: state.exchanges + 1 }),
+        scripted: { texts: [faq.text], key: faq.key },
+      };
+    }
+    if (isTunnelAppQuestion(input.text)) {
+      // Encore une question sur l'app : on laisse le modèle répondre.
+      return rien({ ...state, phase: "T_FAQ", exchanges: state.exchanges + 1 });
+    }
+    return { ...rien({ ...state, phase: "T_DONE", exchanges: state.exchanges + 1 }), silent: true };
+  }
+
+  // Refus ferme à n'importe quelle étape du tunnel : « pas grave tkt », puis silence.
+  if (isTunnelRefusal(input.text)) {
+    return {
+      ...rien({ ...state, phase: "T_DONE", exchanges: 0 }),
+      scripted: { texts: ["pas grave tkt"], key: "tunnelRefusal" },
+    };
+  }
+
+  // FAQ à n'importe quelle étape : la réponse scriptée, PUIS le message scripté normal du tunnel avance.
+  const faq = TUNNEL_FAQ.find((f) => f.detect(normalize(input.text)));
+
+  // Étapes T1 à T7 : on envoie le message scripté correspondant, puis on avance.
+  const idx = TUNNEL_PHASE_INDEX[state.phase];
+  if (idx === undefined) return null;
+  const step = TUNNEL_SCRIPT[idx];
+  if (!step) return null;
+
+  const nextPhase = nextTunnelPhase(state.phase);
+  const newState: FlirtState = { ...state, phase: nextPhase, exchanges: 0 };
+
+  // Si c'est l'étape de la photo (T3), on renvoie avec le photoSlot.
+  if (state.phase === "T3") {
+    const photoTexts = faq ? [faq.text, ...step.texts] : step.texts;
+    return {
+      state: newState,
+      allow: ["photo", "rien"],
+      photoSlot: 3,
+      directive: "tease",
+      scripted: { texts: photoTexts, key: step.key },
+    };
+  }
+
+  const scriptedTexts = faq ? [faq.text, ...step.texts] : step.texts;
+  return {
+    ...rien(newState),
+    scripted: {
+      texts: scriptedTexts,
+      key: step.key,
+      withOffer: step.withOffer,
+    },
+  };
+}
+
+// ------------------------------------------------------------------
 // Décision
 // ------------------------------------------------------------------
 
@@ -353,17 +537,27 @@ export function decideFlirt(input: FlirtInput): FlirtDecision {
   // Moins de 18 ans : plus rien ne part, ni photo ni lien.
   if (input.isMinor) return rien();
 
+  // Tunnel scripté : si on est déjà dans le tunnel, la décision vient de là.
+  const tunnel = decideTunnel(input);
+  if (tunnel) return tunnel;
+
   switch (state.phase) {
-    // Rien en cours : la chauffe ou une demande de photo démarre la série à ce tour, sans condition d'échanges (le soft
-    // s'arrête net). Sans photo 1, une demande de photo seule fait genre.
+    // Rien en cours : la chauffe ou une demande de photo démarre le tunnel (7 messages scriptés, zéro appel IA).
+    // Sans aucune photo de chauffe, la série n'existe pas : rien ne bouge.
     case "NONE": {
-      // Sans aucune photo de chauffe (Casino, Paris, persona sans série), la série n'existe pas : rien ne bouge.
       if (input.hasPhotos.length === 0) return rien();
       const chaud = isSexTalk(input.text) || isHot(input.recent, input.text);
       if (!chaud && asksPhoto(input.text) && !photo(1)) return rien("play_hard");
       if (chaud || asksPhoto(input.text)) {
-        const s: FlirtState = { phase: "PHOTOS", lastPhoto: 0, exchanges: 1 };
-        return photoDispo(s, 1, "tease");
+        // Entrée dans le tunnel scripté : T1 → envoie le 1er message, avance vers T2.
+        const entry = TUNNEL_SCRIPT[0]!;
+        return {
+          state: { phase: "T2" as FlirtPhase, lastPhoto: 0, exchanges: 0 },
+          allow: ["rien"],
+          photoSlot: null,
+          directive: "none" as FlirtDirective,
+          scripted: { texts: entry.texts, key: entry.key },
+        };
       }
       return rien();
     }
