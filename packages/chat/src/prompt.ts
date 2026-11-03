@@ -535,26 +535,35 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     );
   }
 
-  // Série : la consigne de photos du tour, en dernier avant un nouvel essai (ce qui compte le plus à ce tour).
-  if (ctx.flirt && series) turnLines.push(...flirtPromptBlock(ctx.flirt));
-  // Pas encore chaud : la provocation est redite ici, en fin de prompt (seule place que le modèle suit à coup sûr).
-  if (ctx.flirt && series && ctx.flirt.phase === "NONE" && ctx.kind === "reply")
+  // Tunnel scripté T_FAQ : question sur l'app hors FAQ connues, une seule réponse courte, puis silence.
+  if (ctx.flirt && series && ctx.flirt.phase === "T_FAQ" && ctx.kind === "reply") {
     turnLines.push(
-      "Pas encore chaud : à ce tour tu provoques. Si tu ne lui as pas encore demandé ce qu'il cherche, fais-le maintenant, même au premier message (« tu cherches quoi ici toi ? »). S'il a répondu vague, tranche toi-même (« du sexe ? 😏 », « juste discuter ou plus ? »). S'il veut du sexe ou plus, rentre dedans. Ne repose jamais une question déjà posée : si tu as déjà demandé et tranché, chauffe-le toi-même (ton humeur coquine, ce que tu portes, ce qui te ferait plaisir). Pas de question de base (ville, taf, âge), pas d'app.",
+      "",
+      "QUESTION SUR L'APP",
+      "Il pose une question sur l'appli de live. Réponds en UNE phrase, courte, ton de meuf chaude qui textote : minuscules, pas de formalité, pas de détails techniques. Tu ne sais pas grand-chose : c'est une appli de live, c'est gratuit, y'a plein de filles dessus, il faut créer un compte. Si tu ne sais pas, dis « jconnais pas trop les détails bb ». Jamais de lien, jamais de nom d'appli, action « rien ».",
     );
+  } else {
+    // Série : la consigne de photos du tour, en dernier avant un nouvel essai (ce qui compte le plus à ce tour).
+    if (ctx.flirt && series) turnLines.push(...flirtPromptBlock(ctx.flirt));
+    // Pas encore chaud : la provocation est redite ici, en fin de prompt (seule place que le modèle suit à coup sûr).
+    if (ctx.flirt && series && ctx.flirt.phase === "NONE" && ctx.kind === "reply")
+      turnLines.push(
+        "Pas encore chaud : à ce tour tu provoques. Si tu ne lui as pas encore demandé ce qu'il cherche, fais-le maintenant, même au premier message (« tu cherches quoi ici toi ? »). S'il a répondu vague, tranche toi-même (« du sexe ? 😏 », « juste discuter ou plus ? »). S'il veut du sexe ou plus, rentre dedans. Ne repose jamais une question déjà posée : si tu as déjà demandé et tranché, chauffe-le toi-même (ton humeur coquine, ce que tu portes, ce qui te ferait plaisir). Pas de question de base (ville, taf, âge), pas d'app.",
+      );
 
-  // Photo reçue : la réaction part toute seule (code), le modèle ne commente pas la photo.
-  if (series && ctx.memberPhoto && ctx.kind === "reply")
-    turnLines.push(
-      "Il t'a envoyé une photo : « t'es mignon hihi » part déjà tout seul, juste avant ta réponse. Tu ne commentes pas la photo, tu ne la décris pas et tu ne redis pas qu'il est mignon : tu réponds seulement à ses mots.",
-    );
+    // Photo reçue : la réaction part toute seule (code), le modèle ne commente pas la photo.
+    if (series && ctx.memberPhoto && ctx.kind === "reply")
+      turnLines.push(
+        "Il t'a envoyé une photo : « t'es mignon hihi » part déjà tout seul, juste avant ta réponse. Tu ne commentes pas la photo, tu ne la décris pas et tu ne redis pas qu'il est mignon : tu réponds seulement à ses mots.",
+      );
 
-  // Série : la conversation d'abord, le script ensuite (consigne du client : rien ne tombe d'un coup, sans couper le
-  // script). Redit ici, en fin de prompt, la place que le modèle suit.
-  if (ctx.flirt && series && ctx.kind === "reply")
-    turnLines.push(
-      "LA CONVERSATION D'ABORD : tu réponds d'abord à ce qu'il vient de dire. S'il t'a posé une question, tu y réponds vraiment, court, même au tour d'une photo, de l'app ou du lien : tu ne la sautes jamais pour suivre le script. Ensuite seulement tu fais ce que le bloc PHOTOS demande, amené par une transition naturelle : rien ne tombe d'un coup. Mais tu ne sautes pas l'étape : ce que le bloc PHOTOS demande à ce tour se fait quand même.",
-    );
+    // Série : la conversation d'abord, le script ensuite (consigne du client : rien ne tombe d'un coup, sans couper le
+    // script). Redit ici, en fin de prompt, la place que le modèle suit.
+    if (ctx.flirt && series && ctx.kind === "reply")
+      turnLines.push(
+        "LA CONVERSATION D'ABORD : tu réponds d'abord à ce qu'il vient de dire. S'il t'a posé une question, tu y réponds vraiment, court, même au tour d'une photo, de l'app ou du lien : tu ne la sautes jamais pour suivre le script. Ensuite seulement tu fais ce que le bloc PHOTOS demande, amené par une transition naturelle : rien ne tombe d'un coup. Mais tu ne sautes pas l'étape : ce que le bloc PHOTOS demande à ce tour se fait quand même.",
+      );
+  }
 
   if (ctx.retryCodes && ctx.retryCodes.length > 0) {
     turnLines.push("", "NOUVEL ESSAI", "Ta réponse précédente a été refusée. Corrige-la :");

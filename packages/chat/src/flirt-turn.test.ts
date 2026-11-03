@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import { runTurn } from "./engine";
 import {
   createFakeLlm,
-  createFakeSender,
   createFakeTurnDeps,
   fakeConversation,
   fakeOutput,
@@ -12,7 +11,6 @@ import {
   fakeSettings,
 } from "./fake";
 import type { FlirtAction, FlirtPhase } from "./flirt";
-import { ARMED_LINK_FACT } from "./pseudo";
 import type { TurnInput } from "./turn-types";
 
 const PHOTOS = [1, 2, 3, 4, 5].map((slot) => ({
@@ -56,171 +54,49 @@ describe("pas de lien avant la chauffe", () => {
       reponse("ah cool et tu fais quoi ce soir", "rien", { send_offer: true }),
     ]);
     const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("NONE", 0, "je sors du taf"), deps);
+    const res = await runTurn(tour("NONE", 0, "je sors du taf", { assistantTurns: 0, memberMessages: 0 }), deps);
     expect(res.offerSent).toBeNull();
     expect(res.newFlirtStep).toBe("NONE");
   });
-});
 
-describe("annonce du lien sans lien : impossible", () => {
-  it("pendant la série, l'annonce est retirée du texte", async () => {
-    const llm = createFakeLlm([
-      reponse("mmh t'aimes ça hein, attends je t'envoie le lien", "rien", { send_offer: true }),
-    ]);
+  it("conversation existante en NONE (Léa a déjà répondu) : silence total", async () => {
+    const llm = createFakeLlm([]);
     const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("PHOTOS", 100, "ptn t'es bonne"), deps);
-    expect(res.offerSent).toBeNull();
-    expect(res.sent.map((p) => p.text).join(" ")).not.toMatch(/lien/);
-    expect(res.sent.length).toBeGreaterThan(0);
-    expect(llm.calls).toBe(1);
-  });
-
-  it("une réponse qui n'est qu'une annonce est refaite", async () => {
-    const llm = createFakeLlm([
-      reponse("attends je t'envoie le lien", "rien"),
-      reponse("mmh continue de parler comme ça", "rien"),
-    ]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("PHOTOS", 100, "ptn t'es bonne"), deps);
-    expect(llm.calls).toBe(2);
-    expect(res.rejected).toContain("link_announce");
-    expect(res.sent.map((p) => p.text)).toEqual(["mmh continue de parler comme ça"]);
-    expect(res.offerSent).toBeNull();
-  });
-
-  it("après un refus, une annonce ne repropose jamais le lien", async () => {
-    const llm = createFakeLlm([
-      reponse("dommage, bon tiens je te mets le lien quand meme", "rien"),
-    ]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("REFUSED", 300, "ok"), deps);
-    expect(res.offerSent).toBeNull();
-    expect(res.sent.map((p) => p.text).join(" ")).not.toMatch(/lien/);
+    const res = await runTurn(tour("NONE", 0, "je sors du taf"), deps);
+    expect(res.outcome).toBe("aborted");
+    expect(res.sent).toHaveLength(0);
+    expect(llm.calls).toBe(0);
   });
 });
 
-describe("corrigé par le code, sans nouvel appel", () => {
-  it("action lien non permise : ramenée à rien", async () => {
-    const llm = createFakeLlm([reponse("mmh", "lien")]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("PHOTOS", 100, "j'adore"), deps);
-    expect(llm.calls).toBe(1);
-    expect(res.rejected).toContain("action_interdite");
-    expect(res.offerSent).toBeNull();
-    expect(res.sent).toHaveLength(1);
-  });
+describe("anciennes phases de la série : silence total (le tunnel remplace)", () => {
+  it.each(["PHOTOS", "OFFER", "LINKED", "REFUSED", "WRAP", "DONE"] as const)(
+    "phase %s → aborted, rien envoyé, aucun appel au modèle",
+    async (step) => {
+      const llm = createFakeLlm([]);
+      const deps = createFakeTurnDeps({ llm });
+      const res = await runTurn(tour(step, 300, "ptn t'es bonne"), deps);
+      expect(res.outcome).toBe("aborted");
+      expect(res.sent).toHaveLength(0);
+      expect(res.offerSent).toBeNull();
+      expect(llm.calls).toBe(0);
+    },
+  );
 
-  it("texte qui refuse pendant que la photo part : la photo ne part pas", async () => {
-    const llm = createFakeLlm([reponse("nan pas maintenant 😏", "photo")]);
+  it("relance sur une ancienne phase : silence aussi", async () => {
+    const llm = createFakeLlm([]);
     const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("PHOTOS", 1, "montre moi"), deps);
-    expect(llm.calls).toBe(1);
-    expect(res.rejected).toContain("contradiction");
-    expect(res.sent.some((p) => p.mediaAssetId)).toBe(false);
-    expect(res.flirtTeases).toBe(2);
-  });
-
-  it("« non plus » n'est pas un refus : la photo part", async () => {
-    const llm = createFakeLlm([reponse("merci t'es pas mal non plus 😏 / tiens", "photo")]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("NONE", 0, "mmh t'es bonne"), deps);
-    expect(res.rejected).not.toContain("contradiction");
-    expect(res.sent.some((p) => p.mediaAssetId)).toBe(true);
-  });
-
-  it("photo non permise : le texte l'annonce, la réponse est refaite", async () => {
-    const llm = createFakeLlm([reponse("tiens", "photo"), reponse("mmh doucement", "rien")]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("PHOTOS", 100, "ok"), deps);
-    expect(llm.calls).toBe(2);
-    expect(res.sent.some((p) => p.mediaAssetId)).toBe(false);
-  });
-
-  it("lien armé : il part même si le modèle choisit rien", async () => {
-    const llm = createFakeLlm([reponse("viens la bas jsuis plus coquine", "rien")]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("OFFER", 301, "mmh", { facts: [ARMED_LINK_FACT] }), deps);
-    expect(llm.calls).toBe(1);
-    expect(res.offerSent).not.toBeNull();
-    expect(res.newFlirtStep).toBe("LINKED");
-    expect(res.facts).not.toContain(ARMED_LINK_FACT);
+    for (const step of ["PHOTOS", "OFFER", "LINKED", "REFUSED", "WRAP"] as const) {
+      const res = await runTurn(tour(step, 300, null), deps);
+      expect(res.outcome).toBe("aborted");
+    }
+    expect(llm.calls).toBe(0);
   });
 });
 
-describe("le lien n'est jamais balancé, l'app n'est jamais décrite", () => {
-  const sansBoutons = () => createFakeSender({ capabilities: { canSendButtons: false } });
-
-  it("compte réel, lien vendu au tour d'avant : sa réponse l'amène, sans la description de l'app, puis l'adresse seule", async () => {
-    const llm = createFakeLlm([
-      reponse("c'est une appli pour parler, tiens 😏", "lien", { send_offer: true }),
-    ]);
-    const sender = sansBoutons();
-    const deps = createFakeTurnDeps({ llm, sender });
-    const res = await runTurn(tour("OFFER", 301, "vas y", { facts: [ARMED_LINK_FACT] }), deps);
-    expect(res.offerSent).not.toBeNull();
-    expect(sender.messages().map((m) => m.text)).toEqual(["tiens 😏", res.offerSent?.url]);
-    expect(sender.messages()[0]?.offerSubId).toBeNull();
-    expect(sender.messages()[1]?.offerSubId).toBe(res.offerSent?.subId);
-    expect(res.newFlirtStep).toBe("LINKED");
-    expect(res.facts).not.toContain(ARMED_LINK_FACT);
-  });
-
-  it("il pose une question au tour du lien : elle y répond, amène le lien, puis l'adresse seule", async () => {
-    const llm = createFakeLlm([
-      fakeOutput({
-        messages: ["rien de ouf et toi ?", "tiens viens me voir la bas 😏"],
-        action: "lien",
-        send_offer: true,
-      }),
-    ]);
-    const sender = sansBoutons();
-    const deps = createFakeTurnDeps({ llm, sender });
-    const res = await runTurn(
-      tour("OFFER", 301, "tu fais quoi ce soir ?", { facts: [ARMED_LINK_FACT] }),
-      deps,
-    );
-    expect(llm.calls).toBe(1);
-    expect(sender.messages().map((m) => m.text)).toEqual([
-      "rien de ouf et toi ?",
-      "tiens viens me voir la bas 😏",
-      res.offerSent?.url,
-    ]);
-  });
-
-  it("réponse qui ne fait que décrire l'app : une petite phrase fixe amène le lien, jamais l'adresse seule", async () => {
-    const llm = createFakeLlm([
-      reponse("c'est une appli pour parler", "lien", { send_offer: true }),
-    ]);
-    const sender = sansBoutons();
-    const deps = createFakeTurnDeps({ llm, sender });
-    const res = await runTurn(tour("OFFER", 301, "c'est quoi", { facts: [ARMED_LINK_FACT] }), deps);
-    expect(sender.messages().map((m) => m.text)).toEqual([
-      "tiens viens me voir la bas 😏",
-      res.offerSent?.url,
-    ]);
-  });
-
-  it("bot avec boutons : la phrase d'abord, puis le bouton sous une flèche, jamais dans un message vide", async () => {
-    const llm = createFakeLlm([reponse("tiens", "lien", { send_offer: true })]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("OFFER", 301, "vas y", { facts: [ARMED_LINK_FACT] }), deps);
-    const sent = deps.sender.messages();
-    expect(sent.map((m) => m.text)).toEqual(["tiens", "👇"]);
-    expect(sent[0]?.buttons).toBeUndefined();
-    expect(sent[1]?.buttons?.[0]?.[0]?.url).toBe(res.offerSent?.url);
-  });
-
-  it("compte réel, lien avec une phrase : la phrase d'abord, puis l'adresse seule, jamais un message vide", async () => {
-    const llm = createFakeLlm([reponse("mmh viens", "lien", { send_offer: true })]);
-    const sender = sansBoutons();
-    const deps = createFakeTurnDeps({ llm, sender });
-    const res = await runTurn(tour("OFFER", 301, "envoie la suite"), deps);
-    expect(res.offerSent).not.toBeNull();
-    const texts = sender.messages().map((m) => m.text);
-    expect(texts).toEqual(["mmh viens", res.offerSent?.url]);
-    expect(sender.messages()[1]?.offerSubId).toBe(res.offerSent?.subId);
-  });
-});
+// Les describe « corrigé par le code » et « le lien n'est jamais balancé » testaient des comportements de l'ancienne
+// série de photos (PHOTOS, OFFER). Ces phases sont désormais silencieuses (le tunnel scripté remplace la série).
+// La couverture de ces comportements reste dans les tests unitaires de decideFlirt (flirt.test.ts).
 
 describe("photo reçue : « t'es mignon hihi »", () => {
   const avecPhoto = (inp: TurnInput, text = ""): TurnInput => ({
@@ -228,42 +104,23 @@ describe("photo reçue : « t'es mignon hihi »", () => {
     inbound: [{ text, media: { kind: "photo" } }],
   });
 
-  it("photo seule : la réaction part, sans appel au modèle, la série n'avance pas", async () => {
+  it("photo pendant une ancienne phase : silence (anciennes conversations ne répondent plus)", async () => {
     const llm = createFakeLlm([]);
     const deps = createFakeTurnDeps({ llm });
     const res = await runTurn(avecPhoto(tour("PHOTOS", 100, "")), deps);
+    expect(res.outcome).toBe("aborted");
+    expect(res.sent).toHaveLength(0);
+    expect(llm.calls).toBe(0);
+  });
+
+  it("photo pendant le tunnel : « t'es mignon hihi », sans appel au modèle", async () => {
+    const llm = createFakeLlm([]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(avecPhoto(tour("T4", 0, "")), deps);
     expect(llm.calls).toBe(0);
     expect(res.sent.map((p) => p.text)).toEqual(["t'es mignon hihi"]);
     expect(res.sent[0]?.fixedKey).toBe("photoReaction");
     expect(res.outcome).toBe("replied");
-    expect(res.newFlirtStep).toBeUndefined();
-  });
-
-  it("photo seule pendant que le lien est armé : le lien reste armé pour le tour suivant", async () => {
-    const llm = createFakeLlm([]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(
-      avecPhoto(tour("OFFER", 301, "", { facts: [ARMED_LINK_FACT] })),
-      deps,
-    );
-    expect(res.sent.map((p) => p.text)).toEqual(["t'es mignon hihi"]);
-    expect(res.offerSent).toBeNull();
-    expect(res.facts).toContain(ARMED_LINK_FACT);
-  });
-
-  it("photo avec des mots : la réaction d'abord, puis la réponse du modèle", async () => {
-    const llm = createFakeLlm([reponse("mdrr t'es fou toi", "rien")]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(avecPhoto(tour("PHOTOS", 100, ""), "regarde moi"), deps);
-    expect(llm.calls).toBe(1);
-    expect(res.sent.map((p) => p.text)).toEqual(["t'es mignon hihi", "mdrr t'es fou toi"]);
-  });
-
-  it("le modèle a déjà réagi : pas de doublon", async () => {
-    const llm = createFakeLlm([reponse("t'es mignon hihi", "rien")]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(avecPhoto(tour("PHOTOS", 100, ""), "et moi ?"), deps);
-    expect(res.sent.map((p) => p.text)).toEqual(["t'es mignon hihi"]);
   });
 
   it("fille sans série de photos : rien ne change, le modèle répond", async () => {
@@ -279,79 +136,6 @@ describe("photo reçue : « t'es mignon hihi »", () => {
   });
 });
 
-describe("silence dur après le refus ferme", () => {
-  it("la dernière ligne (WRAP) part sans relance prévue", async () => {
-    const llm = createFakeLlm([reponse("bon jcontinue la bas moi", "rien")]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("WRAP", 500, "mdr"), deps);
-    expect(res.outcome).toBe("replied");
-    expect(res.newFlirtStep).toBe("DONE");
-    expect(res.nextFollowUpAt).toBeNull();
-  });
-
-  it("ensuite plus aucune réponse, même s'il insiste, et aucun appel au modèle", async () => {
-    const llm = createFakeLlm([]);
-    const deps = createFakeTurnDeps({ llm });
-    for (const text of ["allo ?", "réponds", "t'es la ?"]) {
-      const res = await runTurn(tour("DONE", 500, text), deps);
-      expect(res.outcome).toBe("aborted");
-      expect(res.sent).toHaveLength(0);
-      expect(res.nextFollowUpAt).toBeNull();
-    }
-    expect(llm.calls).toBe(0);
-  });
-
-  it("aucune relance en WRAP ni en DONE", async () => {
-    const llm = createFakeLlm([]);
-    const deps = createFakeTurnDeps({ llm });
-    for (const step of ["WRAP", "DONE"] as const) {
-      const res = await runTurn(tour(step, 500, null), deps);
-      expect(res.outcome).toBe("aborted");
-      expect(res.sent).toHaveLength(0);
-    }
-    expect(llm.calls).toBe(0);
-  });
-});
-
-describe("relance unique après le lien", () => {
-  it("le lien part : une relance est prévue 1 à 2 h après", async () => {
-    const llm = createFakeLlm([reponse("viens on continue la bas", "lien")]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("OFFER", 301, "envoie la suite"), deps);
-    expect(res.offerSent).not.toBeNull();
-    const delay = res.nextFollowUpAt!.getTime() - deps.now().getTime();
-    expect(delay).toBeGreaterThanOrEqual(55 * 60_000);
-    expect(delay).toBeLessThanOrEqual(2 * 3_600_000);
-  });
-
-  it("la relance : « t la ? », texte fixe, sans appel au modèle, puis plus rien", async () => {
-    const llm = createFakeLlm([]);
-    const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(
-      tour("LINKED", 300, null, { offerSends: 1, stage: "LINK_SENT" }),
-      deps,
-    );
-    expect(res.outcome).toBe("replied");
-    expect(res.sent.map((p) => p.text)).toEqual(["t la ?"]);
-    expect(res.sent[0]!.fixedKey).toBe("linkNudge");
-    expect(res.offerSent).toBeNull();
-    expect(res.followUpCount).toBe(1);
-    expect(res.nextFollowUpAt).toBeNull();
-    const again = await runTurn(
-      tour("LINKED", 300, null, { offerSends: 1, stage: "FOLLOW_UP", followUpCount: 1 }),
-      deps,
-    );
-    expect(again.outcome).toBe("aborted");
-    expect(again.sent).toHaveLength(0);
-    expect(llm.calls).toBe(0);
-  });
-
-  it("il écrit pendant la préparation de la relance : elle n'a plus lieu d'être", async () => {
-    const llm = createFakeLlm([]);
-    const deps = createFakeTurnDeps({ llm, beforeSend: [{ newInbound: [{ text: "ouais" }] }] });
-    const res = await runTurn(tour("LINKED", 300, null, { offerSends: 1 }), deps);
-    expect(res.outcome).toBe("aborted");
-    expect(res.sent).toHaveLength(0);
-    expect(res.deferredInbound.map((m) => m.text)).toEqual(["ouais"]);
-  });
-});
+// « silence dur après le refus ferme » et « relance unique après le lien » : ces phases (WRAP, DONE, LINKED, OFFER) sont
+// désormais silencieuses dès l'entrée (le tunnel scripté remplace la série). La couverture de WRAP → DONE et du nudge
+// reste dans les tests unitaires de decideFlirt et dans le bloc « anciennes phases » ci-dessus.
