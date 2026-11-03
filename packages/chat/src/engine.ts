@@ -1191,9 +1191,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     const OLD_SERIES_PHASES = ["PHOTOS", "OFFER", "LINKED", "REFUSED", "WRAP", "DONE"];
     if (OLD_SERIES_PHASES.includes(conv.flirt?.step ?? ""))
       return { ...baseResult(run, inbound), outcome: "aborted" };
-    // Conversations existantes pas encore dans le tunnel (NONE avec des réponses) : silence aussi, sauf si la personne
-    // vient de déclencher le tunnel avec un message chaud (decideFlirt a transitionné vers T1+).
-    if ((conv.flirt?.step ?? "NONE") === "NONE" && conv.assistantTurns > 0 && !isTunnelPhase(flirt.state.phase))
+    // Conversation en NONE qui ne déclenche pas le tunnel : silence (Léa ne répond que par le tunnel scripté).
+    if ((conv.flirt?.step ?? "NONE") === "NONE" && !isTunnelPhase(flirt.state.phase))
       return { ...baseResult(run, inbound), outcome: "aborted" };
     if (flirt.silent) return { ...baseResult(run, inbound), outcome: "aborted" };
     // Relance après le lien : une seule, courte (« t la ? »), texte fixe sans appel au modèle ; ensuite silence. Les

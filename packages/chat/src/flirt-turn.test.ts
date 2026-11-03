@@ -48,18 +48,17 @@ function tour(
 const reponse = (text: string, action: FlirtAction, over: Record<string, unknown> = {}) =>
   fakeOutput({ messages: [text], action, ...over });
 
-describe("pas de lien avant la chauffe", () => {
-  it("en discussion tiède, le lien ne part pas même si le modèle le propose", async () => {
-    const llm = createFakeLlm([
-      reponse("ah cool et tu fais quoi ce soir", "rien", { send_offer: true }),
-    ]);
+describe("NONE sans message chaud : silence total (Léa ne répond que par le tunnel)", () => {
+  it("message tiède → silence, aucun appel au modèle", async () => {
+    const llm = createFakeLlm([]);
     const deps = createFakeTurnDeps({ llm });
     const res = await runTurn(tour("NONE", 0, "je sors du taf", { assistantTurns: 0, memberMessages: 0 }), deps);
-    expect(res.offerSent).toBeNull();
-    expect(res.newFlirtStep).toBe("NONE");
+    expect(res.outcome).toBe("aborted");
+    expect(res.sent).toHaveLength(0);
+    expect(llm.calls).toBe(0);
   });
 
-  it("conversation existante en NONE (Léa a déjà répondu) : silence total", async () => {
+  it("conversation existante en NONE : silence aussi", async () => {
     const llm = createFakeLlm([]);
     const deps = createFakeTurnDeps({ llm });
     const res = await runTurn(tour("NONE", 0, "je sors du taf"), deps);
