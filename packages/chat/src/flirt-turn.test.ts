@@ -56,9 +56,18 @@ describe("pas de lien avant la chauffe", () => {
       reponse("ah cool et tu fais quoi ce soir", "rien", { send_offer: true }),
     ]);
     const deps = createFakeTurnDeps({ llm });
-    const res = await runTurn(tour("NONE", 0, "je sors du taf"), deps);
+    const res = await runTurn(tour("NONE", 0, "je sors du taf", { assistantTurns: 0, memberMessages: 0 }), deps);
     expect(res.offerSent).toBeNull();
     expect(res.newFlirtStep).toBe("NONE");
+  });
+
+  it("conversation existante en NONE (Léa a déjà répondu) : silence total", async () => {
+    const llm = createFakeLlm([]);
+    const deps = createFakeTurnDeps({ llm });
+    const res = await runTurn(tour("NONE", 0, "je sors du taf"), deps);
+    expect(res.outcome).toBe("aborted");
+    expect(res.sent).toHaveLength(0);
+    expect(llm.calls).toBe(0);
   });
 });
 
